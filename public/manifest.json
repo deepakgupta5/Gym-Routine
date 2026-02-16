@@ -1,7 +1,7 @@
 {
   "name": "Gym Routine",
   "short_name": "GymRoutine",
-  "start_url": "/",
+  "start_url": "/today",
   "display": "standalone",
   "background_color": "#111827",
   "theme_color": "#111827",

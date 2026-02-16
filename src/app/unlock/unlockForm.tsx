@@ -10,7 +10,7 @@ export default function UnlockForm() {
   const router = useRouter();
   const params = useSearchParams();
 
-  const next = params.get("next") || "/dashboard";
+  const next = params.get("next") || "/today";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
