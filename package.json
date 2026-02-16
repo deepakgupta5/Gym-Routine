@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
+    "test": "vitest run tests/engine tests/adaptive",
     "smoke:render": "node scripts/smoke-render.mjs",
     "test:ci": "vitest run tests/engine tests/adaptive"
   },

@@ -108,34 +108,44 @@ export async function POST(req: Request) {
       biasState
     );
 
-    const pending = {
-      weight_trend_class: adaptive.weight_trend_class,
-      weight_trend_lbs_per_week: adaptive.weight_trend_lbs_per_week,
-      segment_signal: adaptive.segment_signal,
-      segment_delta_pp: adaptive.segment_delta_pp,
-      bias_delta: adaptive.bias_delta,
-      bias_state: {
-        neutral_streak: adaptive.neutral_streak,
-        flat_streak: adaptive.flat_streak,
-      },
-      gates: {
-        weight_gate_pass: adaptive.weight_gate_pass,
-        bf_gate_pass: adaptive.bf_gate_pass,
-        segment_gate_pass: adaptive.segment_gate_pass,
-      },
-    };
+    const hasPendingAtNextRegeneration =
+      adaptive.weight_gate_pass &&
+      (adaptive.updated_bias_balance !== biasBalance ||
+        adaptive.pending_cardio_rule !== null);
+
+    const pending = hasPendingAtNextRegeneration
+      ? {
+          weight_trend_class: adaptive.weight_trend_class,
+          weight_trend_lbs_per_week: adaptive.weight_trend_lbs_per_week,
+          segment_signal: adaptive.segment_signal,
+          segment_delta_pp: adaptive.segment_delta_pp,
+          bias_delta: adaptive.bias_delta,
+          bias_state: {
+            neutral_streak: adaptive.neutral_streak,
+            flat_streak: adaptive.flat_streak,
+          },
+          gates: {
+            weight_gate_pass: adaptive.weight_gate_pass,
+            bf_gate_pass: adaptive.bf_gate_pass,
+            segment_gate_pass: adaptive.segment_gate_pass,
+          },
+        }
+      : null;
 
     await client.query(
       `update blocks
        set pending_bias_balance = $1,
            pending_cardio_rule = $2::jsonb,
            pending_reason = $3,
-           pending_computed_at = now()
-       where block_id = $4`,
+           pending_computed_at = $4::timestamptz
+       where block_id = $5`,
       [
-        adaptive.updated_bias_balance,
-        adaptive.pending_cardio_rule ? JSON.stringify(adaptive.pending_cardio_rule) : null,
-        JSON.stringify(pending),
+        hasPendingAtNextRegeneration ? adaptive.updated_bias_balance : null,
+        hasPendingAtNextRegeneration && adaptive.pending_cardio_rule
+          ? JSON.stringify(adaptive.pending_cardio_rule)
+          : null,
+        pending ? JSON.stringify(pending) : null,
+        hasPendingAtNextRegeneration ? new Date().toISOString() : null,
         blockId,
       ]
     );
@@ -155,6 +165,7 @@ export async function POST(req: Request) {
       rows_upserted: rows.length,
       warnings: parsed.warnings,
       adaptive,
+      pending_at_next_regeneration: hasPendingAtNextRegeneration,
     });
   } catch (err) {
     await client.query("ROLLBACK");

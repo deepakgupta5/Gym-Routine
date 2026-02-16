@@ -39,6 +39,20 @@ export async function POST() {
       );
     }
 
+    const oldBlockRes = await client.query(
+      `select pending_bias_balance
+       from blocks
+       where block_id = $1
+       for update`,
+      [oldBlockId]
+    );
+
+    const pendingBiasBalance = oldBlockRes.rows[0]?.pending_bias_balance;
+    const appliedBiasBalance =
+      pendingBiasBalance === null || pendingBiasBalance === undefined
+        ? profile.bias_balance
+        : Number(pendingBiasBalance);
+
     const maxDateRes = await client.query(
       "select max(date) as max_date from plan_sessions where user_id = $1 and block_id = $2",
       [userId, oldBlockId]
@@ -62,11 +76,12 @@ export async function POST() {
        set start_date = $1,
            block_id = $2,
            current_block_week = 1,
-           primary_lift_map = $3::jsonb,
+           bias_balance = $3,
+           primary_lift_map = $4::jsonb,
            rest_inserted_by_week = '{}'::jsonb,
            updated_at = now()
-       where user_id = $4`,
-      [nextStartStr, newBlockId, JSON.stringify(rotatedMap), userId]
+       where user_id = $5`,
+      [nextStartStr, newBlockId, appliedBiasBalance, JSON.stringify(rotatedMap), userId]
     );
 
     await client.query(
@@ -89,7 +104,7 @@ export async function POST() {
       userProfile: {
         start_date: nextStartStr,
         block_id: newBlockId,
-        bias_balance: profile.bias_balance,
+        bias_balance: appliedBiasBalance,
         primary_lift_map: rotatedMap,
       },
       exercises: exercisesRes.rows,
@@ -111,6 +126,8 @@ export async function POST() {
       ok: true,
       old_block_id: oldBlockId,
       new_block_id: newBlockId,
+      applied_bias_balance: appliedBiasBalance,
+      pending_bias_applied: pendingBiasBalance !== null && pendingBiasBalance !== undefined,
       sessions_count: plan.sessions.length,
       exercises_count: plan.exercises.length,
     });
