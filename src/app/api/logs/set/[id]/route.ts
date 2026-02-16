@@ -1,0 +1,270 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getDb } from "@/lib/db/pg";
+import { CONFIG, requireConfig } from "@/lib/config";
+import {
+  getWeekStartFromTimestamp,
+  recomputeSessionPerformed,
+  recomputeWeeklyRollup,
+} from "@/lib/db/logs";
+import { updateCurrentBlockWeek } from "@/lib/db/blockState";
+import { estimate1RM } from "@/lib/engine/progression";
+
+type SetLogUpdate = {
+  performed_at?: string;
+  session_id?: string | null;
+  exercise_id?: number;
+  movement_pattern?: string;
+  targeted_primary_muscle?: string;
+  targeted_secondary_muscle?: string | null;
+  set_type?: "top" | "backoff" | "straight" | "accessory";
+  set_index?: number;
+  load?: number;
+  reps?: number;
+  rpe?: number | null;
+  notes?: string | null;
+  role?: "primary" | "secondary" | "accessory";
+  is_primary?: boolean;
+  is_secondary?: boolean;
+};
+
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  requireConfig();
+  const userId = CONFIG.SINGLE_USER_ID;
+  const id = params.id;
+
+  const pool = await getDb();
+  const client = await pool.connect();
+
+  try {
+    const body = (await req.json().catch(() => ({}))) as SetLogUpdate;
+
+    await client.query("BEGIN");
+
+    const existingRes = await client.query(
+      "select * from set_logs where id = $1 and user_id = $2",
+      [id, userId]
+    );
+
+    if (existingRes.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    const existing = existingRes.rows[0];
+
+    const updated = {
+      performed_at: body.performed_at ?? existing.performed_at,
+      session_id: body.session_id ?? existing.session_id,
+      exercise_id: body.exercise_id ?? existing.exercise_id,
+      movement_pattern: body.movement_pattern ?? existing.movement_pattern,
+      targeted_primary_muscle:
+        body.targeted_primary_muscle ?? existing.targeted_primary_muscle,
+      targeted_secondary_muscle:
+        body.targeted_secondary_muscle ?? existing.targeted_secondary_muscle,
+      set_type: body.set_type ?? existing.set_type,
+      set_index: body.set_index ?? existing.set_index,
+      load: body.load ?? existing.load,
+      reps: body.reps ?? existing.reps,
+      rpe: body.rpe ?? existing.rpe,
+      notes: body.notes ?? existing.notes,
+      is_primary: body.is_primary ?? (body.role === "primary") ?? existing.is_primary,
+      is_secondary:
+        body.is_secondary ?? (body.role === "secondary") ?? existing.is_secondary,
+    };
+
+    const updateRes = await client.query(
+      `update set_logs
+       set performed_at = $1,
+           session_id = $2,
+           exercise_id = $3,
+           movement_pattern = $4,
+           targeted_primary_muscle = $5,
+           targeted_secondary_muscle = $6,
+           is_primary = $7,
+           is_secondary = $8,
+           set_type = $9,
+           set_index = $10,
+           load = $11,
+           reps = $12,
+           rpe = $13,
+           notes = $14
+       where id = $15 and user_id = $16
+       returning *`,
+      [
+        updated.performed_at,
+        updated.session_id,
+        updated.exercise_id,
+        updated.movement_pattern,
+        updated.targeted_primary_muscle,
+        updated.targeted_secondary_muscle,
+        updated.is_primary,
+        updated.is_secondary,
+        updated.set_type,
+        updated.set_index,
+        updated.load,
+        updated.reps,
+        updated.rpe,
+        updated.notes,
+        id,
+        userId,
+      ]
+    );
+
+    const row = updateRes.rows[0];
+
+    const impactedSessions = new Set<string>();
+    if (existing.session_id) impactedSessions.add(existing.session_id);
+    if (row.session_id) impactedSessions.add(row.session_id);
+
+    for (const sessionId of impactedSessions) {
+      await recomputeSessionPerformed(client, sessionId);
+    }
+
+    const weekStarts = new Set<string>();
+    if (existing.performed_at)
+      weekStarts.add(getWeekStartFromTimestamp(existing.performed_at));
+    if (row.performed_at)
+      weekStarts.add(getWeekStartFromTimestamp(row.performed_at));
+
+    for (const weekStart of weekStarts) {
+      await recomputeWeeklyRollup(client, userId, weekStart);
+    }
+
+    const profileRes = await client.query(
+      "select bias_balance, block_id from user_profile where user_id = $1",
+      [userId]
+    );
+    const biasBalance = profileRes.rows[0]?.bias_balance ?? 0;
+    const blockId = profileRes.rows[0]?.block_id ?? null;
+
+    if (row.set_type === "top") {
+      let session = null;
+      if (row.session_id) {
+        const sessionRes = await client.query(
+          `select block_id, week_in_block from plan_sessions where plan_session_id = $1`,
+          [row.session_id]
+        );
+        session = sessionRes.rows[0] ?? null;
+      }
+
+      const est = estimate1RM(Number(row.load), Number(row.reps));
+      await client.query(
+        `insert into top_set_history
+          (user_id, performed_at, exercise_id, load, reps, estimated_1rm,
+           block_id, week_in_block, bias_balance_at_time, source_set_log_id)
+         values
+          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         on conflict (source_set_log_id) do update set
+           performed_at = excluded.performed_at,
+           load = excluded.load,
+           reps = excluded.reps,
+           estimated_1rm = excluded.estimated_1rm,
+           block_id = excluded.block_id,
+           week_in_block = excluded.week_in_block,
+           bias_balance_at_time = excluded.bias_balance_at_time`,
+        [
+          userId,
+          row.performed_at,
+          row.exercise_id,
+          row.load,
+          row.reps,
+          est,
+          session?.block_id ?? null,
+          session?.week_in_block ?? null,
+          biasBalance,
+          row.id,
+        ]
+      );
+    } else if (existing.set_type === "top") {
+      await client.query(
+        "delete from top_set_history where source_set_log_id = $1",
+        [row.id]
+      );
+    }
+
+    if (blockId) {
+      await updateCurrentBlockWeek(client, userId, blockId);
+    }
+
+    await client.query("COMMIT");
+
+    return NextResponse.json({ ok: true, updated: row.id });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("set_log_update_failed", err);
+    return NextResponse.json({ error: "set_log_update_failed" }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  requireConfig();
+  const userId = CONFIG.SINGLE_USER_ID;
+  const id = params.id;
+
+  const pool = await getDb();
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const existingRes = await client.query(
+      "select * from set_logs where id = $1 and user_id = $2",
+      [id, userId]
+    );
+
+    if (existingRes.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    const existing = existingRes.rows[0];
+
+    await client.query("delete from set_logs where id = $1 and user_id = $2", [
+      id,
+      userId,
+    ]);
+
+    if (existing.session_id) {
+      await recomputeSessionPerformed(client, existing.session_id);
+    }
+
+    if (existing.performed_at) {
+      const weekStart = getWeekStartFromTimestamp(existing.performed_at);
+      await recomputeWeeklyRollup(client, userId, weekStart);
+    }
+
+    if (existing.set_type === "top") {
+      await client.query(
+        "delete from top_set_history where source_set_log_id = $1",
+        [id]
+      );
+    }
+
+    const profileRes = await client.query(
+      "select block_id from user_profile where user_id = $1",
+      [userId]
+    );
+    const blockId = profileRes.rows[0]?.block_id ?? null;
+    if (blockId) {
+      await updateCurrentBlockWeek(client, userId, blockId);
+    }
+
+    await client.query("COMMIT");
+
+    return NextResponse.json({ ok: true, deleted: id });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("set_log_delete_failed", err);
+    return NextResponse.json({ error: "set_log_delete_failed" }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}

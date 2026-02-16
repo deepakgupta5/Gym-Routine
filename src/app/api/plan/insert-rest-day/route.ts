@@ -1,0 +1,104 @@
+import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db/pg";
+import { CONFIG, requireConfig } from "@/lib/config";
+import { insertRestDay, PlanSessionRow } from "@/lib/engine/schedule";
+import { getWeekStartFromTimestamp } from "@/lib/db/logs";
+
+export async function POST(req: Request) {
+  requireConfig();
+  const userId = CONFIG.SINGLE_USER_ID;
+  const pool = await getDb();
+  const client = await pool.connect();
+
+  try {
+    const body = await req.json().catch(() => ({}));
+    const restDate =
+      typeof body?.rest_date === "string"
+        ? body.rest_date
+        : typeof body?.date === "string"
+        ? body.date
+        : null;
+
+    if (!restDate) {
+      return NextResponse.json({ error: "rest_date_required" }, { status: 400 });
+    }
+
+    await client.query("BEGIN");
+
+    const profileRes = await client.query(
+      "select block_id, rest_inserted_by_week from user_profile where user_id = $1",
+      [userId]
+    );
+
+    const blockId = profileRes.rows[0]?.block_id;
+    if (!blockId) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "no_block" }, { status: 400 });
+    }
+
+    const weekStart = getWeekStartFromTimestamp(restDate + "T00:00:00Z");
+    const restMap = profileRes.rows[0]?.rest_inserted_by_week || {};
+    if (restMap[weekStart]) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "rest_day_already_used" }, { status: 400 });
+    }
+
+    const sessionsRes = await client.query(
+      `select plan_session_id,
+              date::text as date,
+              session_type,
+              is_required,
+              performed_at,
+              week_in_block
+       from plan_sessions
+       where user_id = $1 and block_id = $2`,
+      [userId, blockId]
+    );
+
+    const sessions: PlanSessionRow[] = sessionsRes.rows.map((r: any) => ({
+      plan_session_id: r.plan_session_id,
+      date: r.date,
+      session_type: r.session_type,
+      is_required: r.is_required,
+      performed_at: r.performed_at,
+      week_in_block: r.week_in_block,
+    }));
+
+    const result = insertRestDay(sessions, restDate);
+
+    for (const u of result.updated) {
+      await client.query(
+        "update plan_sessions set date = $1 where plan_session_id = $2",
+        [u.date, u.plan_session_id]
+      );
+    }
+
+    if (result.dropped.length > 0) {
+      await client.query(
+        "delete from plan_sessions where plan_session_id = any($1)",
+        [result.dropped]
+      );
+    }
+
+    const nextRestMap = { ...restMap, [weekStart]: true };
+    await client.query(
+      "update user_profile set rest_inserted_by_week = $1::jsonb where user_id = $2",
+      [JSON.stringify(nextRestMap), userId]
+    );
+
+    await client.query("COMMIT");
+
+    return NextResponse.json({
+      ok: true,
+      updated: result.updated.length,
+      dropped: result.dropped.length,
+      week_start: weekStart,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("insert_rest_day_failed", err);
+    return NextResponse.json({ error: "insert_rest_day_failed" }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}
