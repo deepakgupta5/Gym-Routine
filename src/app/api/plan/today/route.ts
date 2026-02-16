@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
 
     const exercises = exercisesRes.rows.map((row: any) => ({
       ...row,
-      image_url: getExerciseImageUrl(row.targeted_primary_muscle),
+      image_url: getExerciseImageUrl(row.exercise_id, row.targeted_primary_muscle),
     }));
 
     return NextResponse.json({ session, exercises });

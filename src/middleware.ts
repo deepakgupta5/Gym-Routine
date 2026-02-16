@@ -4,6 +4,8 @@ import { CONFIG } from "@/lib/config";
 const PUBLIC_PATHS = [
   "/_next/",
   "/favicon.ico",
+  "/apple-icon.png",
+  "/icon.png",
   "/unlock",
   "/api/auth/",
   "/manifest.json",

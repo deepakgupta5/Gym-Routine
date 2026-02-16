@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="36" fill="#3f1d2e"/>
+  <rect x="66" y="108" width="380" height="12" rx="6" fill="#f59e0b" opacity="0.9"/>
+  <rect x="66" y="392" width="380" height="12" rx="6" fill="#f59e0b" opacity="0.9"/>
+  <circle cx="160" cy="256" r="58" fill="none" stroke="#f59e0b" stroke-width="18"/>
+  <circle cx="352" cy="256" r="58" fill="none" stroke="#f59e0b" stroke-width="18"/>
+  <rect x="190" y="246" width="132" height="20" rx="10" fill="#f8fafc"/>
+  <text x="256" y="186" text-anchor="middle" fill="#f8fafc" font-family="Arial, sans-serif" font-size="22" font-weight="700">Exercise 25</text>
+  <text x="256" y="220" text-anchor="middle" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="17">Cable Crunch</text>
+  <text x="256" y="448" text-anchor="middle" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="16">backup-2</text>
+</svg>
