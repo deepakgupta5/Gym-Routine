@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import { getExerciseImageUrl } from "@/lib/engine/exerciseImages";
+import SessionLogger from "./SessionLogger";
 
 function isDateString(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -68,56 +69,21 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       image_url: getExerciseImageUrl(row.targeted_primary_muscle),
     }));
 
-    return (
-      <main style={{ padding: 24 }}>
-        <h1>
-          {session.session_type} Session — {session.date}
-          {session.is_deload ? " (Deload)" : ""}
-        </h1>
-        <p>
-          Cardio: {session.cardio_minutes} min | Conditioning:{" "}
-          {session.conditioning_minutes} min
-        </p>
+    const setLogsRes = await client.query(
+      `select id, session_id, exercise_id, set_type, set_index,
+              load::text as load, reps, notes, performed_at
+       from set_logs
+       where user_id = $1 and session_id = $2
+       order by exercise_id asc, set_index asc, performed_at asc`,
+      [CONFIG.SINGLE_USER_ID, session.plan_session_id]
+    );
 
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 16 }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>Image</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>Role</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>Exercise</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>Sets</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>Reps</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>Load</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>Rest</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>Tempo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {exercises.map((ex: any) => (
-              <tr key={ex.plan_exercise_id}>
-                <td style={{ padding: "6px 0" }}>
-                  <img
-                    src={ex.image_url}
-                    alt={ex.targeted_primary_muscle}
-                    width={36}
-                    height={36}
-                    style={{ borderRadius: 6, background: "#111827" }}
-                  />
-                </td>
-                <td style={{ padding: "6px 0" }}>{ex.role}</td>
-                <td style={{ padding: "6px 0" }}>{ex.name}</td>
-                <td style={{ padding: "6px 0" }}>{ex.prescribed_sets}</td>
-                <td style={{ padding: "6px 0" }}>
-                  {ex.prescribed_reps_min}-{ex.prescribed_reps_max}
-                </td>
-                <td style={{ padding: "6px 0" }}>{ex.prescribed_load}</td>
-                <td style={{ padding: "6px 0" }}>{ex.rest_seconds}s</td>
-                <td style={{ padding: "6px 0" }}>{ex.tempo}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </main>
+    return (
+      <SessionLogger
+        session={session}
+        exercises={exercises}
+        logs={setLogsRes.rows}
+      />
     );
   } finally {
     client.release();

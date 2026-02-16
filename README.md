@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Gym Routine
 
-## Getting Started
+Single-user Next.js training planner with auth gate, deterministic block generation, workout logging, weekly rollups, and adaptive body-stat inputs.
 
-First, run the development server:
+## Local Development
+
+1. Install dependencies.
+
+```bash
+npm ci
+```
+
+2. Configure environment.
+
+```bash
+cp .env.local.example .env.local
+```
+
+Required variables in `.env.local`:
+
+- `SUPABASE_DB_URL`
+- `SINGLE_USER_ID`
+- `APP_PASSCODE_HASH` (escape `$` as `\$` in `.env.local`)
+- `COOKIE_SIGNING_SECRET`
+- `ADMIN_SECRET`
+- `NODE_OPTIONS=--dns-result-order=ipv4first`
+
+3. Run the app.
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Tests
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Run unit tests:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm test
+```
 
-## Learn More
+## Render Smoke Test (Existing Deployment)
 
-To learn more about Next.js, take a look at the following resources:
+This repo includes an end-to-end smoke test for a deployed Render instance.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Required runtime env when executing the smoke test:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `BASE_URL` (for example `https://your-app.onrender.com`)
+- `APP_PASSCODE` (plain unlock passcode)
+- `ADMIN_SECRET`
 
-## Deploy on Vercel
+Run smoke tests:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+BASE_URL=https://your-app.onrender.com \
+APP_PASSCODE='your-passcode' \
+ADMIN_SECRET='your-admin-secret' \
+npm run smoke:render
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Optional retention check (mutating):
+
+```bash
+BASE_URL=https://your-app.onrender.com \
+APP_PASSCODE='your-passcode' \
+ADMIN_SECRET='your-admin-secret' \
+RUN_RETENTION=true \
+npm run smoke:render
+```
+
+The smoke test verifies:
+
+- unauthenticated redirect and API lock
+- unlock flow and session cookie issuance
+- idempotent `/api/plan/init` (called twice)
+- `/api/plan/today`, `/api/plan/week`, `/api/dashboard`
+- `/api/admin/health` including current-block counts
+- optional `/api/admin/retention`
+
+## Retention Cron on Render
+
+If your Render deployment already exists, configure a daily cron job that calls:
+
+- `POST /api/admin/retention`
+- header: `x-admin-secret: <ADMIN_SECRET>`
+
+Suggested schedule: daily in UTC during low-traffic hours.

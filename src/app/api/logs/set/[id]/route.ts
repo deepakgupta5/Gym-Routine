@@ -240,17 +240,6 @@ export async function DELETE(
       await recomputeSessionPerformed(client, existing.session_id);
     }
 
-    // keep your original existing.performed_at block + COMMIT/return + catch/finally below
-
-
-    await client.query("delete from set_logs where id = $1 and user_id = $2", [
-      id,
-      userId,
-    ]);
-
-    if (existing.session_id) {
-      await recomputeSessionPerformed(client, existing.session_id);
-    }
 
     if (existing.performed_at) {
       const weekStart = getWeekStartFromTimestamp(existing.performed_at);
