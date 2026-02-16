@@ -29,11 +29,12 @@ type SetLogUpdate = {
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   requireConfig();
   const userId = CONFIG.SINGLE_USER_ID;
-  const id = params.id;
+  const { id } = await params;
+
 
   const pool = await getDb();
   const client = await pool.connect();
@@ -70,9 +71,12 @@ export async function PUT(
       reps: body.reps ?? existing.reps,
       rpe: body.rpe ?? existing.rpe,
       notes: body.notes ?? existing.notes,
-      is_primary: body.is_primary ?? (body.role === "primary") ?? existing.is_primary,
-      is_secondary:
-        body.is_secondary ?? (body.role === "secondary") ?? existing.is_secondary,
+      is_primary:
+  body.is_primary ??
+  (body.role === undefined ? existing.is_primary : body.role === "primary"),
+is_secondary:
+  body.is_secondary ??
+  (body.role === undefined ? existing.is_secondary : body.role === "secondary"),
     };
 
     const updateRes = await client.query(
@@ -203,11 +207,11 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   requireConfig();
   const userId = CONFIG.SINGLE_USER_ID;
-  const id = params.id;
+  const { id } = await params;
 
   const pool = await getDb();
   const client = await pool.connect();
@@ -226,6 +230,18 @@ export async function DELETE(
     }
 
     const existing = existingRes.rows[0];
+
+    await client.query("delete from set_logs where id = $1 and user_id = $2", [
+      id,
+      userId,
+    ]);
+
+    if (existing.session_id) {
+      await recomputeSessionPerformed(client, existing.session_id);
+    }
+
+    // keep your original existing.performed_at block + COMMIT/return + catch/finally below
+
 
     await client.query("delete from set_logs where id = $1 and user_id = $2", [
       id,
