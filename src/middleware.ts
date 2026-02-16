@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CONFIG } from "@/lib/config";
 
-const PUBLIC_PATHS = ["/_next/", "/favicon.ico", "/unlock", "/api/auth/"];
+const PUBLIC_PATHS = [
+  "/_next/",
+  "/favicon.ico",
+  "/unlock",
+  "/api/auth/",
+  "/manifest.json",
+  "/manifest.webmanifest",
+  "/robots.txt",
+  "/icons/",
+  "/exercises/",
+];
+
 const COOKIE_NAME = "paifpe_session";
 
 function base64UrlToJson(raw: string) {
