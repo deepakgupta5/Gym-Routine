@@ -76,6 +76,38 @@ function weekdayShortFromIsoDate(isoDate: string) {
   return new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(dt);
 }
 
+const CARD_TEXT = "#111827";
+const CARD_SUBTEXT = "#4b5563";
+const INPUT_STYLE = {
+  width: "100%",
+  padding: 8,
+  color: CARD_TEXT,
+  background: "#ffffff",
+  border: "1px solid #d1d5db",
+  borderRadius: 8,
+};
+const PRIMARY_BUTTON_STYLE = {
+  padding: "8px 12px",
+  color: "#ffffff",
+  background: "#2563eb",
+  border: "1px solid #1d4ed8",
+  borderRadius: 8,
+};
+const SECONDARY_BUTTON_STYLE = {
+  padding: "6px 10px",
+  color: CARD_TEXT,
+  background: "#ffffff",
+  border: "1px solid #d1d5db",
+  borderRadius: 8,
+};
+const DANGER_BUTTON_STYLE = {
+  padding: "6px 10px",
+  color: "#991b1b",
+  background: "#fee2e2",
+  border: "1px solid #fecaca",
+  borderRadius: 8,
+};
+
 export default function SessionLogger({ session, exercises, logs }: Props) {
   const router = useRouter();
   const displayDate = formatDateDdMmYyyy(session.date);
@@ -279,7 +311,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
   }
 
   return (
-    <main style={{ padding: 16, maxWidth: 920, margin: "0 auto" }}>
+    <main style={{ padding: 16, maxWidth: 920, margin: "0 auto", color: "#f3f4f6" }}>
       <h1 style={{ fontSize: 32, marginBottom: 4 }}>
         {displayWeekday} Session - {displayDate}
         {session.is_deload ? " (Deload)" : ""}
@@ -298,7 +330,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
           }}
         >
           <label>
-            <div style={{ fontSize: 12 }}>Cardio (min)</div>
+            <div style={{ fontSize: 12, color: "#e5e7eb" }}>Cardio (min)</div>
             <input
               type="number"
               min={0}
@@ -308,13 +340,13 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
               onChange={(e) =>
                 setSessionMinutes((prev) => ({ ...prev, cardio: e.target.value }))
               }
-              style={{ width: "100%", padding: 8 }}
+              style={INPUT_STYLE}
             />
           </label>
           <button
             onClick={saveSessionMinutes}
             disabled={pendingKey === "session-minutes"}
-            style={{ padding: "8px 12px", minWidth: 120 }}
+            style={{ ...PRIMARY_BUTTON_STYLE, minWidth: 120 }}
           >
             {pendingKey === "session-minutes" ? "Saving" : "Save Cardio"}
           </button>
@@ -338,6 +370,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                 borderRadius: 12,
                 padding: 12,
                 background: "#fff",
+                color: CARD_TEXT,
               }}
             >
               <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10 }}>
@@ -349,9 +382,9 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                   style={{ borderRadius: 10, background: "#111827", flexShrink: 0 }}
                 />
                 <div>
-                  <div style={{ fontSize: 12, textTransform: "uppercase", opacity: 0.7 }}>{displayRoleLabel(ex.role)}</div>
+                  <div style={{ fontSize: 12, textTransform: "uppercase", color: "#6b7280" }}>{displayRoleLabel(ex.role)}</div>
                   <h2 style={{ margin: 0, fontSize: 22 }}>{ex.name}</h2>
-                  <div style={{ fontSize: 14, opacity: 0.8 }}>
+                  <div style={{ fontSize: 14, color: CARD_SUBTEXT }}>
                     Target {ex.prescribed_sets} sets x {ex.prescribed_reps_min}-{ex.prescribed_reps_max} reps
                   </div>
                 </div>
@@ -367,7 +400,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                 }}
               >
                 <label>
-                  <div style={{ fontSize: 12 }}>Load</div>
+                  <div style={{ fontSize: 12, color: CARD_SUBTEXT }}>Load</div>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -378,13 +411,13 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                         [ex.exercise_id]: { ...prev[ex.exercise_id], load: e.target.value },
                       }))
                     }
-                    style={{ width: "100%", padding: 8 }}
+                    style={INPUT_STYLE}
                     placeholder="lb"
                   />
                 </label>
 
                 <label>
-                  <div style={{ fontSize: 12 }}>Reps</div>
+                  <div style={{ fontSize: 12, color: CARD_SUBTEXT }}>Reps</div>
                   <input
                     type="number"
                     inputMode="numeric"
@@ -395,13 +428,13 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                         [ex.exercise_id]: { ...prev[ex.exercise_id], reps: e.target.value },
                       }))
                     }
-                    style={{ width: "100%", padding: 8 }}
+                    style={INPUT_STYLE}
                     placeholder="reps"
                   />
                 </label>
 
                 <label>
-                  <div style={{ fontSize: 12 }}>Set Type</div>
+                  <div style={{ fontSize: 12, color: CARD_SUBTEXT }}>Set Type</div>
                   <select
                     value={form?.setType || defaultSetType(ex.role)}
                     onChange={(e) =>
@@ -413,7 +446,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                         },
                       }))
                     }
-                    style={{ width: "100%", padding: 8 }}
+                    style={INPUT_STYLE}
                   >
                     <option value="top">top</option>
                     <option value="backoff">backoff</option>
@@ -423,16 +456,16 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                 <button
                   onClick={() => addSet(ex)}
                   disabled={pendingKey === `add-${ex.exercise_id}`}
-                  style={{ padding: "8px 12px", minWidth: 88 }}
+                  style={{ ...PRIMARY_BUTTON_STYLE, minWidth: 88 }}
                 >
                   {pendingKey === `add-${ex.exercise_id}` ? "Saving" : "Log Set"}
                 </button>
               </div>
 
               <div>
-                <div style={{ fontSize: 13, marginBottom: 8, opacity: 0.8 }}>Logged sets</div>
+                <div style={{ fontSize: 13, marginBottom: 8, color: CARD_SUBTEXT }}>Logged sets</div>
                 {exLogs.length === 0 ? (
-                  <div style={{ fontSize: 13, opacity: 0.65 }}>No logged sets yet.</div>
+                  <div style={{ fontSize: 13, color: "#6b7280" }}>No logged sets yet.</div>
                 ) : (
                   <div style={{ display: "grid", gap: 8 }}>
                     {exLogs.map((log) => {
@@ -465,7 +498,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                                       [log.id]: { ...edit, load: e.target.value },
                                     }))
                                   }
-                                  style={{ padding: 8 }}
+                                  style={INPUT_STYLE}
                                   placeholder="Load"
                                 />
                                 <input
@@ -477,7 +510,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                                       [log.id]: { ...edit, reps: e.target.value },
                                     }))
                                   }
-                                  style={{ padding: 8 }}
+                                  style={INPUT_STYLE}
                                   placeholder="Reps"
                                 />
                                 <select
@@ -488,7 +521,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                                       [log.id]: { ...edit, setType: e.target.value as SelectableSetType },
                                     }))
                                   }
-                                  style={{ padding: 8 }}
+                                  style={INPUT_STYLE}
                                 >
                                   <option value="top">top</option>
                                   <option value="backoff">backoff</option>
@@ -503,24 +536,24 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                                     [log.id]: { ...edit, notes: e.target.value },
                                   }))
                                 }
-                                style={{ padding: 8 }}
+                                style={INPUT_STYLE}
                                 placeholder="Notes (optional)"
                               />
                               <div style={{ display: "flex", gap: 8 }}>
                                 <button
                                   onClick={() => saveEdit(log)}
                                   disabled={pendingKey === `save-${log.id}`}
-                                  style={{ padding: "6px 10px" }}
+                                  style={PRIMARY_BUTTON_STYLE}
                                 >
                                   {pendingKey === `save-${log.id}` ? "Saving" : "Save"}
                                 </button>
-                                <button onClick={() => setEditingId(null)} style={{ padding: "6px 10px" }}>
+                                <button onClick={() => setEditingId(null)} style={SECONDARY_BUTTON_STYLE}>
                                   Cancel
                                 </button>
                                 <button
                                   onClick={() => deleteSet(log)}
                                   disabled={pendingKey === `delete-${log.id}`}
-                                  style={{ padding: "6px 10px" }}
+                                  style={DANGER_BUTTON_STYLE}
                                 >
                                   Delete
                                 </button>
@@ -532,14 +565,14 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                                 <strong>
                                   {log.load} x {log.reps}
                                 </strong>{" "}
-                                <span style={{ textTransform: "uppercase", fontSize: 12, opacity: 0.7 }}>
+                                <span style={{ textTransform: "uppercase", fontSize: 12, color: "#6b7280" }}>
                                   {log.set_type} #{log.set_index}
                                 </span>
-                                <div style={{ fontSize: 12, opacity: 0.65 }}>
+                                <div style={{ fontSize: 12, color: "#6b7280" }}>
                                   {new Date(log.performed_at).toLocaleString()}
                                 </div>
                               </div>
-                              <button onClick={() => beginEdit(log)} style={{ padding: "6px 10px" }}>
+                              <button onClick={() => beginEdit(log)} style={SECONDARY_BUTTON_STYLE}>
                                 Edit
                               </button>
                             </div>
