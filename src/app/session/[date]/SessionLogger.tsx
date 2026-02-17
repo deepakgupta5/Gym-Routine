@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type SelectableSetType = "top" | "backoff" | "straight";
+type SelectableSetType = "top" | "backoff";
 type LoggedSetType = SelectableSetType | "accessory";
 
 type SessionView = {
@@ -52,13 +52,12 @@ type Props = {
 
 function defaultSetType(role: ExerciseView["role"]): SelectableSetType {
   if (role === "primary") return "top";
-  if (role === "secondary") return "backoff";
-  return "straight";
+  return "backoff";
 }
 
 function toSelectableSetType(setType: LoggedSetType): SelectableSetType {
-  if (setType === "top" || setType === "backoff" || setType === "straight") return setType;
-  return "straight";
+  if (setType === "top" || setType === "backoff") return setType;
+  return "backoff";
 }
 
 function displayRoleLabel(role: ExerciseView["role"]) {
@@ -436,7 +435,6 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                   >
                     <option value="top">top</option>
                     <option value="backoff">backoff</option>
-                    <option value="straight">straight</option>
                   </select>
                 </label>
 
@@ -512,7 +510,6 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                                 >
                                   <option value="top">top</option>
                                   <option value="backoff">backoff</option>
-                                  <option value="straight">straight</option>
                                 </select>
                               </div>
                               <input

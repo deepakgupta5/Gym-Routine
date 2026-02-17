@@ -9,9 +9,9 @@ import {
 import { updateCurrentBlockWeek } from "@/lib/db/blockState";
 import { estimate1RM } from "@/lib/engine/progression";
 
-type AllowedSetType = "top" | "backoff" | "straight";
+type AllowedSetType = "top" | "backoff";
 
-const ALLOWED_SET_TYPES: readonly AllowedSetType[] = ["top", "backoff", "straight"];
+const ALLOWED_SET_TYPES: readonly AllowedSetType[] = ["top", "backoff"];
 
 function isAllowedSetType(value: unknown): value is AllowedSetType {
   return typeof value === "string" && ALLOWED_SET_TYPES.includes(value as AllowedSetType);
