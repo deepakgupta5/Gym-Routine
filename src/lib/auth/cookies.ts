@@ -4,6 +4,9 @@ import { CONFIG } from "@/lib/config";
 
 const COOKIE_NAME = "paifpe_session";
 
+// Keep this logic in sync with src/middleware.ts (Edge runtime variant).
+const HMAC_HEX_RE = /^[0-9a-f]{64}$/i;
+
 type SessionPayload = {
   unlocked: true;
   exp: number;
@@ -14,6 +17,21 @@ function hmac(value: string) {
     .createHmac("sha256", CONFIG.COOKIE_SIGNING_SECRET)
     .update(value)
     .digest("hex");
+}
+
+function constantTimeEqualHex(expectedHex: string, providedHex: string) {
+  if (!HMAC_HEX_RE.test(expectedHex) || !HMAC_HEX_RE.test(providedHex)) {
+    return false;
+  }
+
+  const expected = Buffer.from(expectedHex, "hex");
+  const provided = Buffer.from(providedHex, "hex");
+
+  if (expected.length !== provided.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expected, provided);
 }
 
 export function signSession(payload: SessionPayload) {
@@ -28,7 +46,9 @@ export function verifySessionCookie(req: NextRequest): SessionPayload | null {
 
   const [raw, sig] = value.split(".");
   if (!raw || !sig) return null;
-  if (hmac(raw) !== sig) return null;
+
+  const expected = hmac(raw);
+  if (!constantTimeEqualHex(expected, sig)) return null;
 
   try {
     const payload = JSON.parse(Buffer.from(raw, "base64url").toString());

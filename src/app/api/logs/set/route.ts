@@ -10,11 +10,16 @@ import { updateCurrentBlockWeek } from "@/lib/db/blockState";
 import { estimate1RM } from "@/lib/engine/progression";
 
 type AllowedSetType = "top" | "backoff";
+type ExerciseRole = "primary" | "secondary" | "accessory";
 
 const ALLOWED_SET_TYPES: readonly AllowedSetType[] = ["top", "backoff"];
 
 function isAllowedSetType(value: unknown): value is AllowedSetType {
   return typeof value === "string" && ALLOWED_SET_TYPES.includes(value as AllowedSetType);
+}
+
+function isExerciseRole(value: unknown): value is ExerciseRole {
+  return value === "primary" || value === "secondary" || value === "accessory";
 }
 
 type SetLogInput = {
@@ -30,16 +35,133 @@ type SetLogInput = {
   reps: number;
   rpe?: number | null;
   notes?: string | null;
-  role?: "primary" | "secondary" | "accessory";
+  role?: ExerciseRole;
   is_primary?: boolean;
   is_secondary?: boolean;
 };
 
-function normalizeBody(body: any): SetLogInput[] {
+function asObject(value: unknown, label: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function requiredNumber(obj: Record<string, unknown>, key: string, label: string) {
+  const value = obj[key];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${label}.${key} must be a number`);
+  }
+  return value;
+}
+
+function optionalString(obj: Record<string, unknown>, key: string, label: string) {
+  const value = obj[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") {
+    throw new Error(`${label}.${key} must be a string`);
+  }
+  return value;
+}
+
+function optionalNullableString(obj: Record<string, unknown>, key: string, label: string) {
+  const value = obj[key];
+  if (value === undefined || value === null) return value;
+  if (typeof value !== "string") {
+    throw new Error(`${label}.${key} must be a string or null`);
+  }
+  return value;
+}
+
+function optionalBoolean(obj: Record<string, unknown>, key: string, label: string) {
+  const value = obj[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "boolean") {
+    throw new Error(`${label}.${key} must be a boolean`);
+  }
+  return value;
+}
+
+function optionalNumberOrNull(obj: Record<string, unknown>, key: string, label: string) {
+  const value = obj[key];
+  if (value === undefined || value === null) return value;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${label}.${key} must be a number or null`);
+  }
+  return value;
+}
+
+function parseSetLogInput(rawInput: unknown, index: number): SetLogInput {
+  const label = `sets[${index}]`;
+  const raw = asObject(rawInput, label);
+
+  const setType = raw.set_type;
+  if (!isAllowedSetType(setType)) {
+    throw new Error(`${label}.set_type must be one of: ${ALLOWED_SET_TYPES.join(", ")}`);
+  }
+
+  const role = raw.role;
+  if (role !== undefined && !isExerciseRole(role)) {
+    throw new Error(`${label}.role must be primary, secondary, or accessory`);
+  }
+
+  return {
+    performed_at: optionalString(raw, "performed_at", label),
+    session_id: optionalNullableString(raw, "session_id", label),
+    exercise_id: requiredNumber(raw, "exercise_id", label),
+    movement_pattern: optionalString(raw, "movement_pattern", label),
+    targeted_primary_muscle: optionalString(raw, "targeted_primary_muscle", label),
+    targeted_secondary_muscle: optionalNullableString(raw, "targeted_secondary_muscle", label),
+    set_type: setType,
+    set_index: requiredNumber(raw, "set_index", label),
+    load: requiredNumber(raw, "load", label),
+    reps: requiredNumber(raw, "reps", label),
+    rpe: optionalNumberOrNull(raw, "rpe", label),
+    notes: optionalNullableString(raw, "notes", label),
+    role,
+    is_primary: optionalBoolean(raw, "is_primary", label),
+    is_secondary: optionalBoolean(raw, "is_secondary", label),
+  };
+}
+
+function normalizeBody(body: unknown): SetLogInput[] {
   if (!body) return [];
-  if (Array.isArray(body)) return body as SetLogInput[];
-  if (Array.isArray(body.sets)) return body.sets as SetLogInput[];
-  return [body as SetLogInput];
+
+  const rawSets = Array.isArray(body)
+    ? body
+    : (() => {
+        const obj = asObject(body, "body");
+        return Array.isArray(obj.sets) ? obj.sets : [obj];
+      })();
+
+  if (rawSets.length === 0) return [];
+
+  return rawSets.map((entry, idx) => parseSetLogInput(entry, idx));
+}
+
+function validateSetValues(sets: SetLogInput[]) {
+  for (let i = 0; i < sets.length; i++) {
+    const s = sets[i];
+    const label = `sets[${i}]`;
+
+    if (!Number.isInteger(s.exercise_id) || s.exercise_id <= 0) {
+      return `${label}.exercise_id must be a positive integer`;
+    }
+
+    if (!Number.isInteger(s.set_index) || s.set_index <= 0) {
+      return `${label}.set_index must be a positive integer`;
+    }
+
+    if (!Number.isFinite(s.load) || s.load <= 0 || s.load > 2000) {
+      return `${label}.load must be > 0 and <= 2000`;
+    }
+
+    if (!Number.isInteger(s.reps) || s.reps <= 0 || s.reps > 200) {
+      return `${label}.reps must be a positive integer <= 200`;
+    }
+  }
+
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -50,7 +172,16 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json().catch(() => null);
-    const sets = normalizeBody(body);
+
+    let sets: SetLogInput[];
+    try {
+      sets = normalizeBody(body);
+    } catch (err) {
+      return NextResponse.json(
+        { error: "invalid_body", detail: err instanceof Error ? err.message : "invalid request body" },
+        { status: 400 }
+      );
+    }
 
     if (sets.length === 0) {
       return NextResponse.json({ error: "no_sets" }, { status: 400 });
@@ -63,36 +194,51 @@ export async function POST(req: Request) {
       );
     }
 
+    const valueError = validateSetValues(sets);
+    if (valueError) {
+      return NextResponse.json({ error: "invalid_set_values", detail: valueError }, { status: 400 });
+    }
+
     await client.query("BEGIN");
 
     const profileRes = await client.query(
       "select bias_balance, block_id from user_profile where user_id = $1",
       [userId]
     );
+
+    if (profileRes.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "profile_not_found" }, { status: 404 });
+    }
+
     const biasBalance = profileRes.rows[0]?.bias_balance ?? 0;
     const blockId = profileRes.rows[0]?.block_id ?? null;
 
-    const missingExerciseIds = Array.from(
-      new Set(
-        sets
-          .filter(
-            (s) =>
-              !s.movement_pattern ||
-              !s.targeted_primary_muscle ||
-              s.targeted_primary_muscle === ""
-          )
-          .map((s) => s.exercise_id)
-      )
+    const referencedExerciseIds = Array.from(
+      new Set(sets.map((s) => s.exercise_id).filter((id) => Number.isInteger(id) && id > 0))
     );
 
-    let exerciseById = new Map<number, any>();
-    if (missingExerciseIds.length > 0) {
-      const exRes = await client.query(
-        `select exercise_id, movement_pattern, default_targeted_primary_muscle, default_targeted_secondary_muscle
-         from exercises where exercise_id = any($1)` ,
-        [missingExerciseIds]
+    const exerciseRes = await client.query(
+      `select exercise_id, movement_pattern, default_targeted_primary_muscle, default_targeted_secondary_muscle
+       from exercises
+       where exercise_id = any($1::int[])`,
+      [referencedExerciseIds]
+    );
+
+    const exerciseById = new Map<number, any>(
+      exerciseRes.rows.map((row: any) => [Number(row.exercise_id), row])
+    );
+
+    const invalidExerciseIds = referencedExerciseIds.filter((id) => !exerciseById.has(id));
+    if (invalidExerciseIds.length > 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json(
+        {
+          error: "invalid_exercise_ids",
+          invalid_exercise_ids: invalidExerciseIds.sort((a, b) => a - b),
+        },
+        { status: 400 }
       );
-      exerciseById = new Map(exRes.rows.map((r: any) => [r.exercise_id, r]));
     }
 
     const records = sets.map((s) => {
@@ -192,7 +338,7 @@ export async function POST(req: Request) {
       if (sessionIds.length > 0) {
         const sessionRes = await client.query(
           `select plan_session_id, block_id, week_in_block
-           from plan_sessions where plan_session_id = any($1)` ,
+           from plan_sessions where plan_session_id = any($1)`,
           [sessionIds]
         );
         for (const row of sessionRes.rows) {

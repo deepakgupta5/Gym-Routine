@@ -17,9 +17,16 @@ export async function POST(req: NextRequest) {
   try {
     await client.query("BEGIN");
 
-    const res = await client.query(
+    const setLogsRes = await client.query(
       `delete from set_logs
        where performed_at < now() - interval '12 months'
+       returning id`
+    );
+
+    const orphanTopSetRes = await client.query(
+      `delete from top_set_history
+       where source_set_log_id is null
+         and performed_at < now() - interval '12 months'
        returning id`
     );
 
@@ -31,14 +38,21 @@ export async function POST(req: NextRequest) {
          last_status = excluded.last_status,
          last_detail = excluded.last_detail
        returning last_run_at`,
-      [RETENTION_JOB_NAME, JSON.stringify({ deleted: res.rowCount ?? 0 })]
+      [
+        RETENTION_JOB_NAME,
+        JSON.stringify({
+          deleted_set_logs: setLogsRes.rowCount ?? 0,
+          deleted_orphan_top_sets: orphanTopSetRes.rowCount ?? 0,
+        }),
+      ]
     );
 
     await client.query("COMMIT");
 
     return NextResponse.json({
       ok: true,
-      deleted: res.rowCount ?? 0,
+      deleted: setLogsRes.rowCount ?? 0,
+      deleted_orphan_top_sets: orphanTopSetRes.rowCount ?? 0,
       last_retention_ran_at: markerRes.rows[0]?.last_run_at ?? null,
     });
   } catch (err) {

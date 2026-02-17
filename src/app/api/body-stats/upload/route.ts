@@ -30,6 +30,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "file_required" }, { status: 400 });
   }
 
+  const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return NextResponse.json(
+      { error: "file_too_large", max_bytes: MAX_UPLOAD_BYTES },
+      { status: 413 }
+    );
+  }
+
   const buffer = await file.arrayBuffer();
   const parsed = parseBodyStatsXlsxWithReport(buffer);
   const rows = parsed.rows;

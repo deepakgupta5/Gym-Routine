@@ -17,6 +17,36 @@ function isAllowedSetType(value: unknown): value is AllowedSetType {
   return typeof value === "string" && ALLOWED_SET_TYPES.includes(value as AllowedSetType);
 }
 
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+function validateOptionalSetLogUpdate(body: SetLogUpdate) {
+  if (body.exercise_id !== undefined && !isPositiveInteger(body.exercise_id)) {
+    return "exercise_id must be a positive integer";
+  }
+
+  if (body.set_index !== undefined && !isPositiveInteger(body.set_index)) {
+    return "set_index must be a positive integer";
+  }
+
+  if (
+    body.load !== undefined &&
+    (typeof body.load !== "number" || !Number.isFinite(body.load) || body.load <= 0 || body.load > 2000)
+  ) {
+    return "load must be > 0 and <= 2000";
+  }
+
+  if (
+    body.reps !== undefined &&
+    (!Number.isInteger(body.reps) || body.reps <= 0 || body.reps > 200)
+  ) {
+    return "reps must be a positive integer <= 200";
+  }
+
+  return null;
+}
+
 type SetLogUpdate = {
   performed_at?: string;
   session_id?: string | null;
@@ -43,18 +73,26 @@ export async function PUT(
   const userId = CONFIG.SINGLE_USER_ID;
   const { id } = await params;
 
-
   const pool = await getDb();
   const client = await pool.connect();
 
   try {
-    const body = (await req.json().catch(() => ({}))) as SetLogUpdate;
+    const parsedBody = await req.json().catch(() => ({}));
+    const body =
+      parsedBody && typeof parsedBody === "object" && !Array.isArray(parsedBody)
+        ? (parsedBody as SetLogUpdate)
+        : ({} as SetLogUpdate);
 
     if (body.set_type !== undefined && !isAllowedSetType(body.set_type)) {
       return NextResponse.json(
         { error: "invalid_set_type", allowed_set_types: ALLOWED_SET_TYPES },
         { status: 400 }
       );
+    }
+
+    const valueError = validateOptionalSetLogUpdate(body);
+    if (valueError) {
+      return NextResponse.json({ error: "invalid_set_values", detail: valueError }, { status: 400 });
     }
 
     await client.query("BEGIN");
@@ -70,6 +108,21 @@ export async function PUT(
     }
 
     const existing = existingRes.rows[0];
+
+    if (body.exercise_id !== undefined) {
+      const exerciseRes = await client.query(
+        "select exercise_id from exercises where exercise_id = $1",
+        [body.exercise_id]
+      );
+
+      if (exerciseRes.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return NextResponse.json(
+          { error: "invalid_exercise_id", exercise_id: body.exercise_id },
+          { status: 400 }
+        );
+      }
+    }
 
     const updated = {
       performed_at: body.performed_at ?? existing.performed_at,
@@ -87,11 +140,11 @@ export async function PUT(
       rpe: body.rpe ?? existing.rpe,
       notes: body.notes ?? existing.notes,
       is_primary:
-  body.is_primary ??
-  (body.role === undefined ? existing.is_primary : body.role === "primary"),
-is_secondary:
-  body.is_secondary ??
-  (body.role === undefined ? existing.is_secondary : body.role === "secondary"),
+        body.is_primary ??
+        (body.role === undefined ? existing.is_primary : body.role === "primary"),
+      is_secondary:
+        body.is_secondary ??
+        (body.role === undefined ? existing.is_secondary : body.role === "secondary"),
     };
 
     const updateRes = await client.query(
@@ -156,6 +209,12 @@ is_secondary:
       "select bias_balance, block_id from user_profile where user_id = $1",
       [userId]
     );
+
+    if (profileRes.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "profile_not_found" }, { status: 404 });
+    }
+
     const biasBalance = profileRes.rows[0]?.bias_balance ?? 0;
     const blockId = profileRes.rows[0]?.block_id ?? null;
 
@@ -198,10 +257,9 @@ is_secondary:
         ]
       );
     } else if (existing.set_type === "top") {
-      await client.query(
-        "delete from top_set_history where source_set_log_id = $1",
-        [row.id]
-      );
+      await client.query("delete from top_set_history where source_set_log_id = $1", [
+        row.id,
+      ]);
     }
 
     if (blockId) {
@@ -255,17 +313,15 @@ export async function DELETE(
       await recomputeSessionPerformed(client, existing.session_id);
     }
 
-
     if (existing.performed_at) {
       const weekStart = getWeekStartFromTimestamp(existing.performed_at);
       await recomputeWeeklyRollup(client, userId, weekStart);
     }
 
     if (existing.set_type === "top") {
-      await client.query(
-        "delete from top_set_history where source_set_log_id = $1",
-        [id]
-      );
+      await client.query("delete from top_set_history where source_set_log_id = $1", [
+        id,
+      ]);
     }
 
     const profileRes = await client.query(

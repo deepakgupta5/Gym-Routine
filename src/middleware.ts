@@ -16,6 +16,7 @@ const PUBLIC_PATHS = [
 ];
 
 const COOKIE_NAME = "paifpe_session";
+const HEX_RE = /^[0-9a-f]+$/i;
 
 function base64UrlToJson(raw: string) {
   const padded = raw.replace(/-/g, "+").replace(/_/g, "/");
@@ -40,6 +41,29 @@ async function hmacEdge(value: string, secret: string) {
     .join("");
 }
 
+// Edge runtime lacks crypto.timingSafeEqual. Keep this in sync with src/lib/auth/cookies.ts.
+function constantTimeEqualHex(expected: string, provided: string) {
+  if (
+    !HEX_RE.test(expected) ||
+    !HEX_RE.test(provided) ||
+    expected.length % 2 !== 0 ||
+    provided.length % 2 !== 0
+  ) {
+    return false;
+  }
+
+  let mismatch = expected.length ^ provided.length;
+  const max = Math.max(expected.length, provided.length);
+
+  for (let i = 0; i < max; i++) {
+    const a = i < expected.length ? expected.charCodeAt(i) : 0;
+    const b = i < provided.length ? provided.charCodeAt(i) : 0;
+    mismatch |= a ^ b;
+  }
+
+  return mismatch === 0;
+}
+
 async function verifySessionCookieEdge(req: NextRequest) {
   const value = req.cookies.get(COOKIE_NAME)?.value;
   if (!value) return null;
@@ -48,7 +72,7 @@ async function verifySessionCookieEdge(req: NextRequest) {
   if (!raw || !sig) return null;
 
   const expected = await hmacEdge(raw, CONFIG.COOKIE_SIGNING_SECRET || "");
-  if (expected !== sig) return null;
+  if (!constantTimeEqualHex(expected, sig)) return null;
 
   try {
     const payload = base64UrlToJson(raw);
