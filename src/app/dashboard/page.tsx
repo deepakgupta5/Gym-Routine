@@ -7,7 +7,7 @@ export default async function DashboardPage() {
   const client = await pool.connect();
 
   try {
-    const res = await client.query(
+    const res = await client.query<{ date: string }>(
       `select date::text as date
        from body_stats_daily
        where user_id = $1
@@ -20,10 +20,12 @@ export default async function DashboardPage() {
     const reminder = `Last upload: ${lastUpload} — pending updates will apply at next regeneration.`;
 
     return (
-      <div style={{ padding: 24 }}>
-        <h1>Dashboard</h1>
-        <p>{reminder}</p>
-      </div>
+      <main className="mx-auto max-w-5xl p-5 md:p-6">
+        <section className="rounded-xl border border-gray-700 bg-gray-800 p-5">
+          <h1 className="text-2xl font-semibold text-gray-100">Dashboard</h1>
+          <p className="mt-2 text-sm text-gray-300">{reminder}</p>
+        </section>
+      </main>
     );
   } finally {
     client.release();

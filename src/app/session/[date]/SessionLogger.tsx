@@ -1,47 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-
-type SelectableSetType = "top" | "backoff";
-type LoggedSetType = SelectableSetType | "accessory";
-
-type SessionView = {
-  plan_session_id: string;
-  date: string;
-  session_type: string;
-  is_deload: boolean;
-  cardio_minutes: number;
-};
-
-type ExerciseView = {
-  plan_exercise_id: string;
-  exercise_id: number;
-  role: "primary" | "secondary" | "accessory";
-  name: string;
-  movement_pattern: string;
-  targeted_primary_muscle: string | null;
-  targeted_secondary_muscle: string | null;
-  prescribed_sets: number;
-  prescribed_reps_min: number;
-  prescribed_reps_max: number;
-  prescribed_load: string;
-  rest_seconds: number;
-  tempo: string;
-  image_url: string;
-};
-
-type SetLogView = {
-  id: string;
-  session_id: string;
-  exercise_id: number;
-  set_type: LoggedSetType;
-  set_index: number;
-  load: string;
-  reps: number;
-  notes: string | null;
-  performed_at: string;
-};
+import ExerciseCard from "./components/ExerciseCard";
+import SessionHeader from "./components/SessionHeader";
+import {
+  EditForm,
+  EntryForm,
+  ExerciseView,
+  LoggedSetType,
+  SelectableSetType,
+  SessionView,
+  SetLogView,
+} from "./components/types";
 
 type Props = {
   session: SessionView;
@@ -49,100 +20,56 @@ type Props = {
   logs: SetLogView[];
 };
 
+type ActiveTimer = {
+  exerciseId: number;
+  endsAt: number;
+  totalSeconds: number;
+};
+
 function defaultSetType(role: ExerciseView["role"]): SelectableSetType {
-  if (role === "primary") return "top";
-  return "backoff";
+  return role === "primary" ? "top" : "backoff";
 }
 
 function toSelectableSetType(setType: LoggedSetType): SelectableSetType {
-  if (setType === "top" || setType === "backoff") return setType;
-  return "backoff";
+  return setType === "top" ? "top" : "backoff";
 }
-
-function displayRoleLabel(role: ExerciseView["role"]) {
-  if (role === "accessory") return "support";
-  return role;
-}
-
-function formatDateDdMmYyyy(isoDate: string) {
-  const m = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return isoDate;
-  return `${m[3]}-${m[2]}-${m[1]}`;
-}
-
-function weekdayShortFromIsoDate(isoDate: string) {
-  const dt = new Date(`${isoDate}T00:00:00Z`);
-  if (Number.isNaN(dt.getTime())) return "";
-  return new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(dt);
-}
-
-const CARD_TEXT = "#111827";
-const CARD_SUBTEXT = "#4b5563";
-const INPUT_STYLE = {
-  width: "100%",
-  padding: 8,
-  color: CARD_TEXT,
-  background: "#ffffff",
-  border: "1px solid #d1d5db",
-  borderRadius: 8,
-};
-const PRIMARY_BUTTON_STYLE = {
-  padding: "8px 12px",
-  color: "#ffffff",
-  background: "#2563eb",
-  border: "1px solid #1d4ed8",
-  borderRadius: 8,
-};
-const SECONDARY_BUTTON_STYLE = {
-  padding: "6px 10px",
-  color: CARD_TEXT,
-  background: "#ffffff",
-  border: "1px solid #d1d5db",
-  borderRadius: 8,
-};
-const DANGER_BUTTON_STYLE = {
-  padding: "6px 10px",
-  color: "#991b1b",
-  background: "#fee2e2",
-  border: "1px solid #fecaca",
-  borderRadius: 8,
-};
 
 export default function SessionLogger({ session, exercises, logs }: Props) {
   const router = useRouter();
-  const displayDate = formatDateDdMmYyyy(session.date);
-  const displayWeekday = weekdayShortFromIsoDate(session.date);
 
   const [error, setError] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(null);
+  const [nowMs, setNowMs] = useState(() => new Date().getTime());
   const [sessionMinutes, setSessionMinutes] = useState({
     cardio: String(session.cardio_minutes),
   });
 
-  const [entryForms, setEntryForms] = useState<Record<number, { load: string; reps: string; setType: SelectableSetType }>>(
-    () =>
-      Object.fromEntries(
-        exercises.map((ex) => [
-          ex.exercise_id,
-          { load: "", reps: "", setType: defaultSetType(ex.role) },
-        ])
-      )
+  const logButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({});
+
+  const [entryForms, setEntryForms] = useState<Record<number, EntryForm>>(() =>
+    Object.fromEntries(
+      exercises.map((ex) => [
+        ex.exercise_id,
+        { load: "", reps: "", setType: defaultSetType(ex.role) },
+      ])
+    )
   );
 
-  const [editForms, setEditForms] = useState<Record<string, { load: string; reps: string; setType: SelectableSetType; notes: string }>>(
-    () =>
-      Object.fromEntries(
-        logs.map((log) => [
-          log.id,
-          {
-            load: String(log.load),
-            reps: String(log.reps),
-            setType: toSelectableSetType(log.set_type),
-            notes: log.notes || "",
-          },
-        ])
-      )
+  const [editForms, setEditForms] = useState<Record<string, EditForm>>(() =>
+    Object.fromEntries(
+      logs.map((log) => [
+        log.id,
+        {
+          load: String(log.load),
+          reps: String(log.reps),
+          setType: toSelectableSetType(log.set_type),
+          notes: log.notes || "",
+        },
+      ])
+    )
   );
 
   const logsByExercise = useMemo(() => {
@@ -154,6 +81,25 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
     }
     return map;
   }, [logs]);
+
+  const doneExercises = useMemo(() => {
+    return exercises.filter((ex) => (logsByExercise.get(ex.exercise_id) || []).length >= ex.prescribed_sets)
+      .length;
+  }, [exercises, logsByExercise]);
+
+  useEffect(() => {
+    if (!activeTimer) return;
+
+    const intervalId = window.setInterval(() => {
+      const nextNow = new Date().getTime();
+      setNowMs(nextNow);
+      if (activeTimer.endsAt <= nextNow) {
+        setActiveTimer(null);
+      }
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeTimer]);
 
   async function addSet(ex: ExerciseView) {
     setError(null);
@@ -199,12 +145,20 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
       [ex.exercise_id]: { ...prev[ex.exercise_id], load: "", reps: "" },
     }));
 
+    setActiveTimer({
+      exerciseId: ex.exercise_id,
+      endsAt: new Date().getTime() + ex.rest_seconds * 1000,
+      totalSeconds: ex.rest_seconds,
+    });
+
     router.refresh();
   }
 
   function beginEdit(log: SetLogView) {
     setEditingId(log.id);
+    setConfirmingDeleteId(null);
     setError(null);
+
     setEditForms((prev) => ({
       ...prev,
       [log.id]: prev[log.id] || {
@@ -249,13 +203,20 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
     }
 
     setEditingId(null);
+    setConfirmingDeleteId(null);
     router.refresh();
   }
 
-  async function deleteSet(log: SetLogView) {
+  function requestDelete(log: SetLogView) {
+    setConfirmingDeleteId(log.id);
+  }
+
+  function cancelDelete() {
+    setConfirmingDeleteId(null);
+  }
+
+  async function confirmDelete(log: SetLogView) {
     setError(null);
-    const confirmed = window.confirm("Delete this set log?");
-    if (!confirmed) return;
 
     const key = `delete-${log.id}`;
     setPendingKey(key);
@@ -274,15 +235,34 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
     if (editingId === log.id) {
       setEditingId(null);
     }
+    if (confirmingDeleteId === log.id) {
+      setConfirmingDeleteId(null);
+    }
 
     router.refresh();
+  }
+
+  function repeatSet(log: SetLogView) {
+    setEntryForms((prev) => ({
+      ...prev,
+      [log.exercise_id]: {
+        ...prev[log.exercise_id],
+        load: String(log.load),
+        reps: String(log.reps),
+        setType: toSelectableSetType(log.set_type),
+      },
+    }));
+
+    const btn = logButtonRefs.current[log.exercise_id];
+    if (btn) {
+      window.setTimeout(() => btn.focus(), 0);
+    }
   }
 
   async function saveSessionMinutes() {
     setError(null);
 
     const cardio = Number(sessionMinutes.cardio);
-
     if (!Number.isInteger(cardio) || cardio < 0) {
       setError("Cardio minutes must be a whole number >= 0.");
       return;
@@ -310,280 +290,86 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
     router.refresh();
   }
 
+  function extendTimer() {
+    setActiveTimer((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        endsAt: prev.endsAt + 30_000,
+        totalSeconds: prev.totalSeconds + 30,
+      };
+    });
+  }
+
   return (
-    <main style={{ padding: 16, maxWidth: 920, margin: "0 auto", color: "#f3f4f6" }}>
-      <h1 style={{ fontSize: 32, marginBottom: 4 }}>
-        {displayWeekday} Session - {displayDate}
-        {session.is_deload ? " (Deload)" : ""}
-      </h1>
-      <div style={{ marginTop: 0, marginBottom: 16, display: "grid", gap: 8 }}>
-        <p style={{ margin: 0 }}>
-          Cardio: {session.cardio_minutes} min
-        </p>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr auto",
-            gap: 8,
-            alignItems: "end",
-            maxWidth: 360,
-          }}
-        >
-          <label>
-            <div style={{ fontSize: 12, color: "#e5e7eb" }}>Cardio (min)</div>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              inputMode="numeric"
-              value={sessionMinutes.cardio}
-              onChange={(e) =>
-                setSessionMinutes((prev) => ({ ...prev, cardio: e.target.value }))
-              }
-              style={INPUT_STYLE}
-            />
-          </label>
-          <button
-            onClick={saveSessionMinutes}
-            disabled={pendingKey === "session-minutes"}
-            style={{ ...PRIMARY_BUTTON_STYLE, minWidth: 120 }}
-          >
-            {pendingKey === "session-minutes" ? "Saving" : "Save Cardio"}
-          </button>
-        </div>
-      </div>
+    <main className="mx-auto max-w-5xl p-5 md:p-6">
+      <SessionHeader
+        session={session}
+        doneExercises={doneExercises}
+        totalExercises={exercises.length}
+        cardioValue={sessionMinutes.cardio}
+        onCardioChange={(value) => setSessionMinutes((prev) => ({ ...prev, cardio: value }))}
+        onSaveCardio={saveSessionMinutes}
+        isSavingCardio={pendingKey === "session-minutes"}
+      />
 
       {error ? (
-        <div style={{ color: "crimson", marginBottom: 12 }}>{error}</div>
+        <div className="mt-3 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-200">
+          {error}
+        </div>
       ) : null}
 
-      <div style={{ display: "grid", gap: 12 }}>
+      <div className="mt-4 grid gap-4">
         {exercises.map((ex) => {
           const exLogs = logsByExercise.get(ex.exercise_id) || [];
-          const form = entryForms[ex.exercise_id];
+          const form = entryForms[ex.exercise_id] || {
+            load: "",
+            reps: "",
+            setType: defaultSetType(ex.role),
+          };
+
+          let timer: { remainingSeconds: number; totalSeconds: number } | null = null;
+          if (activeTimer && activeTimer.exerciseId === ex.exercise_id) {
+            const remaining = Math.max(0, Math.ceil((activeTimer.endsAt - nowMs) / 1000));
+            if (remaining > 0) {
+              timer = { remainingSeconds: remaining, totalSeconds: activeTimer.totalSeconds };
+            }
+          }
 
           return (
-            <section
+            <ExerciseCard
               key={ex.plan_exercise_id}
-              style={{
-                border: "1px solid #e5e7eb",
-                borderRadius: 12,
-                padding: 12,
-                background: "#fff",
-                color: CARD_TEXT,
+              exercise={ex}
+              logs={exLogs}
+              form={form}
+              editForms={editForms}
+              editingId={editingId}
+              confirmingDeleteId={confirmingDeleteId}
+              pendingKey={pendingKey}
+              timer={timer}
+              onFormChange={(next) =>
+                setEntryForms((prev) => ({ ...prev, [ex.exercise_id]: next }))
+              }
+              onAddSet={() => addSet(ex)}
+              onBeginEdit={beginEdit}
+              onEditFormChange={(logId, next) =>
+                setEditForms((prev) => ({ ...prev, [logId]: next }))
+              }
+              onSaveEdit={saveEdit}
+              onCancelEdit={() => {
+                setEditingId(null);
+                setConfirmingDeleteId(null);
               }}
-            >
-              <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10 }}>
-                <img
-                  src={ex.image_url}
-                  alt={ex.targeted_primary_muscle || "Exercise"}
-                  width={64}
-                  height={64}
-                  style={{ borderRadius: 10, background: "#111827", flexShrink: 0 }}
-                />
-                <div>
-                  <div style={{ fontSize: 12, textTransform: "uppercase", color: "#6b7280" }}>{displayRoleLabel(ex.role)}</div>
-                  <h2 style={{ margin: 0, fontSize: 22 }}>{ex.name}</h2>
-                  <div style={{ fontSize: 14, color: CARD_SUBTEXT }}>
-                    Target {ex.prescribed_sets} sets x {ex.prescribed_reps_min}-{ex.prescribed_reps_max} reps
-                  </div>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr 1fr auto",
-                  gap: 8,
-                  alignItems: "end",
-                  marginBottom: 10,
-                }}
-              >
-                <label>
-                  <div style={{ fontSize: 12, color: CARD_SUBTEXT }}>Load</div>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={form?.load || ""}
-                    onChange={(e) =>
-                      setEntryForms((prev) => ({
-                        ...prev,
-                        [ex.exercise_id]: { ...prev[ex.exercise_id], load: e.target.value },
-                      }))
-                    }
-                    style={INPUT_STYLE}
-                    placeholder="lb"
-                  />
-                </label>
-
-                <label>
-                  <div style={{ fontSize: 12, color: CARD_SUBTEXT }}>Reps</div>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    value={form?.reps || ""}
-                    onChange={(e) =>
-                      setEntryForms((prev) => ({
-                        ...prev,
-                        [ex.exercise_id]: { ...prev[ex.exercise_id], reps: e.target.value },
-                      }))
-                    }
-                    style={INPUT_STYLE}
-                    placeholder="reps"
-                  />
-                </label>
-
-                <label>
-                  <div style={{ fontSize: 12, color: CARD_SUBTEXT }}>Set Type</div>
-                  <select
-                    value={form?.setType || defaultSetType(ex.role)}
-                    onChange={(e) =>
-                      setEntryForms((prev) => ({
-                        ...prev,
-                        [ex.exercise_id]: {
-                          ...prev[ex.exercise_id],
-                          setType: e.target.value as SelectableSetType,
-                        },
-                      }))
-                    }
-                    style={INPUT_STYLE}
-                  >
-                    <option value="top">top</option>
-                    <option value="backoff">backoff</option>
-                  </select>
-                </label>
-
-                <button
-                  onClick={() => addSet(ex)}
-                  disabled={pendingKey === `add-${ex.exercise_id}`}
-                  style={{ ...PRIMARY_BUTTON_STYLE, minWidth: 88 }}
-                >
-                  {pendingKey === `add-${ex.exercise_id}` ? "Saving" : "Log Set"}
-                </button>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 13, marginBottom: 8, color: CARD_SUBTEXT }}>Logged sets</div>
-                {exLogs.length === 0 ? (
-                  <div style={{ fontSize: 13, color: "#6b7280" }}>No logged sets yet.</div>
-                ) : (
-                  <div style={{ display: "grid", gap: 8 }}>
-                    {exLogs.map((log) => {
-                      const edit = editForms[log.id] || {
-                        load: String(log.load),
-                        reps: String(log.reps),
-                        setType: toSelectableSetType(log.set_type),
-                        notes: log.notes || "",
-                      };
-
-                      return (
-                        <div
-                          key={log.id}
-                          style={{
-                            border: "1px solid #e5e7eb",
-                            borderRadius: 10,
-                            padding: 8,
-                            background: "#fafafa",
-                          }}
-                        >
-                          {editingId === log.id ? (
-                            <div style={{ display: "grid", gap: 8 }}>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                                <input
-                                  type="number"
-                                  value={edit.load}
-                                  onChange={(e) =>
-                                    setEditForms((prev) => ({
-                                      ...prev,
-                                      [log.id]: { ...edit, load: e.target.value },
-                                    }))
-                                  }
-                                  style={INPUT_STYLE}
-                                  placeholder="Load"
-                                />
-                                <input
-                                  type="number"
-                                  value={edit.reps}
-                                  onChange={(e) =>
-                                    setEditForms((prev) => ({
-                                      ...prev,
-                                      [log.id]: { ...edit, reps: e.target.value },
-                                    }))
-                                  }
-                                  style={INPUT_STYLE}
-                                  placeholder="Reps"
-                                />
-                                <select
-                                  value={edit.setType}
-                                  onChange={(e) =>
-                                    setEditForms((prev) => ({
-                                      ...prev,
-                                      [log.id]: { ...edit, setType: e.target.value as SelectableSetType },
-                                    }))
-                                  }
-                                  style={INPUT_STYLE}
-                                >
-                                  <option value="top">top</option>
-                                  <option value="backoff">backoff</option>
-                                </select>
-                              </div>
-                              <input
-                                type="text"
-                                value={edit.notes}
-                                onChange={(e) =>
-                                  setEditForms((prev) => ({
-                                    ...prev,
-                                    [log.id]: { ...edit, notes: e.target.value },
-                                  }))
-                                }
-                                style={INPUT_STYLE}
-                                placeholder="Notes (optional)"
-                              />
-                              <div style={{ display: "flex", gap: 8 }}>
-                                <button
-                                  onClick={() => saveEdit(log)}
-                                  disabled={pendingKey === `save-${log.id}`}
-                                  style={PRIMARY_BUTTON_STYLE}
-                                >
-                                  {pendingKey === `save-${log.id}` ? "Saving" : "Save"}
-                                </button>
-                                <button onClick={() => setEditingId(null)} style={SECONDARY_BUTTON_STYLE}>
-                                  Cancel
-                                </button>
-                                <button
-                                  onClick={() => deleteSet(log)}
-                                  disabled={pendingKey === `delete-${log.id}`}
-                                  style={DANGER_BUTTON_STYLE}
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                              <div>
-                                <strong>
-                                  {log.load} x {log.reps}
-                                </strong>{" "}
-                                <span style={{ textTransform: "uppercase", fontSize: 12, color: "#6b7280" }}>
-                                  {log.set_type} #{log.set_index}
-                                </span>
-                                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                                  {new Date(log.performed_at).toLocaleString()}
-                                </div>
-                              </div>
-                              <button onClick={() => beginEdit(log)} style={SECONDARY_BUTTON_STYLE}>
-                                Edit
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </section>
+              onRequestDelete={requestDelete}
+              onConfirmDelete={confirmDelete}
+              onCancelDelete={cancelDelete}
+              onRepeat={repeatSet}
+              onSkipTimer={() => setActiveTimer(null)}
+              onExtendTimer={extendTimer}
+              onLogButtonRef={(el) => {
+                logButtonRefs.current[ex.exercise_id] = el;
+              }}
+            />
           );
         })}
       </div>

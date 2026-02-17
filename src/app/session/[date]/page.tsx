@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
-import { getExerciseImageUrl } from "@/lib/engine/exerciseImages";
 import SessionLogger from "./SessionLogger";
 
 type PageProps = {
@@ -13,6 +12,44 @@ type ParsedDate = {
   iso: string;
   dmy: string;
   source: "iso" | "dmy";
+};
+
+type SessionRow = {
+  plan_session_id: string;
+  date: string;
+  session_type: string;
+  is_deload: boolean;
+  cardio_minutes: number;
+};
+
+type ExerciseRow = {
+  plan_exercise_id: string;
+  exercise_id: number;
+  role: "primary" | "secondary" | "accessory";
+  movement_pattern: string;
+  targeted_primary_muscle: string | null;
+  targeted_secondary_muscle: string | null;
+  prescribed_sets: number;
+  prescribed_reps_min: number;
+  prescribed_reps_max: number;
+  prescribed_load: string;
+  rest_seconds: number;
+  tempo: string;
+  prev_load: string | number | null;
+  prev_reps: number | null;
+  name: string;
+};
+
+type SetLogRow = {
+  id: string;
+  session_id: string;
+  exercise_id: number;
+  set_type: "top" | "backoff" | "accessory";
+  set_index: number;
+  load: string;
+  reps: number;
+  notes: string | null;
+  performed_at: string;
 };
 
 function isValidIsoDate(value: string) {
@@ -48,6 +85,12 @@ function parseSessionDate(raw: string): ParsedDate | null {
   return { iso, dmy: trimmed, source: "dmy" };
 }
 
+function toNullableNumber(value: string | number | null) {
+  if (value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 export default async function SessionPage({ params, searchParams }: PageProps) {
   requireConfig();
   const resolvedParams = await params;
@@ -61,15 +104,14 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
 
   if (!parsed) {
     return (
-      <main style={{ padding: 24 }}>
-        <h1>Invalid date</h1>
-        <p>Expected format: DD-MM-YYYY</p>
-        <p>Received: {raw || "(empty)"}</p>
+      <main className="mx-auto max-w-5xl p-5 md:p-6">
+        <h1 className="text-2xl font-semibold text-gray-100">Invalid date</h1>
+        <p className="mt-2 text-sm text-gray-400">Expected format: DD-MM-YYYY</p>
+        <p className="text-sm text-gray-500">Received: {raw || "(empty)"}</p>
       </main>
     );
   }
 
-  // Canonicalize legacy YYYY-MM-DD links to DD-MM-YYYY URLs.
   if (parsed.source === "iso") {
     redirect(`/session/${parsed.dmy}`);
   }
@@ -77,8 +119,11 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const pool = await getDb();
   const client = await pool.connect();
   try {
-    const sessionRes = await client.query(
-      `select plan_session_id, date::text as date, session_type, is_deload,
+    const sessionRes = await client.query<SessionRow>(
+      `select plan_session_id,
+              date::text as date,
+              session_type,
+              is_deload,
               cardio_minutes
        from plan_sessions
        where user_id = $1 and date = $2`,
@@ -87,17 +132,31 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
 
     if (sessionRes.rowCount === 0) {
       return (
-        <main style={{ padding: 24 }}>
-          <h1>No session scheduled</h1>
-          <p>{parsed.dmy}</p>
+        <main className="mx-auto max-w-5xl p-5 md:p-6">
+          <h1 className="text-2xl font-semibold text-gray-100">No session scheduled</h1>
+          <p className="mt-2 text-sm text-gray-400">{parsed.dmy}</p>
         </main>
       );
     }
 
     const session = sessionRes.rows[0];
 
-    const exercisesRes = await client.query(
-      `select pe.*, e.name, e.movement_pattern, e.equipment_type
+    const exercisesRes = await client.query<ExerciseRow>(
+      `select pe.plan_exercise_id,
+              pe.exercise_id,
+              pe.role,
+              pe.targeted_primary_muscle,
+              pe.targeted_secondary_muscle,
+              pe.prescribed_sets,
+              pe.prescribed_reps_min,
+              pe.prescribed_reps_max,
+              pe.prescribed_load::text as prescribed_load,
+              pe.rest_seconds,
+              pe.tempo,
+              pe.prev_load,
+              pe.prev_reps,
+              e.name,
+              e.movement_pattern
        from plan_exercises pe
        join exercises e on e.exercise_id = pe.exercise_id
        where pe.plan_session_id = $1
@@ -106,27 +165,41 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       [session.plan_session_id]
     );
 
-    const exercises = exercisesRes.rows.map((row: any) => ({
-      ...row,
-      image_url: getExerciseImageUrl(row.exercise_id, row.targeted_primary_muscle),
+    const exercises = exercisesRes.rows.map((row) => ({
+      plan_exercise_id: row.plan_exercise_id,
+      exercise_id: Number(row.exercise_id),
+      role: row.role,
+      name: row.name,
+      movement_pattern: row.movement_pattern,
+      targeted_primary_muscle: row.targeted_primary_muscle,
+      targeted_secondary_muscle: row.targeted_secondary_muscle,
+      prescribed_sets: Number(row.prescribed_sets),
+      prescribed_reps_min: Number(row.prescribed_reps_min),
+      prescribed_reps_max: Number(row.prescribed_reps_max),
+      prescribed_load: row.prescribed_load,
+      rest_seconds: Number(row.rest_seconds),
+      tempo: row.tempo,
+      prev_load: toNullableNumber(row.prev_load),
+      prev_reps: row.prev_reps === null ? null : Number(row.prev_reps),
     }));
 
-    const setLogsRes = await client.query(
-      `select id, session_id, exercise_id, set_type, set_index,
-              load::text as load, reps, notes, performed_at
+    const setLogsRes = await client.query<SetLogRow>(
+      `select id,
+              session_id,
+              exercise_id,
+              set_type,
+              set_index,
+              load::text as load,
+              reps,
+              notes,
+              performed_at::text as performed_at
        from set_logs
        where user_id = $1 and session_id = $2
        order by exercise_id asc, set_index asc, performed_at asc`,
       [CONFIG.SINGLE_USER_ID, session.plan_session_id]
     );
 
-    return (
-      <SessionLogger
-        session={session}
-        exercises={exercises}
-        logs={setLogsRes.rows}
-      />
-    );
+    return <SessionLogger session={session} exercises={exercises} logs={setLogsRes.rows} />;
   } finally {
     client.release();
   }

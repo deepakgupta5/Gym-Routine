@@ -1,0 +1,112 @@
+import Link from "next/link";
+import { SessionView } from "./types";
+
+type SessionHeaderProps = {
+  session: SessionView;
+  doneExercises: number;
+  totalExercises: number;
+  cardioValue: string;
+  onCardioChange: (value: string) => void;
+  onSaveCardio: () => void;
+  isSavingCardio: boolean;
+};
+
+function addDaysIso(isoDate: string, days: number) {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function isoToDmy(isoDate: string) {
+  const [y, m, d] = isoDate.split("-");
+  return `${d}-${m}-${y}`;
+}
+
+function formatDisplayDate(isoDate: string) {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(d);
+  const day = new Intl.DateTimeFormat("en-US", { day: "2-digit", timeZone: "UTC" }).format(d);
+  const month = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(d);
+  const year = new Intl.DateTimeFormat("en-US", { year: "numeric", timeZone: "UTC" }).format(d);
+  return `${weekday}, ${day} ${month} ${year}`;
+}
+
+export default function SessionHeader({
+  session,
+  doneExercises,
+  totalExercises,
+  cardioValue,
+  onCardioChange,
+  onSaveCardio,
+  isSavingCardio,
+}: SessionHeaderProps) {
+  const prevDmy = isoToDmy(addDaysIso(session.date, -1));
+  const nextDmy = isoToDmy(addDaysIso(session.date, 1));
+
+  const ratio = totalExercises > 0 ? doneExercises / totalExercises : 0;
+  const progressPct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+  const complete = totalExercises > 0 && doneExercises >= totalExercises;
+
+  return (
+    <header className="rounded-xl border border-gray-700 bg-gray-800 p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <Link
+          href={`/session/${prevDmy}`}
+          className="min-h-[44px] rounded-lg px-3 py-2 text-sm text-gray-400 hover:text-gray-100 active:opacity-80"
+        >
+          ← Prev
+        </Link>
+        <h1 className="text-center text-2xl font-semibold text-gray-100">{formatDisplayDate(session.date)}</h1>
+        <Link
+          href={`/session/${nextDmy}`}
+          className="min-h-[44px] rounded-lg px-3 py-2 text-sm text-gray-400 hover:text-gray-100 active:opacity-80"
+        >
+          Next →
+        </Link>
+      </div>
+
+      <div className="mb-3">
+        <div className="mb-1 h-2 w-full rounded-full bg-gray-900">
+          <div
+            className={`h-2 rounded-full transition-all ${complete ? "bg-green-600" : "bg-blue-600"}`}
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+        <div className="text-sm text-gray-300">
+          {complete
+            ? "Session complete"
+            : `${doneExercises} / ${totalExercises} exercises done`}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {session.is_deload ? (
+          <span className="rounded-full border border-amber-700 bg-amber-950/60 px-2 py-1 text-xs font-medium uppercase tracking-wide text-amber-300">
+            Deload
+          </span>
+        ) : null}
+
+        <label className="text-sm text-gray-300">Cardio:</label>
+        <input
+          type="number"
+          min={0}
+          step={1}
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={cardioValue}
+          onChange={(e) => onCardioChange(e.target.value)}
+          className="min-h-[44px] w-24 rounded-lg border border-gray-700 bg-gray-900 p-3 text-sm text-gray-100"
+        />
+        <span className="text-sm text-gray-400">min</span>
+        <button
+          type="button"
+          onClick={onSaveCardio}
+          disabled={isSavingCardio}
+          className="min-h-[44px] rounded-lg border border-blue-700 bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-500 active:opacity-80"
+        >
+          {isSavingCardio ? "Saving" : "Save"}
+        </button>
+      </div>
+    </header>
+  );
+}
