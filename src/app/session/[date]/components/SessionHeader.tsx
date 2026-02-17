@@ -7,7 +7,7 @@ type SessionHeaderProps = {
   doneExercises: number;
   totalExercises: number;
   cardioValue: string;
-  cardioDirty: boolean;
+  cardioCanSave: boolean;
   cardioComplete: boolean;
   onCardioChange: (value: string) => void;
   onSaveCardio: () => void;
@@ -39,7 +39,7 @@ export default function SessionHeader({
   doneExercises,
   totalExercises,
   cardioValue,
-  cardioDirty,
+  cardioCanSave,
   cardioComplete,
   onCardioChange,
   onSaveCardio,
@@ -100,7 +100,7 @@ export default function SessionHeader({
         <CardioEditor
           value={cardioValue}
           isSaving={isSavingCardio}
-          isDirty={cardioDirty}
+          canSave={cardioCanSave}
           isComplete={cardioComplete}
           onChange={onCardioChange}
           onSave={onSaveCardio}

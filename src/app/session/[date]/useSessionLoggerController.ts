@@ -264,7 +264,7 @@ export function useSessionLoggerController({
     const cardio = Number(sessionMinutes.cardio);
     if (!Number.isInteger(cardio) || cardio < 0) {
       setError("Cardio minutes must be a whole number >= 0.");
-      return;
+      return false;
     }
 
     const key = "session-minutes";
@@ -283,10 +283,11 @@ export function useSessionLoggerController({
 
     if (!res.ok) {
       setError("Failed to update cardio minutes.");
-      return;
+      return false;
     }
 
     router.refresh();
+    return true;
   }
 
   function extendTimer() {

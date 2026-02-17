@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import ExerciseCard from "./components/ExerciseCard";
 import SessionHeader from "./components/SessionHeader";
 import { ExerciseView, SessionView, SetLogView } from "./components/types";
@@ -22,10 +23,39 @@ function defaultEntryForm(role: ExerciseView["role"]) {
 export default function SessionLogger({ session, exercises, logs }: Props) {
   const controller = useSessionLoggerController({ session, exercises, logs });
 
+  const cardioSaveKey = useMemo(
+    () => `cardio_saved:${session.plan_session_id}`,
+    [session.plan_session_id]
+  );
+  const [cardioSaved, setCardioSaved] = useState(false);
+
+  useEffect(() => {
+    try {
+      setCardioSaved(window.localStorage.getItem(cardioSaveKey) === "1");
+    } catch {
+      setCardioSaved(false);
+    }
+  }, [cardioSaveKey]);
+
   const cardioDirty = controller.sessionMinutes.cardio !== String(session.cardio_minutes);
   const cardioValue = Number(controller.sessionMinutes.cardio);
   const cardioValid = Number.isInteger(cardioValue) && cardioValue >= 0;
-  const cardioComplete = cardioValid && !cardioDirty && controller.pendingKey !== "session-minutes";
+  const cardioComplete =
+    cardioSaved && cardioValid && !cardioDirty && controller.pendingKey !== "session-minutes";
+  const cardioCanSave =
+    cardioValid && (cardioDirty || !cardioSaved) && controller.pendingKey !== "session-minutes";
+
+  async function handleSaveCardio() {
+    const ok = await controller.saveSessionMinutes();
+    if (!ok) return;
+
+    setCardioSaved(true);
+    try {
+      window.localStorage.setItem(cardioSaveKey, "1");
+    } catch {
+      // Ignore storage failures; UI state is still updated for this session.
+    }
+  }
 
   return (
     <main className="mx-auto max-w-5xl p-5 md:p-6">
@@ -34,12 +64,12 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
         doneExercises={controller.doneExercises}
         totalExercises={exercises.length}
         cardioValue={controller.sessionMinutes.cardio}
-        cardioDirty={cardioDirty}
+        cardioCanSave={cardioCanSave}
         cardioComplete={cardioComplete}
         onCardioChange={(value) =>
           controller.setSessionMinutes((prev) => ({ ...prev, cardio: value }))
         }
-        onSaveCardio={controller.saveSessionMinutes}
+        onSaveCardio={handleSaveCardio}
         isSavingCardio={controller.pendingKey === "session-minutes"}
       />
 
