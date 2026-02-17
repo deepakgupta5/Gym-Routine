@@ -61,6 +61,11 @@ function toSelectableSetType(setType: LoggedSetType): SelectableSetType {
   return "straight";
 }
 
+function displayRoleLabel(role: ExerciseView["role"]) {
+  if (role === "accessory") return "support";
+  return role;
+}
+
 function formatDateDdMmYyyy(isoDate: string) {
   const m = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return isoDate;
@@ -278,7 +283,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                   style={{ borderRadius: 10, background: "#111827", flexShrink: 0 }}
                 />
                 <div>
-                  <div style={{ fontSize: 12, textTransform: "uppercase", opacity: 0.7 }}>{ex.role}</div>
+                  <div style={{ fontSize: 12, textTransform: "uppercase", opacity: 0.7 }}>{displayRoleLabel(ex.role)}</div>
                   <h2 style={{ margin: 0, fontSize: 22 }}>{ex.name}</h2>
                   <div style={{ fontSize: 14, opacity: 0.8 }}>
                     Target {ex.prescribed_sets} sets x {ex.prescribed_reps_min}-{ex.prescribed_reps_max} reps
