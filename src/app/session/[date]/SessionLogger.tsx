@@ -22,6 +22,11 @@ function defaultEntryForm(role: ExerciseView["role"]) {
 export default function SessionLogger({ session, exercises, logs }: Props) {
   const controller = useSessionLoggerController({ session, exercises, logs });
 
+  const cardioDirty = controller.sessionMinutes.cardio !== String(session.cardio_minutes);
+  const cardioValue = Number(controller.sessionMinutes.cardio);
+  const cardioValid = Number.isInteger(cardioValue) && cardioValue >= 0;
+  const cardioComplete = cardioValid && !cardioDirty && controller.pendingKey !== "session-minutes";
+
   return (
     <main className="mx-auto max-w-5xl p-5 md:p-6">
       <SessionHeader
@@ -29,6 +34,8 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
         doneExercises={controller.doneExercises}
         totalExercises={exercises.length}
         cardioValue={controller.sessionMinutes.cardio}
+        cardioDirty={cardioDirty}
+        cardioComplete={cardioComplete}
         onCardioChange={(value) =>
           controller.setSessionMinutes((prev) => ({ ...prev, cardio: value }))
         }

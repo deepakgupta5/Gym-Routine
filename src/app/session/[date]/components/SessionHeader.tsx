@@ -7,6 +7,8 @@ type SessionHeaderProps = {
   doneExercises: number;
   totalExercises: number;
   cardioValue: string;
+  cardioDirty: boolean;
+  cardioComplete: boolean;
   onCardioChange: (value: string) => void;
   onSaveCardio: () => void;
   isSavingCardio: boolean;
@@ -37,6 +39,8 @@ export default function SessionHeader({
   doneExercises,
   totalExercises,
   cardioValue,
+  cardioDirty,
+  cardioComplete,
   onCardioChange,
   onSaveCardio,
   isSavingCardio,
@@ -44,9 +48,19 @@ export default function SessionHeader({
   const prevDmy = isoToDmy(addDaysIso(session.date, -1));
   const nextDmy = isoToDmy(addDaysIso(session.date, 1));
 
-  const ratio = totalExercises > 0 ? doneExercises / totalExercises : 0;
-  const progressPct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
-  const complete = totalExercises > 0 && doneExercises >= totalExercises;
+  const normalizedDoneExercises = Math.min(doneExercises, totalExercises);
+  const tasksDone = normalizedDoneExercises + (cardioComplete ? 1 : 0);
+  const tasksTotal = totalExercises + 1;
+  const progressPct = Math.max(0, Math.min(100, Math.round((tasksDone / tasksTotal) * 100)));
+  const complete = normalizedDoneExercises === totalExercises && cardioComplete;
+
+  let statusText = `${normalizedDoneExercises} / ${totalExercises} exercises done`;
+  if (normalizedDoneExercises === totalExercises && !cardioComplete) {
+    statusText = "Exercises complete - save cardio to finish";
+  }
+  if (complete) {
+    statusText = "Session complete";
+  }
 
   return (
     <header className="rounded-xl border border-gray-700 bg-gray-800 p-4">
@@ -73,9 +87,7 @@ export default function SessionHeader({
             style={{ width: `${progressPct}%` }}
           />
         </div>
-        <div className="text-sm text-gray-300">
-          {complete ? "Session complete" : `${doneExercises} / ${totalExercises} exercises done`}
-        </div>
+        <div className="text-sm text-gray-300">{statusText}</div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -88,6 +100,8 @@ export default function SessionHeader({
         <CardioEditor
           value={cardioValue}
           isSaving={isSavingCardio}
+          isDirty={cardioDirty}
+          isComplete={cardioComplete}
           onChange={onCardioChange}
           onSave={onSaveCardio}
         />
