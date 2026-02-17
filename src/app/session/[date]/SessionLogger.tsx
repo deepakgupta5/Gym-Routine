@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type SetType = "top" | "backoff" | "straight" | "accessory";
+type SelectableSetType = "top" | "backoff" | "straight";
+type LoggedSetType = SelectableSetType | "accessory";
 
 type SessionView = {
   plan_session_id: string;
@@ -35,7 +36,7 @@ type SetLogView = {
   id: string;
   session_id: string;
   exercise_id: number;
-  set_type: SetType;
+  set_type: LoggedSetType;
   set_index: number;
   load: string;
   reps: number;
@@ -49,20 +50,39 @@ type Props = {
   logs: SetLogView[];
 };
 
-function defaultSetType(role: ExerciseView["role"]): SetType {
+function defaultSetType(role: ExerciseView["role"]): SelectableSetType {
   if (role === "primary") return "top";
   if (role === "secondary") return "backoff";
-  return "accessory";
+  return "straight";
+}
+
+function toSelectableSetType(setType: LoggedSetType): SelectableSetType {
+  if (setType === "top" || setType === "backoff" || setType === "straight") return setType;
+  return "straight";
+}
+
+function formatDateDdMmYyyy(isoDate: string) {
+  const m = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return isoDate;
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
+function weekdayShortFromIsoDate(isoDate: string) {
+  const dt = new Date(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(dt.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(dt);
 }
 
 export default function SessionLogger({ session, exercises, logs }: Props) {
   const router = useRouter();
+  const displayDate = formatDateDdMmYyyy(session.date);
+  const displayWeekday = weekdayShortFromIsoDate(session.date);
 
   const [error, setError] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [entryForms, setEntryForms] = useState<Record<number, { load: string; reps: string; setType: SetType }>>(
+  const [entryForms, setEntryForms] = useState<Record<number, { load: string; reps: string; setType: SelectableSetType }>>(
     () =>
       Object.fromEntries(
         exercises.map((ex) => [
@@ -72,7 +92,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
       )
   );
 
-  const [editForms, setEditForms] = useState<Record<string, { load: string; reps: string; setType: SetType; notes: string }>>(
+  const [editForms, setEditForms] = useState<Record<string, { load: string; reps: string; setType: SelectableSetType; notes: string }>>(
     () =>
       Object.fromEntries(
         logs.map((log) => [
@@ -80,7 +100,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
           {
             load: String(log.load),
             reps: String(log.reps),
-            setType: log.set_type,
+            setType: toSelectableSetType(log.set_type),
             notes: log.notes || "",
           },
         ])
@@ -223,7 +243,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
   return (
     <main style={{ padding: 16, maxWidth: 920, margin: "0 auto" }}>
       <h1 style={{ fontSize: 32, marginBottom: 4 }}>
-        {session.session_type} Session - {session.date}
+        {displayWeekday} Session - {displayDate}
         {session.is_deload ? " (Deload)" : ""}
       </h1>
       <p style={{ marginTop: 0, marginBottom: 16 }}>
@@ -318,7 +338,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                         ...prev,
                         [ex.exercise_id]: {
                           ...prev[ex.exercise_id],
-                          setType: e.target.value as SetType,
+                          setType: e.target.value as SelectableSetType,
                         },
                       }))
                     }
@@ -327,7 +347,6 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                     <option value="top">top</option>
                     <option value="backoff">backoff</option>
                     <option value="straight">straight</option>
-                    <option value="accessory">accessory</option>
                   </select>
                 </label>
 
@@ -350,7 +369,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                       const edit = editForms[log.id] || {
                         load: String(log.load),
                         reps: String(log.reps),
-                        setType: log.set_type,
+                        setType: toSelectableSetType(log.set_type),
                         notes: log.notes || "",
                       };
 
@@ -396,7 +415,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                                   onChange={(e) =>
                                     setEditForms((prev) => ({
                                       ...prev,
-                                      [log.id]: { ...edit, setType: e.target.value as SetType },
+                                      [log.id]: { ...edit, setType: e.target.value as SelectableSetType },
                                     }))
                                   }
                                   style={{ padding: 8 }}
@@ -404,7 +423,6 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
                                   <option value="top">top</option>
                                   <option value="backoff">backoff</option>
                                   <option value="straight">straight</option>
-                                  <option value="accessory">accessory</option>
                                 </select>
                               </div>
                               <input

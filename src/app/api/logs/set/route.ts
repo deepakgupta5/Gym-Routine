@@ -9,6 +9,14 @@ import {
 import { updateCurrentBlockWeek } from "@/lib/db/blockState";
 import { estimate1RM } from "@/lib/engine/progression";
 
+type AllowedSetType = "top" | "backoff" | "straight";
+
+const ALLOWED_SET_TYPES: readonly AllowedSetType[] = ["top", "backoff", "straight"];
+
+function isAllowedSetType(value: unknown): value is AllowedSetType {
+  return typeof value === "string" && ALLOWED_SET_TYPES.includes(value as AllowedSetType);
+}
+
 type SetLogInput = {
   performed_at?: string;
   session_id?: string | null;
@@ -16,7 +24,7 @@ type SetLogInput = {
   movement_pattern?: string;
   targeted_primary_muscle?: string;
   targeted_secondary_muscle?: string | null;
-  set_type: "top" | "backoff" | "straight" | "accessory";
+  set_type: AllowedSetType;
   set_index: number;
   load: number;
   reps: number;
@@ -46,6 +54,13 @@ export async function POST(req: Request) {
 
     if (sets.length === 0) {
       return NextResponse.json({ error: "no_sets" }, { status: 400 });
+    }
+
+    if (sets.some((set) => !isAllowedSetType(set.set_type))) {
+      return NextResponse.json(
+        { error: "invalid_set_type", allowed_set_types: ALLOWED_SET_TYPES },
+        { status: 400 }
+      );
     }
 
     await client.query("BEGIN");
