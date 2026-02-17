@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   try {
     const sessionRes = await client.query(
       `select plan_session_id, user_id, block_id, week_in_block, date::text as date,
-              session_type, is_required, is_deload, cardio_minutes, conditioning_minutes
+              session_type, is_required, is_deload, cardio_minutes
        from plan_sessions
        where user_id = $1 and date = $2`,
       [userId, date]

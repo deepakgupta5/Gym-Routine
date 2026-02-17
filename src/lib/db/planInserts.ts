@@ -22,17 +22,16 @@ export async function upsertPlanSessionsReturnMap(
       s.session_type,
       s.is_required,
       s.is_deload,
-      s.cardio_minutes ?? 0,
-      s.conditioning_minutes ?? 0
+      s.cardio_minutes ?? 0
     );
     values.push(
-      `($${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++})`
+      `($${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++})`
     );
   }
 
   const insertSql = `
     insert into plan_sessions
-      (user_id, block_id, week_in_block, date, session_type, is_required, is_deload, cardio_minutes, conditioning_minutes)
+      (user_id, block_id, week_in_block, date, session_type, is_required, is_deload, cardio_minutes)
     values
       ${values.join(",")}
     on conflict (user_id, block_id, session_type, date) do nothing

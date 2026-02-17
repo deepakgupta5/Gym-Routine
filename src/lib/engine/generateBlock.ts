@@ -1,7 +1,6 @@
 import {
   ACCESSORY_POOLS,
   CARDIO_BASELINE_MINUTES,
-  CONDITIONING_BASELINE_MINUTES,
   REPS,
   REST_SECONDS,
   SESSION_TEMPLATES,
@@ -126,7 +125,6 @@ export function generateInitialBlock(input: GenerateInput): PlanOutput {
         is_required: t.is_required,
         is_deload: isDeload,
         cardio_minutes: t.cardio ? CARDIO_BASELINE_MINUTES : 0,
-        conditioning_minutes: t.conditioning ? CONDITIONING_BASELINE_MINUTES : 0,
       };
 
       sessions.push(session);

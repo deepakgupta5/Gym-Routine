@@ -7,7 +7,6 @@ export type SessionInput = {
   is_required: boolean;
   is_deload: boolean;
   cardio_minutes?: number;
-  conditioning_minutes?: number;
 };
 
 export type PlanExerciseInput = {

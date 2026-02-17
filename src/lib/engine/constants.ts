@@ -26,8 +26,6 @@ export const REPS = {
 };
 
 export const CARDIO_BASELINE_MINUTES = 20;
-export const CONDITIONING_BASELINE_MINUTES = 20;
-
 export const UPPER_PUSH_PRIMARY_ROTATION = [9, 10, 11];
 export const UPPER_PULL_PRIMARY_ROTATION = [12, 13, 14];
 export const LOWER_SQUAT_PRIMARY_ROTATION = [1, 2, 4, 3];
@@ -65,7 +63,6 @@ export type SessionTemplate = {
   offset: number;
   is_required: boolean;
   cardio: boolean;
-  conditioning: boolean;
   primaryCatalog?: number[];
   secondaryCatalog?: number[];
   primaryKey?: "UPPER_PUSH" | "UPPER_PULL" | "LOWER_SQUAT" | "LOWER_HINGE";
@@ -79,7 +76,6 @@ export const SESSION_TEMPLATES: SessionTemplate[] = [
     offset: 0,
     is_required: true,
     cardio: true,
-    conditioning: false,
     primaryCatalog: UPPER_PUSH_PRIMARY_ROTATION,
     primaryKey: "UPPER_PUSH",
     secondaryCatalog: UPPER_SECONDARY,
@@ -90,7 +86,6 @@ export const SESSION_TEMPLATES: SessionTemplate[] = [
     offset: 1,
     is_required: true,
     cardio: false,
-    conditioning: false,
     primaryCatalog: LOWER_SQUAT_PRIMARY_ROTATION,
     primaryKey: "LOWER_SQUAT",
     secondaryCatalog: LOWER_SECONDARY,
@@ -101,7 +96,6 @@ export const SESSION_TEMPLATES: SessionTemplate[] = [
     offset: 2,
     is_required: true,
     cardio: true,
-    conditioning: false,
     primaryCatalog: UPPER_PULL_PRIMARY_ROTATION,
     primaryKey: "UPPER_PULL",
     secondaryCatalog: UPPER_PUSH_PRIMARY_ROTATION,
@@ -113,7 +107,6 @@ export const SESSION_TEMPLATES: SessionTemplate[] = [
     offset: 3,
     is_required: true,
     cardio: false,
-    conditioning: false,
     primaryCatalog: LOWER_HINGE_PRIMARY_ROTATION,
     primaryKey: "LOWER_HINGE",
     secondaryCatalog: LOWER_SQUAT_PRIMARY_ROTATION,
@@ -125,7 +118,6 @@ export const SESSION_TEMPLATES: SessionTemplate[] = [
     offset: 4,
     is_required: true,
     cardio: true,
-    conditioning: false,
     accessoryGroups: ["SHOULDERS", "ARMS", "CORE"],
   },
   {
@@ -133,6 +125,5 @@ export const SESSION_TEMPLATES: SessionTemplate[] = [
     offset: 5,
     is_required: false,
     cardio: false,
-    conditioning: true,
   },
 ];

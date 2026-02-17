@@ -145,7 +145,7 @@ export function computeAdaptiveState(
     weightTrend.trend_class === "up"
       ? { mode: "force_cardio", sessions: 3, minutes: 30 }
       : weightTrend.trend_class === "flat" && flatStreak >= 2
-      ? { mode: "escalate_conditioning", minutes: 30 }
+      ? { mode: "force_cardio", sessions: 4, minutes: 30 }
       : null;
 
   return {

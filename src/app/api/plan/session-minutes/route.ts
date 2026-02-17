@@ -7,7 +7,6 @@ import { getMondayUtc, toDateString } from "@/lib/engine/utils";
 type UpdateSessionMinutesBody = {
   session_id?: string;
   cardio_minutes?: number;
-  conditioning_minutes?: number;
 };
 
 function isNonNegativeInteger(value: unknown) {
@@ -23,9 +22,9 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
-  if (!isNonNegativeInteger(body.cardio_minutes) || !isNonNegativeInteger(body.conditioning_minutes)) {
+  if (!isNonNegativeInteger(body.cardio_minutes)) {
     return NextResponse.json(
-      { error: "invalid_minutes", detail: "cardio_minutes and conditioning_minutes must be integers >= 0" },
+      { error: "invalid_minutes", detail: "cardio_minutes must be an integer >= 0" },
       { status: 400 }
     );
   }
@@ -38,12 +37,11 @@ export async function PUT(req: Request) {
 
     const updatedRes = await client.query(
       `update plan_sessions
-       set cardio_minutes = $1,
-           conditioning_minutes = $2
-       where plan_session_id = $3
-         and user_id = $4
+       set cardio_minutes = $1
+       where plan_session_id = $2
+         and user_id = $3
        returning plan_session_id, date::text as date, performed_at`,
-      [body.cardio_minutes, body.conditioning_minutes, body.session_id, userId]
+      [body.cardio_minutes, body.session_id, userId]
     );
 
     if (updatedRes.rowCount === 0) {
@@ -64,7 +62,6 @@ export async function PUT(req: Request) {
       ok: true,
       session_id: session.plan_session_id,
       cardio_minutes: body.cardio_minutes,
-      conditioning_minutes: body.conditioning_minutes,
     });
   } catch (err) {
     await client.query("ROLLBACK");

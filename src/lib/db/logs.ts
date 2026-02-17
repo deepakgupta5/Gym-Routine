@@ -65,8 +65,7 @@ export async function recomputeWeeklyRollup(
 
   const cardioRes = await client.query(
     `select
-       coalesce(sum(cardio_minutes), 0)::int as cardio_minutes,
-       coalesce(sum(conditioning_minutes), 0)::int as conditioning_minutes
+       coalesce(sum(cardio_minutes), 0)::int as cardio_minutes
      from plan_sessions
      where user_id = $1
        and date >= $2::date
@@ -76,15 +75,13 @@ export async function recomputeWeeklyRollup(
   );
 
   const cardioMinutes = cardioRes.rows[0]?.cardio_minutes ?? 0;
-  const conditioningMinutes = cardioRes.rows[0]?.conditioning_minutes ?? 0;
-
   await client.query(
     `insert into weekly_rollups
        (user_id, week_start_date, total_sets, total_reps, total_tonnage,
         sets_by_muscle, tonnage_by_muscle, top_sets_by_muscle, top_sets_count,
-        conditioning_minutes, cardio_minutes, updated_at)
+        cardio_minutes, updated_at)
      values
-       ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
+       ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
      on conflict (user_id, week_start_date)
      do update set
        total_sets = excluded.total_sets,
@@ -94,7 +91,6 @@ export async function recomputeWeeklyRollup(
        tonnage_by_muscle = excluded.tonnage_by_muscle,
        top_sets_by_muscle = excluded.top_sets_by_muscle,
        top_sets_count = excluded.top_sets_count,
-       conditioning_minutes = excluded.conditioning_minutes,
        cardio_minutes = excluded.cardio_minutes,
        updated_at = now()`,
     [
@@ -107,7 +103,6 @@ export async function recomputeWeeklyRollup(
       JSON.stringify(rollup.tonnage_by_muscle),
       JSON.stringify(rollup.top_sets_by_muscle),
       rollup.top_sets_count,
-      conditioningMinutes,
       cardioMinutes,
     ]
   );

@@ -12,7 +12,6 @@ type SessionView = {
   session_type: string;
   is_deload: boolean;
   cardio_minutes: number;
-  conditioning_minutes: number;
 };
 
 type ExerciseView = {
@@ -87,7 +86,6 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [sessionMinutes, setSessionMinutes] = useState({
     cardio: String(session.cardio_minutes),
-    conditioning: String(session.conditioning_minutes),
   });
 
   const [entryForms, setEntryForms] = useState<Record<number, { load: string; reps: string; setType: SelectableSetType }>>(
@@ -252,10 +250,9 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
     setError(null);
 
     const cardio = Number(sessionMinutes.cardio);
-    const conditioning = Number(sessionMinutes.conditioning);
 
-    if (!Number.isInteger(cardio) || cardio < 0 || !Number.isInteger(conditioning) || conditioning < 0) {
-      setError("Cardio and conditioning minutes must be whole numbers >= 0.");
+    if (!Number.isInteger(cardio) || cardio < 0) {
+      setError("Cardio minutes must be a whole number >= 0.");
       return;
     }
 
@@ -268,14 +265,13 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
       body: JSON.stringify({
         session_id: session.plan_session_id,
         cardio_minutes: cardio,
-        conditioning_minutes: conditioning,
       }),
     });
 
     setPendingKey(null);
 
     if (!res.ok) {
-      setError("Failed to update cardio/conditioning minutes.");
+      setError("Failed to update cardio minutes.");
       return;
     }
 
@@ -290,15 +286,15 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
       </h1>
       <div style={{ marginTop: 0, marginBottom: 16, display: "grid", gap: 8 }}>
         <p style={{ margin: 0 }}>
-          Cardio: {session.cardio_minutes} min | Conditioning: {session.conditioning_minutes} min
+          Cardio: {session.cardio_minutes} min
         </p>
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr auto",
+            gridTemplateColumns: "1fr auto",
             gap: 8,
             alignItems: "end",
-            maxWidth: 520,
+            maxWidth: 360,
           }}
         >
           <label>
@@ -315,26 +311,12 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
               style={{ width: "100%", padding: 8 }}
             />
           </label>
-          <label>
-            <div style={{ fontSize: 12 }}>Conditioning (min)</div>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              inputMode="numeric"
-              value={sessionMinutes.conditioning}
-              onChange={(e) =>
-                setSessionMinutes((prev) => ({ ...prev, conditioning: e.target.value }))
-              }
-              style={{ width: "100%", padding: 8 }}
-            />
-          </label>
           <button
             onClick={saveSessionMinutes}
             disabled={pendingKey === "session-minutes"}
             style={{ padding: "8px 12px", minWidth: 120 }}
           >
-            {pendingKey === "session-minutes" ? "Saving" : "Save Minutes"}
+            {pendingKey === "session-minutes" ? "Saving" : "Save Cardio"}
           </button>
         </div>
       </div>

@@ -79,7 +79,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   try {
     const sessionRes = await client.query(
       `select plan_session_id, date::text as date, session_type, is_deload,
-              cardio_minutes, conditioning_minutes
+              cardio_minutes
        from plan_sessions
        where user_id = $1 and date = $2`,
       [CONFIG.SINGLE_USER_ID, parsed.iso]
