@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { haptic } from "@/lib/haptics";
 import ExerciseCard from "./components/ExerciseCard";
 import SessionHeader from "./components/SessionHeader";
 import { ExerciseView, SessionView, SetLogView } from "./components/types";
@@ -50,6 +51,8 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
     if (!ok) return;
 
     setCardioSaved(true);
+    haptic("light");
+
     try {
       window.localStorage.setItem(cardioSaveKey, "1");
     } catch {

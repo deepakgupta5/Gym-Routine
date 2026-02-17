@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { haptic } from "@/lib/haptics";
+import { initAudio, playTimerComplete } from "@/lib/timerAudio";
 import {
   EditForm,
   EntryForm,
@@ -102,6 +104,8 @@ export function useSessionLoggerController({
       setNowMs(nextNow);
       if (activeTimer.endsAt <= nextNow) {
         setActiveTimer(null);
+        haptic("medium");
+        playTimerComplete();
       }
     }, 1000);
 
@@ -109,6 +113,7 @@ export function useSessionLoggerController({
   }, [activeTimer]);
 
   async function addSet(ex: ExerciseView) {
+    void initAudio();
     setError(null);
     const form = entryForms[ex.exercise_id];
     const load = Number(form?.load);
@@ -158,6 +163,7 @@ export function useSessionLoggerController({
       totalSeconds: ex.rest_seconds,
     });
 
+    haptic("light");
     router.refresh();
   }
 
@@ -211,6 +217,7 @@ export function useSessionLoggerController({
 
     setEditingId(null);
     setConfirmingDeleteId(null);
+    haptic("light");
     router.refresh();
   }
 
@@ -220,6 +227,7 @@ export function useSessionLoggerController({
     const key = `delete-${log.id}`;
     setPendingKey(key);
 
+    haptic("heavy");
     const res = await fetch(`/api/logs/set/${log.id}`, {
       method: "DELETE",
     });
@@ -256,6 +264,8 @@ export function useSessionLoggerController({
     if (btn) {
       window.setTimeout(() => btn.focus(), 0);
     }
+
+    haptic("light");
   }
 
   async function saveSessionMinutes() {

@@ -23,7 +23,9 @@ export default function RestTimer({
   return (
     <div className="mt-3 rounded-lg border border-gray-700 bg-gray-900 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="text-sm text-gray-200">⏱ Rest: {formatSeconds(remainingSeconds)} remaining</div>
+        <div className="text-base font-semibold tabular-nums text-gray-100">
+          ⏱ Rest: {formatSeconds(remainingSeconds)} remaining
+        </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
