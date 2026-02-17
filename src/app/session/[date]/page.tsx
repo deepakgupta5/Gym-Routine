@@ -1,35 +1,77 @@
+import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import { getExerciseImageUrl } from "@/lib/engine/exerciseImages";
 import SessionLogger from "./SessionLogger";
-
-function isDateString(value: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
 
 type PageProps = {
   params: Promise<{ date?: string }>;
   searchParams?: Promise<{ date?: string }>;
 };
 
+type ParsedDate = {
+  iso: string;
+  dmy: string;
+  source: "iso" | "dmy";
+};
+
+function isValidIsoDate(value: string) {
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const dt = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(dt.getTime())) return false;
+  return dt.toISOString().slice(0, 10) === value;
+}
+
+function isoToDmy(iso: string) {
+  const [y, m, d] = iso.split("-");
+  return `${d}-${m}-${y}`;
+}
+
+function dmyToIso(dmy: string) {
+  const m = dmy.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (!m) return null;
+  const iso = `${m[3]}-${m[2]}-${m[1]}`;
+  return isValidIsoDate(iso) ? iso : null;
+}
+
+function parseSessionDate(raw: string): ParsedDate | null {
+  const trimmed = raw.trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed) && isValidIsoDate(trimmed)) {
+    return { iso: trimmed, dmy: isoToDmy(trimmed), source: "iso" };
+  }
+
+  const iso = dmyToIso(trimmed);
+  if (!iso) return null;
+
+  return { iso, dmy: trimmed, source: "dmy" };
+}
+
 export default async function SessionPage({ params, searchParams }: PageProps) {
   requireConfig();
   const resolvedParams = await params;
   const resolvedSearch = searchParams ? await searchParams : {};
-  const rawParam = typeof resolvedParams?.date === "string" ? resolvedParams.date : "";
-  const rawQuery =
-    typeof resolvedSearch?.date === "string" ? resolvedSearch.date : "";
-  const raw = decodeURIComponent((rawParam || rawQuery || "").trim());
-  const date = raw.slice(0, 10);
 
-  if (!isDateString(date)) {
+  const rawParam = typeof resolvedParams?.date === "string" ? resolvedParams.date : "";
+  const rawQuery = typeof resolvedSearch?.date === "string" ? resolvedSearch.date : "";
+  const raw = decodeURIComponent((rawParam || rawQuery || "").trim());
+
+  const parsed = parseSessionDate(raw);
+
+  if (!parsed) {
     return (
       <main style={{ padding: 24 }}>
         <h1>Invalid date</h1>
-        <p>Expected format: YYYY-MM-DD</p>
+        <p>Expected format: DD-MM-YYYY</p>
         <p>Received: {raw || "(empty)"}</p>
       </main>
     );
+  }
+
+  // Canonicalize legacy YYYY-MM-DD links to DD-MM-YYYY URLs.
+  if (parsed.source === "iso") {
+    redirect(`/session/${parsed.dmy}`);
   }
 
   const pool = await getDb();
@@ -40,14 +82,14 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               cardio_minutes, conditioning_minutes
        from plan_sessions
        where user_id = $1 and date = $2`,
-      [CONFIG.SINGLE_USER_ID, date]
+      [CONFIG.SINGLE_USER_ID, parsed.iso]
     );
 
     if (sessionRes.rowCount === 0) {
       return (
         <main style={{ padding: 24 }}>
           <h1>No session scheduled</h1>
-          <p>{date}</p>
+          <p>{parsed.dmy}</p>
         </main>
       );
     }

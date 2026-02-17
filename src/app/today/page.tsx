@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 
-function toDateString(d: Date) {
-  return d.toISOString().slice(0, 10);
+function toDdMmYyyy(d: Date) {
+  const iso = d.toISOString().slice(0, 10);
+  const [y, m, day] = iso.split("-");
+  return `${day}-${m}-${y}`;
 }
 
 export default function TodayRedirectPage() {
-  redirect(`/session/${toDateString(new Date())}`);
+  redirect(`/session/${toDdMmYyyy(new Date())}`);
 }

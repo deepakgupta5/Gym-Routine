@@ -86,6 +86,10 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [sessionMinutes, setSessionMinutes] = useState({
+    cardio: String(session.cardio_minutes),
+    conditioning: String(session.conditioning_minutes),
+  });
 
   const [entryForms, setEntryForms] = useState<Record<number, { load: string; reps: string; setType: SelectableSetType }>>(
     () =>
@@ -177,7 +181,7 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
       [log.id]: prev[log.id] || {
         load: String(log.load),
         reps: String(log.reps),
-        setType: log.set_type,
+        setType: toSelectableSetType(log.set_type),
         notes: log.notes || "",
       },
     }));
@@ -245,15 +249,96 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
     router.refresh();
   }
 
+  async function saveSessionMinutes() {
+    setError(null);
+
+    const cardio = Number(sessionMinutes.cardio);
+    const conditioning = Number(sessionMinutes.conditioning);
+
+    if (!Number.isInteger(cardio) || cardio < 0 || !Number.isInteger(conditioning) || conditioning < 0) {
+      setError("Cardio and conditioning minutes must be whole numbers >= 0.");
+      return;
+    }
+
+    const key = "session-minutes";
+    setPendingKey(key);
+
+    const res = await fetch("/api/plan/session-minutes", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: session.plan_session_id,
+        cardio_minutes: cardio,
+        conditioning_minutes: conditioning,
+      }),
+    });
+
+    setPendingKey(null);
+
+    if (!res.ok) {
+      setError("Failed to update cardio/conditioning minutes.");
+      return;
+    }
+
+    router.refresh();
+  }
+
   return (
     <main style={{ padding: 16, maxWidth: 920, margin: "0 auto" }}>
       <h1 style={{ fontSize: 32, marginBottom: 4 }}>
         {displayWeekday} Session - {displayDate}
         {session.is_deload ? " (Deload)" : ""}
       </h1>
-      <p style={{ marginTop: 0, marginBottom: 16 }}>
-        Cardio: {session.cardio_minutes} min | Conditioning: {session.conditioning_minutes} min
-      </p>
+      <div style={{ marginTop: 0, marginBottom: 16, display: "grid", gap: 8 }}>
+        <p style={{ margin: 0 }}>
+          Cardio: {session.cardio_minutes} min | Conditioning: {session.conditioning_minutes} min
+        </p>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr auto",
+            gap: 8,
+            alignItems: "end",
+            maxWidth: 520,
+          }}
+        >
+          <label>
+            <div style={{ fontSize: 12 }}>Cardio (min)</div>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              inputMode="numeric"
+              value={sessionMinutes.cardio}
+              onChange={(e) =>
+                setSessionMinutes((prev) => ({ ...prev, cardio: e.target.value }))
+              }
+              style={{ width: "100%", padding: 8 }}
+            />
+          </label>
+          <label>
+            <div style={{ fontSize: 12 }}>Conditioning (min)</div>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              inputMode="numeric"
+              value={sessionMinutes.conditioning}
+              onChange={(e) =>
+                setSessionMinutes((prev) => ({ ...prev, conditioning: e.target.value }))
+              }
+              style={{ width: "100%", padding: 8 }}
+            />
+          </label>
+          <button
+            onClick={saveSessionMinutes}
+            disabled={pendingKey === "session-minutes"}
+            style={{ padding: "8px 12px", minWidth: 120 }}
+          >
+            {pendingKey === "session-minutes" ? "Saving" : "Save Minutes"}
+          </button>
+        </div>
+      </div>
 
       {error ? (
         <div style={{ color: "crimson", marginBottom: 12 }}>{error}</div>
