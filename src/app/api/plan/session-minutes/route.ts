@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import { recomputeWeeklyRollup } from "@/lib/db/logs";
 import { getMondayUtc, toDateString } from "@/lib/engine/utils";
+import { logError } from "@/lib/logger";
 
 type UpdateSessionMinutesBody = {
   session_id?: string;
@@ -65,7 +66,7 @@ export async function PUT(req: Request) {
     });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("update_session_minutes_failed", err);
+    logError("update_session_minutes_failed", err, { user_id: userId, session_id: body.session_id });
     return NextResponse.json({ error: "update_session_minutes_failed" }, { status: 500 });
   } finally {
     client.release();

@@ -8,6 +8,7 @@ import {
 } from "@/lib/db/logs";
 import { updateCurrentBlockWeek } from "@/lib/db/blockState";
 import { estimate1RM } from "@/lib/engine/progression";
+import { logError } from "@/lib/logger";
 
 type AllowedSetType = "top" | "backoff";
 
@@ -271,7 +272,7 @@ export async function PUT(
     return NextResponse.json({ ok: true, updated: row.id });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("set_log_update_failed", err);
+    logError("set_log_update_failed", err, { user_id: userId, set_log_id: id });
     return NextResponse.json({ error: "set_log_update_failed" }, { status: 500 });
   } finally {
     client.release();
@@ -328,6 +329,12 @@ export async function DELETE(
       "select block_id from user_profile where user_id = $1",
       [userId]
     );
+
+    if (profileRes.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "profile_not_found" }, { status: 404 });
+    }
+
     const blockId = profileRes.rows[0]?.block_id ?? null;
     if (blockId) {
       await updateCurrentBlockWeek(client, userId, blockId);
@@ -338,7 +345,7 @@ export async function DELETE(
     return NextResponse.json({ ok: true, deleted: id });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("set_log_delete_failed", err);
+    logError("set_log_delete_failed", err, { user_id: userId, set_log_id: id });
     return NextResponse.json({ error: "set_log_delete_failed" }, { status: 500 });
   } finally {
     client.release();

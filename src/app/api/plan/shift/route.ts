@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import { shiftMissedSessions, PlanSessionRow } from "@/lib/engine/schedule";
+import { logError } from "@/lib/logger";
 
 function todayUtcString() {
   return new Date().toISOString().slice(0, 10);
@@ -23,6 +24,12 @@ export async function POST(req: Request) {
       "select block_id from user_profile where user_id = $1",
       [userId]
     );
+
+    if (profileRes.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "profile_not_found" }, { status: 404 });
+    }
+
     const blockId = profileRes.rows[0]?.block_id;
     if (!blockId) {
       await client.query("ROLLBACK");
@@ -75,7 +82,7 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("plan_shift_failed", err);
+    logError("plan_shift_failed", err, { user_id: userId });
     return NextResponse.json({ error: "plan_shift_failed" }, { status: 500 });
   } finally {
     client.release();

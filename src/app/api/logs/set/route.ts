@@ -8,6 +8,7 @@ import {
 } from "@/lib/db/logs";
 import { updateCurrentBlockWeek } from "@/lib/db/blockState";
 import { estimate1RM } from "@/lib/engine/progression";
+import { logError } from "@/lib/logger";
 
 type AllowedSetType = "top" | "backoff";
 type ExerciseRole = "primary" | "secondary" | "accessory";
@@ -397,7 +398,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, inserted: inserted.length });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("set_log_insert_failed", err);
+    logError("set_log_insert_failed", err, { user_id: userId });
     return NextResponse.json({ error: "set_log_insert_failed" }, { status: 500 });
   } finally {
     client.release();

@@ -7,6 +7,7 @@ import { getNextMondayUtc, hashGenerationRules } from "@/lib/engine/utils";
 import { insertPlanExercisesIdempotent, upsertPlanSessionsReturnMap } from "@/lib/db/planInserts";
 import { computeBlockProgress } from "@/lib/db/blockState";
 import { normalizePrimaryLiftMap, rotatePrimaryLiftMap } from "@/lib/engine/rotation";
+import { logError } from "@/lib/logger";
 
 export async function POST() {
   requireConfig();
@@ -24,7 +25,7 @@ export async function POST() {
 
     if (profileRes.rowCount === 0) {
       await client.query("ROLLBACK");
-      return NextResponse.json({ error: "no_profile" }, { status: 400 });
+      return NextResponse.json({ error: "profile_not_found" }, { status: 404 });
     }
 
     const profile = profileRes.rows[0];
@@ -133,7 +134,7 @@ export async function POST() {
     });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("plan_regenerate_failed", err);
+    logError("plan_regenerate_failed", err, { user_id: userId });
     return NextResponse.json({ error: "plan_regenerate_failed" }, { status: 500 });
   } finally {
     client.release();

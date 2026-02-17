@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import { insertRestDay, PlanSessionRow } from "@/lib/engine/schedule";
 import { getWeekStartFromTimestamp } from "@/lib/db/logs";
+import { logError } from "@/lib/logger";
 
 export async function POST(req: Request) {
   requireConfig();
@@ -29,6 +30,11 @@ export async function POST(req: Request) {
       "select block_id, rest_inserted_by_week from user_profile where user_id = $1",
       [userId]
     );
+
+    if (profileRes.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "profile_not_found" }, { status: 404 });
+    }
 
     const blockId = profileRes.rows[0]?.block_id;
     if (!blockId) {
@@ -96,7 +102,7 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("insert_rest_day_failed", err);
+    logError("insert_rest_day_failed", err, { user_id: userId });
     return NextResponse.json({ error: "insert_rest_day_failed" }, { status: 500 });
   } finally {
     client.release();

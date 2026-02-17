@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import { parseBodyStatsXlsxWithReport } from "@/lib/adaptive/parseExcel";
 import { computeAdaptiveState } from "@/lib/adaptive/computeAdaptive";
+import { logError } from "@/lib/logger";
 
 function parseBiasState(input: any) {
   if (!input || typeof input !== "string") return {};
@@ -56,9 +57,15 @@ export async function POST(req: Request) {
       "select bias_balance, block_id, adaptive_enabled from user_profile where user_id = $1",
       [userId]
     );
+
+    if (profileRes.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "profile_not_found" }, { status: 404 });
+    }
+
     const profile = profileRes.rows[0];
-    const biasBalance = profile?.bias_balance ?? 0;
-    const blockId = profile?.block_id ?? null;
+    const biasBalance = profile.bias_balance ?? 0;
+    const blockId = profile.block_id ?? null;
 
     if (!blockId) {
       await client.query("ROLLBACK");
@@ -177,7 +184,7 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("body_stats_upload_failed", err);
+    logError("body_stats_upload_failed", err, { user_id: userId });
     return NextResponse.json({ error: "body_stats_upload_failed" }, { status: 500 });
   } finally {
     client.release();

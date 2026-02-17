@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CONFIG } from "@/lib/config";
+import { logInfo } from "@/lib/logger";
 
 const PUBLIC_PATHS = [
   "/_next/",
@@ -41,7 +42,8 @@ async function hmacEdge(value: string, secret: string) {
     .join("");
 }
 
-// Edge runtime lacks crypto.timingSafeEqual. Keep this in sync with src/lib/auth/cookies.ts.
+// Edge runtime lacks crypto.timingSafeEqual. HMAC verify is duplicated for Edge here,
+// while Node runtime verification lives in src/lib/auth/cookies.ts.
 function constantTimeEqualHex(expected: string, provided: string) {
   if (
     !HEX_RE.test(expected) ||
@@ -84,31 +86,60 @@ async function verifySessionCookieEdge(req: NextRequest) {
   }
 }
 
+function finalize(req: NextRequest, startMs: number, res: NextResponse) {
+  if (!req.nextUrl.pathname.startsWith("/api")) {
+    return res;
+  }
+
+  const durationMs = Date.now() - startMs;
+  res.headers.set("X-Response-Time", `${durationMs}ms`);
+
+  logInfo("api_response_time", {
+    method: req.method,
+    path: req.nextUrl.pathname,
+    status: res.status,
+    duration_ms: durationMs,
+  });
+
+  return res;
+}
+
 export async function middleware(req: NextRequest) {
+  const startMs = Date.now();
   const { pathname, search } = req.nextUrl;
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
+    return finalize(req, startMs, NextResponse.next());
   }
 
   if (pathname.startsWith("/api/admin/")) {
     const adminSecret = req.headers.get("x-admin-secret");
     if (adminSecret && adminSecret === CONFIG.ADMIN_SECRET) {
-      return NextResponse.next();
+      return finalize(req, startMs, NextResponse.next());
     }
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+    return finalize(
+      req,
+      startMs,
+      NextResponse.json({ error: "unauthorized" }, { status: 401 })
+    );
   }
 
   const session = await verifySessionCookieEdge(req);
   if (!session) {
     if (pathname.startsWith("/api")) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+      return finalize(
+        req,
+        startMs,
+        NextResponse.json({ error: "unauthorized" }, { status: 401 })
+      );
     }
+
     const nextParam = encodeURIComponent(`${pathname}${search}`);
     return NextResponse.redirect(new URL(`/unlock?next=${nextParam}`, req.url));
   }
 
-  return NextResponse.next();
+  return finalize(req, startMs, NextResponse.next());
 }
 
 export const config = {

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CardioEditor from "./CardioEditor";
 import { SessionView } from "./types";
 
 type SessionHeaderProps = {
@@ -73,9 +74,7 @@ export default function SessionHeader({
           />
         </div>
         <div className="text-sm text-gray-300">
-          {complete
-            ? "Session complete"
-            : `${doneExercises} / ${totalExercises} exercises done`}
+          {complete ? "Session complete" : `${doneExercises} / ${totalExercises} exercises done`}
         </div>
       </div>
 
@@ -86,26 +85,12 @@ export default function SessionHeader({
           </span>
         ) : null}
 
-        <label className="text-sm text-gray-300">Cardio:</label>
-        <input
-          type="number"
-          min={0}
-          step={1}
-          inputMode="numeric"
-          pattern="[0-9]*"
+        <CardioEditor
           value={cardioValue}
-          onChange={(e) => onCardioChange(e.target.value)}
-          className="min-h-[44px] w-24 rounded-lg border border-gray-700 bg-gray-900 p-3 text-sm text-gray-100"
+          isSaving={isSavingCardio}
+          onChange={onCardioChange}
+          onSave={onSaveCardio}
         />
-        <span className="text-sm text-gray-400">min</span>
-        <button
-          type="button"
-          onClick={onSaveCardio}
-          disabled={isSavingCardio}
-          className="min-h-[44px] rounded-lg border border-blue-700 bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-500 active:opacity-80"
-        >
-          {isSavingCardio ? "Saving" : "Save"}
-        </button>
       </div>
     </header>
   );

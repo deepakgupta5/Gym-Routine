@@ -26,7 +26,12 @@ export async function GET() {
       "select bias_balance, adaptive_enabled, block_id, primary_lift_map from user_profile where user_id = $1",
       [userId]
     );
-    const profile = profileRes.rows[0] ?? null;
+
+    if (profileRes.rowCount === 0) {
+      return NextResponse.json({ error: "profile_not_found" }, { status: 404 });
+    }
+
+    const profile = profileRes.rows[0];
 
     const blockRes = profile?.block_id
       ? await client.query(

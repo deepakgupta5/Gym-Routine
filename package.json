@@ -7,9 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run tests/engine tests/adaptive",
+    "test": "vitest run tests/engine tests/adaptive tests/api",
     "smoke:render": "node scripts/smoke-render.mjs",
-    "test:ci": "vitest run tests/engine tests/adaptive"
+    "test:ci": "vitest run tests/engine tests/adaptive tests/api"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

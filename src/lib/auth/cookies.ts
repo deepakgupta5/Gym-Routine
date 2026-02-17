@@ -4,7 +4,8 @@ import { CONFIG } from "@/lib/config";
 
 const COOKIE_NAME = "paifpe_session";
 
-// Keep this logic in sync with src/middleware.ts (Edge runtime variant).
+// Node runtime HMAC verification lives here; Edge runtime verification is duplicated in
+// src/middleware.ts because Edge lacks Node crypto APIs like timingSafeEqual.
 const HMAC_HEX_RE = /^[0-9a-f]{64}$/i;
 
 type SessionPayload = {

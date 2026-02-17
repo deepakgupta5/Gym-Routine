@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
+import { logError } from "@/lib/logger";
 
 const RETENTION_JOB_NAME = "retention_set_logs_12m";
 
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("retention_failed", err);
+    logError("retention_failed", err, { job: RETENTION_JOB_NAME });
     return NextResponse.json({ error: "retention_failed" }, { status: 500 });
   } finally {
     client.release();

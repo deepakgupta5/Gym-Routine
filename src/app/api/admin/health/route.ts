@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
+import { computeBlockProgress } from "@/lib/db/blockState";
 
 export async function GET(req: NextRequest) {
   requireConfig();
@@ -18,11 +19,16 @@ export async function GET(req: NextRequest) {
     await client.query("select 1 from blocks limit 1");
 
     const profileRes = await client.query(
-      "select user_id, block_id, current_block_week from user_profile where user_id = $1",
+      "select user_id, block_id, current_block_week, bias_balance, adaptive_enabled from user_profile where user_id = $1",
       [userId]
     );
-    const profile = profileRes.rows[0] ?? null;
-    const blockId = profile?.block_id ?? null;
+
+    if (profileRes.rowCount === 0) {
+      return NextResponse.json({ error: "profile_not_found" }, { status: 404 });
+    }
+
+    const profile = profileRes.rows[0];
+    const blockId = profile.block_id ?? null;
 
     const sessions = await client.query(
       "select count(*)::int as count from plan_sessions where user_id = $1",
@@ -54,6 +60,28 @@ export async function GET(req: NextRequest) {
         )
       : { rows: [{ count: 0 }] };
 
+    const currentWeekSessions = blockId
+      ? await client.query(
+          `select count(*)::int as count
+           from plan_sessions
+           where user_id = $1 and block_id = $2 and week_in_block = $3`,
+          [userId, blockId, profile.current_block_week]
+        )
+      : { rows: [{ count: 0 }] };
+
+    const pendingAdaptive = blockId
+      ? await client.query(
+          `select pending_bias_balance, pending_cardio_rule, pending_reason, pending_computed_at, pending_applied
+           from blocks
+           where block_id = $1`,
+          [blockId]
+        )
+      : { rows: [] };
+
+    const blockProgress = blockId
+      ? await computeBlockProgress(client, userId, blockId)
+      : null;
+
     return NextResponse.json({
       ok: true,
       user_profile: profile,
@@ -61,6 +89,9 @@ export async function GET(req: NextRequest) {
       plan_exercises: exercises.rows[0].count,
       plan_sessions_current_block: sessionsCurrent.rows[0].count,
       plan_exercises_current_block: exercisesCurrent.rows[0].count,
+      current_week_session_count: currentWeekSessions.rows[0].count,
+      pending_adaptive: pendingAdaptive.rows[0] ?? null,
+      block_progress: blockProgress,
     });
   } finally {
     client.release();

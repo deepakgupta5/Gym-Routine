@@ -5,6 +5,7 @@ import { CONFIG, requireConfig } from "@/lib/config";
 import { generateInitialBlock } from "@/lib/engine/generateBlock";
 import { getMondayUtc, hashGenerationRules } from "@/lib/engine/utils";
 import { insertPlanExercisesIdempotent, upsertPlanSessionsReturnMap } from "@/lib/db/planInserts";
+import { logError } from "@/lib/logger";
 
 export async function POST() {
   requireConfig();
@@ -39,6 +40,11 @@ export async function POST() {
         "select * from user_profile where user_id = $1 for update",
         [userId]
       );
+    }
+
+    if (profileRes.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "profile_not_found" }, { status: 404 });
     }
 
     const profile = profileRes.rows[0];
@@ -91,7 +97,7 @@ export async function POST() {
     });
   } catch (err) {
   await client.query("ROLLBACK");
-  console.error("plan_init_failed", err);
+  logError("plan_init_failed", err, { user_id: CONFIG.SINGLE_USER_ID });
   const detail =
     process.env.NODE_ENV === "production" ? undefined : String(err);
   return NextResponse.json(
