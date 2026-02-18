@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
@@ -91,6 +92,29 @@ function parseSessionDate(raw: string): ParsedDate | null {
   return { iso, dmy: trimmed, source: "dmy" };
 }
 
+function addDaysToDmy(dmy: string, delta: number) {
+  const [dd, mm, yyyy] = dmy.split("-").map(Number);
+  const dt = new Date(Date.UTC(yyyy, mm - 1, dd));
+  dt.setUTCDate(dt.getUTCDate() + delta);
+  const d = String(dt.getUTCDate()).padStart(2, "0");
+  const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const y = dt.getUTCFullYear();
+  return `${d}-${m}-${y}`;
+}
+
+function headerDateFromDmy(dmy: string) {
+  const [dd, mm, yyyy] = dmy.split("-").map(Number);
+  const dt = new Date(Date.UTC(yyyy, mm - 1, dd));
+  return dt.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+
 function toNullableNumber(value: string | number | null) {
   if (value === null || value === undefined) return null;
   const n = Number(value);
@@ -176,16 +200,37 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
 
       const wasSkippedInDb = Boolean(skippedRes.rows[0]?.was_skipped);
       const skipConfirmed = skipHintFromQuery || wasSkippedInDb;
+      
+      const currentDmy = parsed.dmy;
+      const prevDmy = addDaysToDmy(currentDmy, -1);
+      const nextDmy = addDaysToDmy(currentDmy, 1);
+      const headerDate = headerDateFromDmy(currentDmy);
 
       return (
         <main className="mx-auto max-w-5xl p-5 md:p-6">
           <BackForwardRefresh />
+          <div className="mb-4 flex items-center justify-between rounded-2xl border border-gray-700 bg-gray-800/70 px-3 py-3">
+            <Link
+              href={`/session/${prevDmy}`}
+              className="min-h-[44px] px-3 py-2 text-sm text-gray-400 hover:text-gray-100"
+            >
+              ← Prev
+            </Link>
+            <h1 className="text-center text-2xl font-semibold text-gray-100">{headerDate}</h1>
+            <Link
+              href={`/session/${nextDmy}`}
+              className="min-h-[44px] px-3 py-2 text-sm text-gray-400 hover:text-gray-100"
+            >
+              Next →
+            </Link>
+          </div>
           <SkipConfirmationBanner isoDate={parsed.iso} initialVisible={skipConfirmed} />
-          <h1 className="text-2xl font-semibold text-gray-100">No session scheduled</h1>
-          <p className="mt-2 text-sm text-gray-400">{parsed.dmy}</p>
+          <h2 className="text-2xl font-semibold text-gray-100">No session scheduled</h2>
+          <p className="mt-2 text-sm text-gray-400">{currentDmy}</p>
           <p className="mt-1 text-sm text-gray-500">This is a rest day or has been skipped.</p>
         </main>
       );
+
     }
 
     const session = sessionRes.rows[0];
