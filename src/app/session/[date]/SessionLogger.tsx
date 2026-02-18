@@ -5,6 +5,7 @@ import { haptic } from "@/lib/haptics";
 import ExerciseCard from "./components/ExerciseCard";
 import SessionHeader from "./components/SessionHeader";
 import { ExerciseView, SessionView, SetLogView } from "./components/types";
+import SkipConfirmationBanner from "./components/SkipConfirmationBanner";
 import { useSessionLoggerController } from "./useSessionLoggerController";
 
 type Props = {
@@ -88,11 +89,7 @@ export default function SessionLogger({
         isSkippingDay={controller.pendingKey === "skip-day"}
       />
 
-      {skipConfirmed ? (
-        <div className="mt-3 rounded-lg border border-green-800 bg-green-950/40 px-3 py-2 text-sm text-green-200">
-          Day skipped. Schedule updated.
-        </div>
-      ) : null}
+      <SkipConfirmationBanner isoDate={session.date} initialVisible={skipConfirmed} />
 
       {controller.error ? (
         <div className="mt-3 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-200">

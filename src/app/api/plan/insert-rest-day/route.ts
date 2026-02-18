@@ -62,7 +62,6 @@ export async function POST(req: Request) {
       week_in_block: r.week_in_block,
     }));
 
-    const hadSessionOnRestDate = sessions.some((s) => s.date === restDate);
     const result = insertRestDay(sessions, restDate);
 
     for (const u of result.updated) {
@@ -79,19 +78,17 @@ export async function POST(req: Request) {
       );
     }
 
-    if (hadSessionOnRestDate) {
-      await client.query(
-        `update user_profile
-         set skipped_dates =
-           case
-             when $1 = any(skipped_dates) then skipped_dates
-             else array_append(skipped_dates, $1)
-           end,
-           updated_at = now()
-         where user_id = $2`,
-        [restDate, userId]
-      );
-    }
+    await client.query(
+      `update user_profile
+       set skipped_dates =
+         case
+           when $1 = any(skipped_dates) then skipped_dates
+           else array_append(skipped_dates, $1)
+         end,
+         updated_at = now()
+       where user_id = $2`,
+      [restDate, userId]
+    );
 
     await client.query("COMMIT");
 
@@ -99,7 +96,7 @@ export async function POST(req: Request) {
       ok: true,
       updated: result.updated.length,
       dropped: result.dropped.length,
-      skip_recorded: hadSessionOnRestDate,
+      skip_recorded: true,
     });
   } catch (err) {
     await client.query("ROLLBACK");

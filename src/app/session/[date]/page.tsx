@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import SessionLogger from "./SessionLogger";
 import BackForwardRefresh from "./components/BackForwardRefresh";
+import SkipConfirmationBanner from "./components/SkipConfirmationBanner";
 
 type PageProps = {
   params: Promise<{ date?: string }>;
@@ -153,11 +154,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       return (
         <main className="mx-auto max-w-5xl p-5 md:p-6">
           <BackForwardRefresh />
-          {skipConfirmed ? (
-            <div className="mb-3 rounded-lg border border-green-800 bg-green-950/40 px-3 py-2 text-sm text-green-200">
-              Day skipped. Schedule updated.
-            </div>
-          ) : null}
+          <SkipConfirmationBanner isoDate={parsed.iso} initialVisible={skipConfirmed} />
           <h1 className="text-2xl font-semibold text-gray-100">No session scheduled</h1>
           <p className="mt-2 text-sm text-gray-400">{parsed.dmy}</p>
           <p className="mt-1 text-sm text-gray-500">This is a rest day or has been skipped.</p>

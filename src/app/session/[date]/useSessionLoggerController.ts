@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { haptic } from "@/lib/haptics";
 import { initAudio, playTimerComplete } from "@/lib/timerAudio";
+import { persistSkipBanner } from "./components/SkipConfirmationBanner";
 import {
   EditForm,
   EntryForm,
@@ -324,6 +325,7 @@ export function useSessionLoggerController({
     }
 
     haptic("medium");
+    persistSkipBanner(session.date);
     const [y, m, d] = session.date.split("-");
     const dmy = `${d}-${m}-${y}`;
     window.location.replace(`/session/${dmy}?skipped=1`);
