@@ -26,13 +26,29 @@ export async function GET(req: NextRequest) {
   const pool = await getDb();
   const client = await pool.connect();
   try {
+    const profileRes = await client.query(
+      `select block_id
+       from user_profile
+       where user_id = $1`,
+      [userId]
+    );
+
+    if (profileRes.rowCount === 0) {
+      return NextResponse.json({ error: "profile_not_found" }, { status: 404 });
+    }
+
+    const blockId = profileRes.rows[0]?.block_id;
+    if (!blockId) {
+      return NextResponse.json({ error: "no_block" }, { status: 400 });
+    }
+
     const sessionsRes = await client.query(
       `select plan_session_id, user_id, block_id, week_in_block, date::text as date,
               session_type, is_required, is_deload, cardio_minutes
        from plan_sessions
-       where user_id = $1 and date between $2 and $3
+       where user_id = $1 and block_id = $2 and date between $3 and $4
        order by date asc, session_type asc`,
-      [userId, weekStart, endDate]
+      [userId, blockId, weekStart, endDate]
     );
 
     const sessions = sessionsRes.rows;

@@ -129,6 +129,32 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const pool = await getDb();
   const client = await pool.connect();
   try {
+    const profileRes = await client.query<{ block_id: string | null }>(
+      `select block_id
+       from user_profile
+       where user_id = $1`,
+      [CONFIG.SINGLE_USER_ID]
+    );
+
+    if (profileRes.rowCount === 0) {
+      return (
+        <main className="mx-auto max-w-5xl p-5 md:p-6">
+          <BackForwardRefresh />
+          <h1 className="text-2xl font-semibold text-gray-100">Profile not found</h1>
+        </main>
+      );
+    }
+
+    const activeBlockId = profileRes.rows[0]?.block_id;
+    if (!activeBlockId) {
+      return (
+        <main className="mx-auto max-w-5xl p-5 md:p-6">
+          <BackForwardRefresh />
+          <h1 className="text-2xl font-semibold text-gray-100">No active block</h1>
+        </main>
+      );
+    }
+
     const sessionRes = await client.query<SessionRow>(
       `select plan_session_id,
               date::text as date,
@@ -136,8 +162,8 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               is_deload,
               cardio_minutes
        from plan_sessions
-       where user_id = $1 and date = $2`,
-      [CONFIG.SINGLE_USER_ID, parsed.iso]
+       where user_id = $1 and block_id = $2 and date = $3`,
+      [CONFIG.SINGLE_USER_ID, activeBlockId, parsed.iso]
     );
 
     if (sessionRes.rowCount === 0) {
