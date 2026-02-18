@@ -51,16 +51,9 @@ function placeSession(
 
   while (guard++ < maxIterations) {
     if (isSunday(date)) {
-      const saturday = addDays(date, -1);
-      const satSession = byDate.get(saturday);
-      if (satSession && !satSession.is_required && !satSession.performed_at) {
-        byDate.delete(saturday);
-        dropped.push(satSession.plan_session_id);
-        date = saturday;
-      } else {
-        date = addDays(date, 1);
-        continue;
-      }
+      // Sunday is always a rest day. Never drop Saturday; shift forward.
+      date = addDays(date, 1);
+      continue;
     }
 
     const prevDate = addDays(date, -1);

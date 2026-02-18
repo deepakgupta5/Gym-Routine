@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import { insertRestDay, PlanSessionRow } from "@/lib/engine/schedule";
-import { getWeekStartFromTimestamp } from "@/lib/db/logs";
 import { logError } from "@/lib/logger";
 
 export async function POST(req: Request) {
@@ -27,7 +26,7 @@ export async function POST(req: Request) {
     await client.query("BEGIN");
 
     const profileRes = await client.query(
-      "select block_id, rest_inserted_by_week from user_profile where user_id = $1",
+      "select block_id from user_profile where user_id = $1",
       [userId]
     );
 
@@ -40,13 +39,6 @@ export async function POST(req: Request) {
     if (!blockId) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "no_block" }, { status: 400 });
-    }
-
-    const weekStart = getWeekStartFromTimestamp(restDate + "T00:00:00Z");
-    const restMap = profileRes.rows[0]?.rest_inserted_by_week || {};
-    if (restMap[weekStart]) {
-      await client.query("ROLLBACK");
-      return NextResponse.json({ error: "rest_day_already_used" }, { status: 400 });
     }
 
     const sessionsRes = await client.query(
@@ -86,19 +78,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const nextRestMap = { ...restMap, [weekStart]: true };
-    await client.query(
-      "update user_profile set rest_inserted_by_week = $1::jsonb where user_id = $2",
-      [JSON.stringify(nextRestMap), userId]
-    );
-
     await client.query("COMMIT");
 
     return NextResponse.json({
       ok: true,
       updated: result.updated.length,
       dropped: result.dropped.length,
-      week_start: weekStart,
     });
   } catch (err) {
     await client.query("ROLLBACK");

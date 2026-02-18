@@ -61,18 +61,27 @@ describe("shiftMissedSessions", () => {
     }
   });
 
-  it("drops optional Saturday if shift would land on Sunday", () => {
+  it("never drops Saturday and never places shifted sessions on Sunday", () => {
     const sessions = [
       makeSession("fri", "2026-02-13", "Fri"),
-      makeSession("sat", "2026-02-14", "Sat", false),
+      makeSession("sat", "2026-02-14", "Sat", true),
+      makeSession("mon", "2026-02-16", "Mon"),
     ];
 
     const result = shiftMissedSessions(sessions, "2026-02-15");
-    expect(result.dropped.includes("sat")).toBe(true);
+    expect(result.dropped).toEqual([]);
 
     const final = applyUpdates(sessions, result.updated);
-    const moved = final.find((s) => s.plan_session_id === "fri")!;
-    expect(moved.date).toBe("2026-02-14");
+    const movedFri = final.find((s) => s.plan_session_id === "fri")!;
+    const movedSat = final.find((s) => s.plan_session_id === "sat")!;
+
+    expect(movedFri.date >= "2026-02-16").toBe(true);
+    expect(movedSat.date >= "2026-02-16").toBe(true);
+
+    const hasSunday = final.some(
+      (s) => new Date(`${s.date}T00:00:00Z`).getUTCDay() === 0
+    );
+    expect(hasSunday).toBe(false);
   });
 
   it("keeps performed sessions immutable while cascading", () => {

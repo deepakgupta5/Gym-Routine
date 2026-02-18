@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import SessionLogger from "./SessionLogger";
@@ -39,6 +40,9 @@ type ExerciseRow = {
   prev_reps: number | null;
   name: string;
 };
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type SetLogRow = {
   id: string;
@@ -93,6 +97,7 @@ function toNullableNumber(value: string | number | null) {
 
 export default async function SessionPage({ params, searchParams }: PageProps) {
   requireConfig();
+  noStore();
   const resolvedParams = await params;
   const resolvedSearch = searchParams ? await searchParams : {};
 
@@ -142,6 +147,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           ) : null}
           <h1 className="text-2xl font-semibold text-gray-100">No session scheduled</h1>
           <p className="mt-2 text-sm text-gray-400">{parsed.dmy}</p>
+          <p className="mt-1 text-sm text-gray-500">This is a rest day or has been skipped.</p>
         </main>
       );
     }

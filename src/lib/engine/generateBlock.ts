@@ -130,7 +130,6 @@ export function generateInitialBlock(input: GenerateInput): PlanOutput {
       sessions.push(session);
 
       if (!t.primaryCatalog && !t.secondaryCatalog && !t.accessoryGroups) continue;
-      if (t.day === "Sat") continue;
 
       const used = new Set<number>();
       const sessionKeyStr = sessionKey({ date, session_type: t.day });

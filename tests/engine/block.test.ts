@@ -19,18 +19,18 @@ const makeSession = (
 });
 
 describe("block progress", () => {
-  it("does not require Saturday to complete a week", () => {
+  it("requires Saturday to complete a week", () => {
     const sessions = [
       makeSession("m", 1, "2026-02-09", "Mon", true, true),
       makeSession("t", 1, "2026-02-10", "Tue", true, true),
       makeSession("w", 1, "2026-02-11", "Wed", true, true),
       makeSession("th", 1, "2026-02-12", "Thu", true, true),
       makeSession("f", 1, "2026-02-13", "Fri", true, true),
-      makeSession("s", 1, "2026-02-14", "Sat", false, false),
+      makeSession("s", 1, "2026-02-14", "Sat", true, false),
     ];
 
     const progress = computeBlockProgressFromSessions(sessions as any);
-    expect(progress.currentBlockWeek).toBe(2);
+    expect(progress.currentBlockWeek).toBe(1);
     expect(progress.blockComplete).toBe(false);
   });
 

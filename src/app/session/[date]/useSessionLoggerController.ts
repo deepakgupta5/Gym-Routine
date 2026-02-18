@@ -315,9 +315,7 @@ export function useSessionLoggerController({
 
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
-      if (body?.error === "rest_day_already_used") {
-        setError("You can only skip one day per week.");
-      } else if (body?.error === "rest_date_required") {
+      if (body?.error === "rest_date_required") {
         setError("Skip day failed: missing date.");
       } else {
         setError("Failed to skip this day.");
@@ -329,6 +327,7 @@ export function useSessionLoggerController({
     const [y, m, d] = session.date.split("-");
     const dmy = `${d}-${m}-${y}`;
     router.replace(`/session/${dmy}?skipped=1`);
+    router.refresh();
     return true;
   }
 
