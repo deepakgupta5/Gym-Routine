@@ -80,6 +80,7 @@ export async function POST() {
            bias_balance = $3,
            primary_lift_map = $4::jsonb,
            rest_inserted_by_week = '{}'::jsonb,
+           skipped_dates = '{}'::text[],
            updated_at = now()
        where user_id = $5`,
       [nextStartStr, newBlockId, appliedBiasBalance, JSON.stringify(rotatedMap), userId]

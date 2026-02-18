@@ -12,6 +12,12 @@ export default function BackForwardRefresh() {
 
     window.addEventListener("pageshow", onPageShow);
 
+    const onPopState = () => {
+      window.location.reload();
+    };
+
+    window.addEventListener("popstate", onPopState);
+
     const nav = performance.getEntriesByType("navigation")[0] as
       | PerformanceNavigationTiming
       | undefined;
@@ -21,6 +27,7 @@ export default function BackForwardRefresh() {
 
     return () => {
       window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("popstate", onPopState);
     };
   }, []);
 

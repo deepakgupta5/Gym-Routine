@@ -105,7 +105,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const rawParam = typeof resolvedParams?.date === "string" ? resolvedParams.date : "";
   const rawQuery = typeof resolvedSearch?.date === "string" ? resolvedSearch.date : "";
   const raw = decodeURIComponent((rawParam || rawQuery || "").trim());
-  const skipConfirmed = resolvedSearch?.skipped === "1";
+  const skipHintFromQuery = resolvedSearch?.skipped === "1";
 
   const parsed = parseSessionDate(raw);
 
@@ -121,7 +121,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   }
 
   if (parsed.source === "iso") {
-    const suffix = skipConfirmed ? "?skipped=1" : "";
+    const suffix = skipHintFromQuery ? "?skipped=1" : "";
     redirect(`/session/${parsed.dmy}${suffix}`);
   }
 
@@ -140,6 +140,16 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     );
 
     if (sessionRes.rowCount === 0) {
+      const skippedRes = await client.query<{ was_skipped: boolean }>(
+        `select $1 = any(skipped_dates) as was_skipped
+         from user_profile
+         where user_id = $2`,
+        [parsed.iso, CONFIG.SINGLE_USER_ID]
+      );
+
+      const wasSkippedInDb = Boolean(skippedRes.rows[0]?.was_skipped);
+      const skipConfirmed = skipHintFromQuery || wasSkippedInDb;
+
       return (
         <main className="mx-auto max-w-5xl p-5 md:p-6">
           <BackForwardRefresh />
@@ -222,7 +232,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
         session={session}
         exercises={exercises}
         logs={setLogsRes.rows}
-        skipConfirmed={skipConfirmed}
+        skipConfirmed={skipHintFromQuery}
       />
       </>
     );
