@@ -5,7 +5,7 @@ import SessionLogger from "./SessionLogger";
 
 type PageProps = {
   params: Promise<{ date?: string }>;
-  searchParams?: Promise<{ date?: string }>;
+  searchParams?: Promise<{ date?: string; skipped?: string }>;
 };
 
 type ParsedDate = {
@@ -99,6 +99,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const rawParam = typeof resolvedParams?.date === "string" ? resolvedParams.date : "";
   const rawQuery = typeof resolvedSearch?.date === "string" ? resolvedSearch.date : "";
   const raw = decodeURIComponent((rawParam || rawQuery || "").trim());
+  const skipConfirmed = resolvedSearch?.skipped === "1";
 
   const parsed = parseSessionDate(raw);
 
@@ -113,7 +114,8 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   }
 
   if (parsed.source === "iso") {
-    redirect(`/session/${parsed.dmy}`);
+    const suffix = skipConfirmed ? "?skipped=1" : "";
+    redirect(`/session/${parsed.dmy}${suffix}`);
   }
 
   const pool = await getDb();
@@ -133,6 +135,11 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     if (sessionRes.rowCount === 0) {
       return (
         <main className="mx-auto max-w-5xl p-5 md:p-6">
+          {skipConfirmed ? (
+            <div className="mb-3 rounded-lg border border-green-800 bg-green-950/40 px-3 py-2 text-sm text-green-200">
+              Day skipped. Schedule updated.
+            </div>
+          ) : null}
           <h1 className="text-2xl font-semibold text-gray-100">No session scheduled</h1>
           <p className="mt-2 text-sm text-gray-400">{parsed.dmy}</p>
         </main>
@@ -199,7 +206,14 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       [CONFIG.SINGLE_USER_ID, session.plan_session_id]
     );
 
-    return <SessionLogger session={session} exercises={exercises} logs={setLogsRes.rows} />;
+    return (
+      <SessionLogger
+        session={session}
+        exercises={exercises}
+        logs={setLogsRes.rows}
+        skipConfirmed={skipConfirmed}
+      />
+    );
   } finally {
     client.release();
   }

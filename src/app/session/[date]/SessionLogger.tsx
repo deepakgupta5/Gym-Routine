@@ -11,6 +11,7 @@ type Props = {
   session: SessionView;
   exercises: ExerciseView[];
   logs: SetLogView[];
+  skipConfirmed?: boolean;
 };
 
 function defaultEntryForm(role: ExerciseView["role"]) {
@@ -21,7 +22,12 @@ function defaultEntryForm(role: ExerciseView["role"]) {
   };
 }
 
-export default function SessionLogger({ session, exercises, logs }: Props) {
+export default function SessionLogger({
+  session,
+  exercises,
+  logs,
+  skipConfirmed = false,
+}: Props) {
   const controller = useSessionLoggerController({ session, exercises, logs });
 
   const cardioSaveKey = useMemo(
@@ -81,6 +87,12 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
         onSkipDay={handleSkipDay}
         isSkippingDay={controller.pendingKey === "skip-day"}
       />
+
+      {skipConfirmed ? (
+        <div className="mt-3 rounded-lg border border-green-800 bg-green-950/40 px-3 py-2 text-sm text-green-200">
+          Day skipped. Schedule updated.
+        </div>
+      ) : null}
 
       {controller.error ? (
         <div className="mt-3 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-200">

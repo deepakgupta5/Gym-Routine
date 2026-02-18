@@ -326,7 +326,9 @@ export function useSessionLoggerController({
     }
 
     haptic("medium");
-    router.refresh();
+    const [y, m, d] = session.date.split("-");
+    const dmy = `${d}-${m}-${y}`;
+    router.replace(`/session/${dmy}?skipped=1`);
     return true;
   }
 
