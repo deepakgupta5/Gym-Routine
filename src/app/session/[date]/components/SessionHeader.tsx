@@ -71,6 +71,7 @@ export default function SessionHeader({
       <div className="mb-3 flex items-center justify-between gap-2">
         <Link
           href={`/session/${prevDmy}`}
+          prefetch={false}
           className="min-h-[44px] rounded-lg px-3 py-2 text-sm text-gray-400 hover:text-gray-100 active:opacity-80"
         >
           ← Prev
@@ -78,6 +79,7 @@ export default function SessionHeader({
         <h1 className="text-center text-2xl font-semibold text-gray-100">{formatDisplayDate(session.date)}</h1>
         <Link
           href={`/session/${nextDmy}`}
+          prefetch={false}
           className="min-h-[44px] rounded-lg px-3 py-2 text-sm text-gray-400 hover:text-gray-100 active:opacity-80"
         >
           Next →

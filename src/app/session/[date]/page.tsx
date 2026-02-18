@@ -3,6 +3,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import SessionLogger from "./SessionLogger";
+import BackForwardRefresh from "./components/BackForwardRefresh";
 
 type PageProps = {
   params: Promise<{ date?: string }>;
@@ -111,6 +112,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   if (!parsed) {
     return (
       <main className="mx-auto max-w-5xl p-5 md:p-6">
+        <BackForwardRefresh />
         <h1 className="text-2xl font-semibold text-gray-100">Invalid date</h1>
         <p className="mt-2 text-sm text-gray-400">Expected format: DD-MM-YYYY</p>
         <p className="text-sm text-gray-500">Received: {raw || "(empty)"}</p>
@@ -140,6 +142,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     if (sessionRes.rowCount === 0) {
       return (
         <main className="mx-auto max-w-5xl p-5 md:p-6">
+          <BackForwardRefresh />
           {skipConfirmed ? (
             <div className="mb-3 rounded-lg border border-green-800 bg-green-950/40 px-3 py-2 text-sm text-green-200">
               Day skipped. Schedule updated.
@@ -213,12 +216,15 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     );
 
     return (
-      <SessionLogger
+      <>
+        <BackForwardRefresh />
+        <SessionLogger
         session={session}
         exercises={exercises}
         logs={setLogsRes.rows}
         skipConfirmed={skipConfirmed}
       />
+      </>
     );
   } finally {
     client.release();
