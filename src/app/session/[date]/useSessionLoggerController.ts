@@ -300,6 +300,36 @@ export function useSessionLoggerController({
     return true;
   }
 
+  async function skipDay() {
+    setError(null);
+    const key = "skip-day";
+    setPendingKey(key);
+
+    const res = await fetch("/api/plan/insert-rest-day", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rest_date: session.date }),
+    });
+
+    setPendingKey(null);
+
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (body?.error === "rest_day_already_used") {
+        setError("You can only skip one day per week.");
+      } else if (body?.error === "rest_date_required") {
+        setError("Skip day failed: missing date.");
+      } else {
+        setError("Failed to skip this day.");
+      }
+      return false;
+    }
+
+    haptic("medium");
+    router.refresh();
+    return true;
+  }
+
   function extendTimer() {
     setActiveTimer((prev) => {
       if (!prev) return prev;
@@ -348,6 +378,7 @@ export function useSessionLoggerController({
     confirmDelete,
     repeatSet,
     saveSessionMinutes,
+    skipDay,
     extendTimer,
     getExerciseTimer,
     requestDelete: (log: SetLogView) => setConfirmingDeleteId(log.id),

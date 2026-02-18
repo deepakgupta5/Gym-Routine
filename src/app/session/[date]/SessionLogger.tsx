@@ -60,6 +60,10 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
     }
   }
 
+  async function handleSkipDay() {
+    await controller.skipDay();
+  }
+
   return (
     <main className="mx-auto max-w-5xl p-5 md:p-6">
       <SessionHeader
@@ -74,6 +78,8 @@ export default function SessionLogger({ session, exercises, logs }: Props) {
         }
         onSaveCardio={handleSaveCardio}
         isSavingCardio={controller.pendingKey === "session-minutes"}
+        onSkipDay={handleSkipDay}
+        isSkippingDay={controller.pendingKey === "skip-day"}
       />
 
       {controller.error ? (

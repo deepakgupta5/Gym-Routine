@@ -12,6 +12,8 @@ type SessionHeaderProps = {
   onCardioChange: (value: string) => void;
   onSaveCardio: () => void;
   isSavingCardio: boolean;
+  onSkipDay: () => void;
+  isSkippingDay: boolean;
 };
 
 function addDaysIso(isoDate: string, days: number) {
@@ -44,6 +46,8 @@ export default function SessionHeader({
   onCardioChange,
   onSaveCardio,
   isSavingCardio,
+  onSkipDay,
+  isSkippingDay,
 }: SessionHeaderProps) {
   const prevDmy = isoToDmy(addDaysIso(session.date, -1));
   const nextDmy = isoToDmy(addDaysIso(session.date, 1));
@@ -105,6 +109,15 @@ export default function SessionHeader({
           onChange={onCardioChange}
           onSave={onSaveCardio}
         />
+
+        <button
+          type="button"
+          onClick={onSkipDay}
+          disabled={isSkippingDay}
+          className="min-h-[44px] rounded-lg border border-red-700 bg-red-900/50 px-4 text-sm font-medium text-red-100 hover:bg-red-900/70 active:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSkippingDay ? "Skipping..." : "Skip Day"}
+        </button>
       </div>
     </header>
   );
