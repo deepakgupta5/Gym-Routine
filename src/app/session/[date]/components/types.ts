@@ -7,6 +7,7 @@ export type SessionView = {
   session_type: string;
   is_deload: boolean;
   cardio_minutes: number;
+  cardio_saved_at: string | null;
 };
 
 export type ExerciseView = {

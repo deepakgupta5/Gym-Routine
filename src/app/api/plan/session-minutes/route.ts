@@ -38,11 +38,12 @@ export async function PUT(req: Request) {
 
     const updatedRes = await client.query(
       `update plan_sessions
-       set cardio_minutes = $1
-       where plan_session_id = $2
-         and user_id = $3
-       returning plan_session_id, date::text as date, performed_at`,
-      [body.cardio_minutes, body.session_id, userId]
+       set cardio_minutes = $1,
+ cardio_saved_at = now()
+where user_id = $2
+ and plan_session_id = $3
+       returning plan_session_id, cardio_minutes, cardio_saved_at,date::text as date,performed_at`,
+      [body.cardio_minutes, userId, body.session_id]
     );
 
     if (updatedRes.rowCount === 0) {
@@ -63,6 +64,7 @@ export async function PUT(req: Request) {
       ok: true,
       session_id: session.plan_session_id,
       cardio_minutes: body.cardio_minutes,
+      cardio_saved_at: session.cardio_saved_at,
     });
   } catch (err) {
     await client.query("ROLLBACK");

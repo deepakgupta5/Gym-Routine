@@ -24,6 +24,8 @@ type SessionRow = {
   session_type: string;
   is_deload: boolean;
   cardio_minutes: number;
+cardio_saved_at: string | null;
+
 };
 
 type ExerciseRow = {
@@ -184,7 +186,8 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               date::text as date,
               session_type,
               is_deload,
-              cardio_minutes
+              cardio_minutes,
+              cardio_saved_at::text as cardio_saved_at
        from plan_sessions
        where user_id = $1 and block_id = $2 and date = $3`,
       [CONFIG.SINGLE_USER_ID, activeBlockId, parsed.iso]

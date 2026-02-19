@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { haptic } from "@/lib/haptics";
 import ExerciseCard from "./components/ExerciseCard";
 import SessionHeader from "./components/SessionHeader";
@@ -31,19 +31,11 @@ export default function SessionLogger({
 }: Props) {
   const controller = useSessionLoggerController({ session, exercises, logs });
 
-  const cardioSaveKey = useMemo(
-    () => `cardio_saved:${session.plan_session_id}`,
-    [session.plan_session_id]
-  );
-  const [cardioSaved, setCardioSaved] = useState(false);
+  const [cardioSaved, setCardioSaved] = useState(Boolean(session.cardio_saved_at));
 
   useEffect(() => {
-    try {
-      setCardioSaved(window.localStorage.getItem(cardioSaveKey) === "1");
-    } catch {
-      setCardioSaved(false);
-    }
-  }, [cardioSaveKey]);
+    setCardioSaved(Boolean(session.cardio_saved_at));
+  }, [session.cardio_saved_at]);
 
   const cardioDirty = controller.sessionMinutes.cardio !== String(session.cardio_minutes);
   const cardioValue = Number(controller.sessionMinutes.cardio);
@@ -59,12 +51,6 @@ export default function SessionLogger({
 
     setCardioSaved(true);
     haptic("light");
-
-    try {
-      window.localStorage.setItem(cardioSaveKey, "1");
-    } catch {
-      // Ignore storage failures; UI state is still updated for this session.
-    }
   }
 
   async function handleSkipDay() {
