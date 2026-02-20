@@ -1,5 +1,20 @@
 import { SessionType } from "@/lib/engine/types";
 
+/**
+ * DESIGN NOTE: session_type (Mon/Tue/Wed/Thu/Fri/Sat) represents the
+ * workout TEMPLATE identity — what kind of training content the session
+ * contains — NOT the actual calendar weekday it falls on.
+ *
+ * When sessions cascade-shift due to skip/miss, session_type stays the same.
+ * This is intentional:
+ * - "Fri" detection in recomputeSessionPerformed uses content-based logic
+ *   (Friday sessions count ALL set_logs, not just top sets)
+ * - "Tue" in isLowerStrength prevents lower-strength session stacking,
+ *   which is about workout content, not the calendar day
+ *
+ * A "Tue" session that shifts to Wednesday is still a lower-strength session.
+ */
+
 export type PlanSessionRow = {
   plan_session_id: string;
   date: string; // YYYY-MM-DD

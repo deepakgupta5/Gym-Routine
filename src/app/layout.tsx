@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import HapticsProvider from "./HapticsProvider";
+import BottomNav from "./BottomNav";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -53,7 +54,8 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <HapticsProvider />
-        {children}
+        <div className="pb-20">{children}</div>
+        <BottomNav />
       </body>
     </html>
   );

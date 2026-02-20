@@ -45,6 +45,8 @@ type ExerciseRow = {
   prev_reps: number | null;
   next_target_load: string | number | null;
   name: string;
+  alt_1_name: string | null;
+  alt_2_name: string | null;
 };
 
 export const dynamic = "force-dynamic";
@@ -255,9 +257,13 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               pe.prev_reps,
               pe.next_target_load,
               e.name,
-              e.movement_pattern
+              e.movement_pattern,
+              alt1.name as alt_1_name,
+              alt2.name as alt_2_name
        from plan_exercises pe
        join exercises e on e.exercise_id = pe.exercise_id
+       left join exercises alt1 on alt1.exercise_id = e.alt_1_exercise_id
+       left join exercises alt2 on alt2.exercise_id = e.alt_2_exercise_id
        where pe.plan_session_id = $1
        order by case pe.role when 'primary' then 1 when 'secondary' then 2 else 3 end,
                 pe.exercise_id asc`,
@@ -281,6 +287,8 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       prev_load: toNullableNumber(row.prev_load),
       prev_reps: row.prev_reps === null ? null : Number(row.prev_reps),
       next_target_load: toNullableNumber(row.next_target_load),
+      alt_1_name: row.alt_1_name ?? null,
+      alt_2_name: row.alt_2_name ?? null,
     }));
 
     const setLogsRes = await client.query<SetLogRow>(
@@ -299,6 +307,44 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       [CONFIG.SINGLE_USER_ID, session.plan_session_id]
     );
 
+    // Top set history for progress widgets (last 3 per exercise) + PR max
+    const exerciseIds = exercises.map((e) => e.exercise_id);
+    const topSetHistoryRes = exerciseIds.length > 0
+      ? await client.query<{ exercise_id: number; load: string; reps: number }>(
+          `select exercise_id, load::text as load, reps
+           from top_set_history
+           where user_id = $1 and exercise_id = any($2::int[])
+           order by exercise_id, performed_at desc`,
+          [CONFIG.SINGLE_USER_ID, exerciseIds]
+        )
+      : { rows: [] };
+
+    // Group by exercise_id, take first 3 (most recent)
+    const recentTopSets: Record<number, Array<{ load: string; reps: number }>> = {};
+    for (const row of topSetHistoryRes.rows) {
+      const exId = Number(row.exercise_id);
+      if (!recentTopSets[exId]) recentTopSets[exId] = [];
+      if (recentTopSets[exId].length < 3) {
+        recentTopSets[exId].push({ load: row.load, reps: row.reps });
+      }
+    }
+
+    // PR max (max estimated 1RM per exercise)
+    const prMaxRes = exerciseIds.length > 0
+      ? await client.query<{ exercise_id: number; max_1rm: number }>(
+          `select exercise_id, max(estimated_1rm)::float as max_1rm
+           from top_set_history
+           where user_id = $1 and exercise_id = any($2::int[])
+           group by exercise_id`,
+          [CONFIG.SINGLE_USER_ID, exerciseIds]
+        )
+      : { rows: [] };
+
+    const prMaxByExercise: Record<number, number> = {};
+    for (const row of prMaxRes.rows) {
+      prMaxByExercise[Number(row.exercise_id)] = Number(row.max_1rm);
+    }
+
     return (
       <>
         <BackForwardRefresh />
@@ -307,6 +353,8 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
         exercises={exercises}
         logs={setLogsRes.rows}
         skipConfirmed={skipHintFromQuery}
+        recentTopSets={recentTopSets}
+        prMaxByExercise={prMaxByExercise}
       />
       </>
     );

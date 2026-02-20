@@ -27,6 +27,8 @@ export type ExerciseView = {
   prev_load: number | null;
   prev_reps: number | null;
   next_target_load: number | null;
+  alt_1_name: string | null;
+  alt_2_name: string | null;
 };
 
 export type SetLogView = {
@@ -41,10 +43,17 @@ export type SetLogView = {
   performed_at: string;
 };
 
+export type TopSetHistoryEntry = {
+  load: string;
+  reps: number;
+};
+
 export type EntryForm = {
   load: string;
   reps: string;
   setType: SelectableSetType;
+  rpe: string;
+  notes: string;
 };
 
 export type EditForm = {

@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { haptic } from "@/lib/haptics";
 import ExerciseCard from "./components/ExerciseCard";
 import SessionHeader from "./components/SessionHeader";
-import { ExerciseView, SessionView, SetLogView } from "./components/types";
+import { ExerciseView, SessionView, SetLogView, TopSetHistoryEntry } from "./components/types";
+import SessionComplete from "./components/SessionComplete";
 import SkipConfirmationBanner from "./components/SkipConfirmationBanner";
+import SkipPreviewModal from "./components/SkipPreviewModal";
 import { useSessionLoggerController } from "./useSessionLoggerController";
 
 type Props = {
@@ -13,6 +15,8 @@ type Props = {
   exercises: ExerciseView[];
   logs: SetLogView[];
   skipConfirmed?: boolean;
+  recentTopSets: Record<number, TopSetHistoryEntry[]>;
+  prMaxByExercise: Record<number, number>;
 };
 
 function defaultEntryForm(role: ExerciseView["role"]) {
@@ -20,6 +24,8 @@ function defaultEntryForm(role: ExerciseView["role"]) {
     load: "",
     reps: "",
     setType: role === "primary" ? "top" : ("backoff" as const),
+    rpe: "",
+    notes: "",
   };
 }
 
@@ -28,10 +34,13 @@ export default function SessionLogger({
   exercises,
   logs,
   skipConfirmed = false,
+  recentTopSets,
+  prMaxByExercise,
 }: Props) {
   const controller = useSessionLoggerController({ session, exercises, logs });
 
   const [cardioSaved, setCardioSaved] = useState(Boolean(session.cardio_saved_at));
+  const [showSkipPreview, setShowSkipPreview] = useState(false);
 
   useEffect(() => {
     setCardioSaved(Boolean(session.cardio_saved_at));
@@ -71,7 +80,7 @@ export default function SessionLogger({
         }
         onSaveCardio={handleSaveCardio}
         isSavingCardio={controller.pendingKey === "session-minutes"}
-        onSkipDay={handleSkipDay}
+        onSkipDay={() => setShowSkipPreview(true)}
         isSkippingDay={controller.pendingKey === "skip-day"}
       />
 
@@ -82,6 +91,16 @@ export default function SessionLogger({
           {controller.error}
         </div>
       ) : null}
+
+      {(() => {
+        const normalizedDone = Math.min(controller.doneExercises, exercises.length);
+        const isComplete = normalizedDone === exercises.length && cardioComplete;
+        return isComplete ? (
+          <div className="mt-4">
+            <SessionComplete exercises={exercises} logs={logs} />
+          </div>
+        ) : null;
+      })()}
 
       <div className="mt-4 grid gap-4">
         {exercises.map((ex) => {
@@ -99,6 +118,8 @@ export default function SessionLogger({
               confirmingDeleteId={controller.confirmingDeleteId}
               pendingKey={controller.pendingKey}
               timer={controller.getExerciseTimer(ex.exercise_id)}
+              recentTopSets={recentTopSets[ex.exercise_id] || []}
+              prMax={prMaxByExercise[ex.exercise_id] ?? null}
               onFormChange={(next) =>
                 controller.setEntryForms((prev) => ({ ...prev, [ex.exercise_id]: next }))
               }
@@ -123,6 +144,17 @@ export default function SessionLogger({
           );
         })}
       </div>
+
+      <SkipPreviewModal
+        isOpen={showSkipPreview}
+        isoDate={session.date}
+        onConfirm={() => {
+          setShowSkipPreview(false);
+          handleSkipDay();
+        }}
+        onCancel={() => setShowSkipPreview(false)}
+        isConfirming={controller.pendingKey === "skip-day"}
+      />
     </main>
   );
 }

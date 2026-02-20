@@ -75,7 +75,7 @@ export function useSessionLoggerController({
         }
         return [
           ex.exercise_id,
-          { load: prefillLoad, reps: "", setType: defaultSetType(ex.role) },
+          { load: prefillLoad, reps: "", setType: defaultSetType(ex.role), rpe: "", notes: "" },
         ];
       })
     );
@@ -156,6 +156,8 @@ export function useSessionLoggerController({
         set_index: setIndex,
         load,
         reps,
+        rpe: form.rpe ? Number(form.rpe) : null,
+        notes: form.notes || null,
       }),
     });
 
@@ -168,7 +170,7 @@ export function useSessionLoggerController({
 
     setEntryForms((prev) => ({
       ...prev,
-      [ex.exercise_id]: { ...prev[ex.exercise_id], reps: "" },
+      [ex.exercise_id]: { ...prev[ex.exercise_id], reps: "", rpe: "", notes: "" },
     }));
 
     setActiveTimer({

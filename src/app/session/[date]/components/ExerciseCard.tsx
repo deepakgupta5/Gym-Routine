@@ -1,8 +1,13 @@
+"use client";
+
+import { useState } from "react";
+import { estimate1RM } from "@/lib/engine/progression";
 import AddSetForm from "./AddSetForm";
 import EditSetForm from "./EditSetForm";
+import ExerciseDetailDrawer from "./ExerciseDetailDrawer";
 import RestTimer from "./RestTimer";
 import SetLogRow from "./SetLogRow";
-import { EditForm, EntryForm, ExerciseView, SetLogView } from "./types";
+import { EditForm, EntryForm, ExerciseView, SetLogView, TopSetHistoryEntry } from "./types";
 
 type TimerState = {
   remainingSeconds: number;
@@ -18,6 +23,8 @@ type ExerciseCardProps = {
   confirmingDeleteId: string | null;
   pendingKey: string | null;
   timer: TimerState | null;
+  recentTopSets: TopSetHistoryEntry[];
+  prMax: number | null;
   onFormChange: (next: EntryForm) => void;
   onAddSet: () => void;
   onBeginEdit: (log: SetLogView) => void;
@@ -63,6 +70,15 @@ function formatLoad(value: number | null) {
   return value.toFixed(1).replace(/\.0$/, "");
 }
 
+function trendArrow(entries: TopSetHistoryEntry[]) {
+  if (entries.length < 2) return null;
+  const newest = Number(entries[0].load);
+  const oldest = Number(entries[entries.length - 1].load);
+  if (newest > oldest) return { symbol: "↑", color: "text-green-400" };
+  if (newest < oldest) return { symbol: "↓", color: "text-red-400" };
+  return { symbol: "→", color: "text-gray-400" };
+}
+
 export default function ExerciseCard({
   exercise,
   logs,
@@ -72,6 +88,8 @@ export default function ExerciseCard({
   confirmingDeleteId,
   pendingKey,
   timer,
+  recentTopSets,
+  prMax,
   onFormChange,
   onAddSet,
   onBeginEdit,
@@ -86,6 +104,7 @@ export default function ExerciseCard({
   onExtendTimer,
   onLogButtonRef,
 }: ExerciseCardProps) {
+  const [detailOpen, setDetailOpen] = useState(false);
   const role = roleMeta(exercise.role);
   const setCount = logs.length;
   const complete = setCount >= exercise.prescribed_sets;
@@ -99,6 +118,8 @@ export default function ExerciseCard({
       ? formatLoad(exercise.next_target_load)
       : null;
 
+  const trend = trendArrow(recentTopSets);
+
   return (
     <section
       className={`rounded-xl border border-gray-700 border-l-4 bg-gray-800 p-4 ${role.border}`}
@@ -108,11 +129,33 @@ export default function ExerciseCard({
           <div className={`text-xs font-medium uppercase tracking-wide ${role.text}`}>
             {role.label}
           </div>
-          <h2 className="text-lg font-semibold text-gray-100">{exercise.name}</h2>
+          <button
+            type="button"
+            onClick={() => setDetailOpen((prev) => !prev)}
+            className="text-left"
+          >
+            <h2 className="text-lg font-semibold text-gray-100 underline decoration-gray-600 decoration-dotted underline-offset-4">
+              {exercise.name}
+            </h2>
+          </button>
           <div className="text-sm text-gray-400">
             Target {exercise.prescribed_sets} x {exercise.prescribed_reps_min}-{exercise.prescribed_reps_max} · Last: {last}
             {nextTarget && <span className="ml-1 text-blue-400"> · Next: {nextTarget} lb</span>}
           </div>
+          {recentTopSets.length > 0 && (
+            <div className="mt-1 text-xs text-gray-500">
+              Recent:{" "}
+              {recentTopSets.map((e, i) => (
+                <span key={i}>
+                  {i > 0 && ", "}
+                  {e.load}×{e.reps}
+                </span>
+              ))}
+              {trend && (
+                <span className={`ml-1 ${trend.color}`}>{trend.symbol}</span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="shrink-0 text-right text-sm font-medium">
@@ -123,6 +166,8 @@ export default function ExerciseCard({
           )}
         </div>
       </div>
+
+      {detailOpen && <ExerciseDetailDrawer exercise={exercise} />}
 
       <AddSetForm
         role={exercise.role}
@@ -155,6 +200,14 @@ export default function ExerciseCard({
                 notes: log.notes || "",
               };
 
+            // PR detection: compare this set's estimated 1RM against historical max
+            const logE1RM =
+              log.set_type === "top"
+                ? estimate1RM(Number(log.load), log.reps)
+                : null;
+            const isPR =
+              logE1RM !== null && prMax !== null && logE1RM > prMax;
+
             if (editingId === log.id) {
               return (
                 <EditSetForm
@@ -178,6 +231,7 @@ export default function ExerciseCard({
               <SetLogRow
                 key={log.id}
                 log={log}
+                isPR={isPR}
                 onEdit={() => onBeginEdit(log)}
                 onRepeat={() => onRepeat(log)}
               />

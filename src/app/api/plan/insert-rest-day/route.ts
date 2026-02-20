@@ -62,7 +62,33 @@ export async function POST(req: Request) {
       week_in_block: r.week_in_block,
     }));
 
+    const dryRun = body?.dry_run === true;
+
+    // Build lookup for original dates before shift
+    const originalByPsId = new Map(
+      sessions.map((s) => [s.plan_session_id, { date: s.date, session_type: s.session_type }])
+    );
+
     const result = insertRestDay(sessions, restDate);
+
+    // Dry run: return preview without applying changes
+    if (dryRun) {
+      await client.query("ROLLBACK");
+      const shifts = result.updated
+        .map((u) => {
+          const orig = originalByPsId.get(u.plan_session_id);
+          if (!orig || orig.date === u.date) return null;
+          return { session_type: orig.session_type, from_date: orig.date, to_date: u.date };
+        })
+        .filter(Boolean);
+
+      return NextResponse.json({
+        ok: true,
+        dry_run: true,
+        shifts,
+        dropped_count: result.dropped.length,
+      });
+    }
 
     for (const u of result.updated) {
       await client.query(
