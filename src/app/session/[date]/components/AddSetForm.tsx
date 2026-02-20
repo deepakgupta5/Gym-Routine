@@ -4,6 +4,7 @@ type AddSetFormProps = {
   role: ExerciseView["role"];
   form: EntryForm;
   isPending: boolean;
+  isPrefilled?: boolean;
   onChange: (next: EntryForm) => void;
   onSubmit: () => void;
   onLogButtonRef?: (el: HTMLButtonElement | null) => void;
@@ -20,6 +21,7 @@ export default function AddSetForm({
   role,
   form,
   isPending,
+  isPrefilled = false,
   onChange,
   onSubmit,
   onLogButtonRef,
@@ -34,9 +36,12 @@ export default function AddSetForm({
           pattern="[0-9]*"
           value={form.load}
           onChange={(e) => onChange({ ...form, load: e.target.value })}
-          className={FIELD_CLASSES}
+          className={`${FIELD_CLASSES} ${isPrefilled && form.load ? "text-blue-400" : ""}`}
           placeholder="lb"
         />
+        {isPrefilled && form.load && (
+          <div className="mt-0.5 text-xs text-blue-400/70">suggested</div>
+        )}
       </label>
 
       <label className="block">

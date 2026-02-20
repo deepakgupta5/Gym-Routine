@@ -7,7 +7,7 @@ import {
   recomputeWeeklyRollup,
 } from "@/lib/db/logs";
 import { updateCurrentBlockWeek } from "@/lib/db/blockState";
-import { estimate1RM } from "@/lib/engine/progression";
+import { estimate1RM, computeNextTopSetLoad, LoadSemantic } from "@/lib/engine/progression";
 import { logError } from "@/lib/logger";
 
 type AllowedSetType = "top" | "backoff";
@@ -257,6 +257,35 @@ export async function PUT(
           row.id,
         ]
       );
+
+      // --- Compute and persist next_target_load for future weeks ---
+      if (session?.block_id && session?.week_in_block) {
+        const metaRes = await client.query(
+          `select load_increment_lb, load_semantic from exercises where exercise_id = $1`,
+          [row.exercise_id]
+        );
+        const meta = metaRes.rows[0];
+        if (meta) {
+          const nextLoad = computeNextTopSetLoad({
+            last_prescribed_load: Number(row.load),
+            last_performed_reps: Number(row.reps),
+            cap_pct: 0.03,
+            increment: Number(meta.load_increment_lb),
+            load_semantic: (meta.load_semantic || "normal") as LoadSemantic,
+          });
+
+          await client.query(
+            `update plan_exercises pe
+             set next_target_load = $1
+             from plan_sessions ps
+             where pe.plan_session_id = ps.plan_session_id
+               and ps.block_id = $2
+               and ps.week_in_block > $3
+               and pe.exercise_id = $4`,
+            [nextLoad, session.block_id, session.week_in_block, row.exercise_id]
+          );
+        }
+      }
     } else if (existing.set_type === "top") {
       await client.query("delete from top_set_history where source_set_log_id = $1", [
         row.id,

@@ -26,6 +26,7 @@ export type ExerciseView = {
   tempo: string;
   prev_load: number | null;
   prev_reps: number | null;
+  next_target_load: number | null;
 };
 
 export type SetLogView = {

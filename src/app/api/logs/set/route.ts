@@ -7,7 +7,7 @@ import {
   recomputeWeeklyRollup,
 } from "@/lib/db/logs";
 import { updateCurrentBlockWeek } from "@/lib/db/blockState";
-import { estimate1RM } from "@/lib/engine/progression";
+import { estimate1RM, computeNextTopSetLoad, LoadSemantic } from "@/lib/engine/progression";
 import { logError } from "@/lib/logger";
 
 type AllowedSetType = "top" | "backoff";
@@ -387,6 +387,49 @@ export async function POST(req: Request) {
       `;
 
       await client.query(topSql, topParams);
+
+      // --- Compute and persist next_target_load for future weeks ---
+      const topExerciseIds = Array.from(new Set(topRows.map((r) => Number(r.exercise_id))));
+      const exerciseMetaRes = await client.query(
+        `select exercise_id, load_increment_lb, load_semantic
+         from exercises where exercise_id = any($1::int[])`,
+        [topExerciseIds]
+      );
+      const exerciseMeta = new Map<number, { increment: number; semantic: LoadSemantic }>(
+        exerciseMetaRes.rows.map((row: any) => [
+          Number(row.exercise_id),
+          {
+            increment: Number(row.load_increment_lb),
+            semantic: (row.load_semantic || "normal") as LoadSemantic,
+          },
+        ])
+      );
+
+      for (const r of topRows) {
+        const meta = exerciseMeta.get(Number(r.exercise_id));
+        if (!meta) continue;
+        const session = r.session_id ? sessionMap.get(r.session_id) : null;
+        if (!session?.block_id || !session?.week_in_block) continue;
+
+        const nextLoad = computeNextTopSetLoad({
+          last_prescribed_load: Number(r.load),
+          last_performed_reps: Number(r.reps),
+          cap_pct: 0.03,
+          increment: meta.increment,
+          load_semantic: meta.semantic,
+        });
+
+        await client.query(
+          `update plan_exercises pe
+           set next_target_load = $1
+           from plan_sessions ps
+           where pe.plan_session_id = ps.plan_session_id
+             and ps.block_id = $2
+             and ps.week_in_block > $3
+             and pe.exercise_id = $4`,
+          [nextLoad, session.block_id, session.week_in_block, r.exercise_id]
+        );
+      }
     }
 
     if (blockId) {

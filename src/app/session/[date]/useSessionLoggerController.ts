@@ -59,14 +59,27 @@ export function useSessionLoggerController({
 
   const logButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({});
 
-  const [entryForms, setEntryForms] = useState<Record<number, EntryForm>>(() =>
-    Object.fromEntries(
-      exercises.map((ex) => [
-        ex.exercise_id,
-        { load: "", reps: "", setType: defaultSetType(ex.role) },
-      ])
-    )
-  );
+  const [entryForms, setEntryForms] = useState<Record<number, EntryForm>>(() => {
+    const loggedExerciseIds = new Set(logs.map((l) => l.exercise_id));
+
+    return Object.fromEntries(
+      exercises.map((ex) => {
+        const hasLogs = loggedExerciseIds.has(ex.exercise_id);
+        let prefillLoad = "";
+        if (!hasLogs) {
+          if (ex.next_target_load != null && ex.next_target_load > 0) {
+            prefillLoad = String(ex.next_target_load);
+          } else if (ex.prev_load != null && ex.prev_load > 0) {
+            prefillLoad = String(ex.prev_load);
+          }
+        }
+        return [
+          ex.exercise_id,
+          { load: prefillLoad, reps: "", setType: defaultSetType(ex.role) },
+        ];
+      })
+    );
+  });
 
   const [editForms, setEditForms] = useState<Record<string, EditForm>>(() =>
     Object.fromEntries(

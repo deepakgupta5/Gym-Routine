@@ -43,6 +43,7 @@ type ExerciseRow = {
   tempo: string;
   prev_load: string | number | null;
   prev_reps: number | null;
+  next_target_load: string | number | null;
   name: string;
 };
 
@@ -252,6 +253,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               pe.tempo,
               pe.prev_load,
               pe.prev_reps,
+              pe.next_target_load,
               e.name,
               e.movement_pattern
        from plan_exercises pe
@@ -278,6 +280,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       tempo: row.tempo,
       prev_load: toNullableNumber(row.prev_load),
       prev_reps: row.prev_reps === null ? null : Number(row.prev_reps),
+      next_target_load: toNullableNumber(row.next_target_load),
     }));
 
     const setLogsRes = await client.query<SetLogRow>(

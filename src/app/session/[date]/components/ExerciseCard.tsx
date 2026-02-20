@@ -89,10 +89,15 @@ export default function ExerciseCard({
   const role = roleMeta(exercise.role);
   const setCount = logs.length;
   const complete = setCount >= exercise.prescribed_sets;
+  const isPrefilled = logs.length === 0 && form.load !== "";
   const last =
     exercise.prev_reps !== null && exercise.prev_load !== null
       ? `${formatLoad(exercise.prev_load)} x ${exercise.prev_reps}`
       : "—";
+  const nextTarget =
+    exercise.next_target_load != null && exercise.next_target_load > 0
+      ? formatLoad(exercise.next_target_load)
+      : null;
 
   return (
     <section
@@ -106,6 +111,7 @@ export default function ExerciseCard({
           <h2 className="text-lg font-semibold text-gray-100">{exercise.name}</h2>
           <div className="text-sm text-gray-400">
             Target {exercise.prescribed_sets} x {exercise.prescribed_reps_min}-{exercise.prescribed_reps_max} · Last: {last}
+            {nextTarget && <span className="ml-1 text-blue-400"> · Next: {nextTarget} lb</span>}
           </div>
         </div>
 
@@ -122,6 +128,7 @@ export default function ExerciseCard({
         role={exercise.role}
         form={form}
         isPending={pendingKey === `add-${exercise.exercise_id}`}
+        isPrefilled={isPrefilled}
         onChange={onFormChange}
         onSubmit={onAddSet}
         onLogButtonRef={onLogButtonRef}
