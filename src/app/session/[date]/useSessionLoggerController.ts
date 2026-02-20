@@ -168,7 +168,7 @@ export function useSessionLoggerController({
 
     setEntryForms((prev) => ({
       ...prev,
-      [ex.exercise_id]: { ...prev[ex.exercise_id], load: "", reps: "" },
+      [ex.exercise_id]: { ...prev[ex.exercise_id], reps: "" },
     }));
 
     setActiveTimer({
