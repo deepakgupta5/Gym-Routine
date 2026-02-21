@@ -24,6 +24,8 @@ function formatShortDate(iso: string) {
   return `${weekday} ${day} ${month}`;
 }
 
+const PREVIEW_LIMIT = 3;
+
 export default function SkipPreviewModal({
   isOpen,
   isoDate,
@@ -72,9 +74,12 @@ export default function SkipPreviewModal({
 
   if (!isOpen) return null;
 
+  const visibleShifts = shifts.slice(0, PREVIEW_LIMIT);
+  const hiddenCount = shifts.length - PREVIEW_LIMIT;
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60">
-      <div className="w-full max-w-lg rounded-t-2xl border-t border-gray-700 bg-gray-800 p-5 pb-8">
+      <div className="flex w-full max-w-lg flex-col rounded-t-2xl border-t border-gray-700 bg-gray-800 p-5 pb-8">
         <h3 className="text-lg font-semibold text-gray-100">Skip This Day?</h3>
 
         {loading && <p className="mt-3 text-sm text-gray-400">Loading preview...</p>}
@@ -89,22 +94,32 @@ export default function SkipPreviewModal({
               <p className="text-sm text-gray-400">No sessions will be shifted.</p>
             ) : (
               <>
-                <p className="mb-2 text-sm text-gray-400">
-                  The following sessions will shift:
+                {/* Summary line */}
+                <p className="mb-2 text-sm text-gray-300">
+                  All <span className="font-semibold text-gray-100">{shifts.length}</span> remaining
+                  sessions will shift forward by 1 day.
                 </p>
+
+                {/* Show first few examples */}
                 <div className="grid gap-1.5">
-                  {shifts.map((s, i) => (
+                  {visibleShifts.map((s, i) => (
                     <div
                       key={i}
                       className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm"
                     >
                       <span className="font-medium text-gray-200">{s.session_type}</span>
-                      <span className="text-gray-500">{formatShortDate(s.from_date)}</span>
+                      <span className="text-gray-400">{formatShortDate(s.from_date)}</span>
                       <span className="text-gray-500">&rarr;</span>
                       <span className="text-gray-300">{formatShortDate(s.to_date)}</span>
                     </div>
                   ))}
                 </div>
+
+                {hiddenCount > 0 && (
+                  <p className="mt-1.5 text-xs text-gray-500">
+                    ... and {hiddenCount} more session{hiddenCount > 1 ? "s" : ""}
+                  </p>
+                )}
               </>
             )}
 
@@ -116,6 +131,7 @@ export default function SkipPreviewModal({
           </div>
         )}
 
+        {/* Buttons always visible */}
         <div className="mt-4 flex gap-3">
           <button
             type="button"
