@@ -78,8 +78,14 @@ export default function SkipPreviewModal({
   const hiddenCount = shifts.length - PREVIEW_LIMIT;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60">
-      <div className="flex w-full max-w-lg flex-col rounded-t-2xl border-t border-gray-700 bg-gray-800 p-5 pb-8">
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-lg rounded-2xl border border-gray-700 bg-gray-800 p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 className="text-lg font-semibold text-gray-100">Skip This Day?</h3>
 
         {loading && <p className="mt-3 text-sm text-gray-400">Loading preview...</p>}
