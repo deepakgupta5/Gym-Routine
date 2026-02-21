@@ -70,7 +70,7 @@ export async function recomputeWeeklyRollup(
      where user_id = $1
        and date >= $2::date
        and date < $3::date
-       and performed_at is not null`,
+       and cardio_saved_at is not null`,
     [userId, weekStart, endDate]
   );
 
