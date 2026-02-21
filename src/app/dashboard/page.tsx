@@ -5,7 +5,6 @@ import { normalizePrimaryLiftMap, PrimaryCatalogKey } from "@/lib/engine/rotatio
 import WeekSummary from "./components/WeekSummary";
 import SparklineChart from "./components/SparklineChart";
 import WeightChart from "./components/WeightChart";
-import AdaptiveStatusBadge from "./components/AdaptiveStatusBadge";
 
 function parseBiasState(input: unknown) {
   if (!input || typeof input !== "string") return {};
@@ -206,17 +205,10 @@ export default async function DashboardPage() {
             </div>
           )}
 
-          {/* Body Weight Trend */}
-          <WeightChart points={weightPoints} trendClass={adaptive.weight_trend_class} />
-
-          {/* Adaptive Status */}
-          <AdaptiveStatusBadge
-            weightTrendClass={adaptive.weight_trend_class}
-            biasBalance={adaptive.updated_bias_balance}
-            adaptiveEnabled={adaptive.adaptive_enabled}
-            pendingCardioRule={adaptive.pending_cardio_rule}
-            lbsPerWeek={adaptive.weight_trend_lbs_per_week}
-          />
+          {/* Body Weight Trend — only show with enough data */}
+          {weightPoints.length >= 3 && (
+            <WeightChart points={weightPoints} trendClass={adaptive.weight_trend_class} />
+          )}
 
           {/* Upload Reminder + Export */}
           <div className="rounded-lg border border-gray-700 bg-gray-900 p-3 text-sm text-gray-400">

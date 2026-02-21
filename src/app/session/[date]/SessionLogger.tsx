@@ -82,6 +82,7 @@ export default function SessionLogger({
         isSavingCardio={controller.pendingKey === "session-minutes"}
         onSkipDay={() => setShowSkipPreview(true)}
         isSkippingDay={controller.pendingKey === "skip-day"}
+        showSkipDay={logs.length === 0}
       />
 
       <SkipConfirmationBanner isoDate={session.date} initialVisible={skipConfirmed} />

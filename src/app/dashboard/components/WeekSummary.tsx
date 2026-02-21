@@ -13,14 +13,14 @@ type WeekSummaryProps = {
 };
 
 function trend(current: number, previous: number | null) {
-  if (previous === null || previous === 0) return "";
+  if (previous === null) return "";
   if (current > previous) return " \u2191";
   if (current < previous) return " \u2193";
   return " \u2192";
 }
 
 function trendColor(current: number, previous: number | null) {
-  if (previous === null || previous === 0) return "text-gray-100";
+  if (previous === null) return "text-gray-100";
   if (current > previous) return "text-green-400";
   if (current < previous) return "text-red-400";
   return "text-gray-100";
