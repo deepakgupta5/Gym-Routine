@@ -169,15 +169,23 @@ export default function ExerciseCard({
 
       {detailOpen && <ExerciseDetailDrawer exercise={exercise} onClose={() => setDetailOpen(false)} />}
 
-      <AddSetForm
-        role={exercise.role}
-        form={form}
-        isPending={pendingKey === `add-${exercise.exercise_id}`}
-        isPrefilled={isPrefilled}
-        onChange={onFormChange}
-        onSubmit={onAddSet}
-        onLogButtonRef={onLogButtonRef}
-      />
+      {!complete && (
+        <AddSetForm
+          role={exercise.role}
+          form={form}
+          isPending={pendingKey === `add-${exercise.exercise_id}`}
+          isPrefilled={isPrefilled}
+          onChange={onFormChange}
+          onSubmit={onAddSet}
+          onLogButtonRef={onLogButtonRef}
+        />
+      )}
+
+      {complete && (
+        <div className="mt-2 rounded-lg border border-green-800 bg-green-950/30 px-3 py-2 text-center text-sm font-medium text-green-400">
+          All {exercise.prescribed_sets} sets completed ✓
+        </div>
+      )}
 
       <div className="my-3 h-px bg-gray-700" />
 
