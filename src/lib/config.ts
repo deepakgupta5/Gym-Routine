@@ -4,6 +4,8 @@ export const CONFIG = {
   APP_PASSCODE_HASH: process.env.APP_PASSCODE_HASH || "",
   COOKIE_SIGNING_SECRET: process.env.COOKIE_SIGNING_SECRET || "",
   ADMIN_SECRET: process.env.ADMIN_SECRET || "",
+  // NOT in requireConfig() — nutrition degrades gracefully to manual mode without this key.
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
 };
 
 export function requireConfig() {
