@@ -57,6 +57,12 @@ export function useSessionLoggerController({
     cardio: String(session.cardio_minutes),
   });
 
+  // Re-sync cardio input when the server refreshes with a new value.
+  // Keeps client state truthful after router.refresh() resolves.
+  useEffect(() => {
+    setSessionMinutes((prev) => ({ ...prev, cardio: String(session.cardio_minutes) }));
+  }, [session.cardio_minutes]);
+
   const logButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({});
 
   const [entryForms, setEntryForms] = useState<Record<number, EntryForm>>(() => {
@@ -312,6 +318,9 @@ export function useSessionLoggerController({
       return false;
     }
 
+    // Normalize local state to the saved integer immediately so cardioDirty
+    // goes false without waiting for the router.refresh() round-trip.
+    setSessionMinutes({ cardio: String(cardio) });
     router.refresh();
     return true;
   }
