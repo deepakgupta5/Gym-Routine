@@ -2,6 +2,7 @@ import { ExerciseView } from "./types";
 
 type ExerciseDetailDrawerProps = {
   exercise: ExerciseView;
+  onClose?: () => void;
 };
 
 function formatTempo(tempo: string) {
@@ -23,16 +24,27 @@ function formatRest(seconds: number) {
   return `${seconds}s`;
 }
 
-export default function ExerciseDetailDrawer({ exercise }: ExerciseDetailDrawerProps) {
+export default function ExerciseDetailDrawer({ exercise, onClose }: ExerciseDetailDrawerProps) {
   const tempo = formatTempo(exercise.tempo);
   const rest = formatRest(exercise.rest_seconds);
   const hasAlternatives = exercise.alt_1_name || exercise.alt_2_name;
 
   return (
     <div className="mt-2 rounded-lg border border-gray-700 bg-gray-900 p-3 text-sm">
+      {onClose && (
+        <div className="mb-2 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-2 py-1 text-xs text-gray-400 hover:text-gray-100 active:opacity-80"
+          >
+            Close ×
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-gray-400">
         <div>
-          <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+          <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
             Pattern
           </span>
           <div className="text-gray-300">{exercise.movement_pattern}</div>
@@ -40,7 +52,7 @@ export default function ExerciseDetailDrawer({ exercise }: ExerciseDetailDrawerP
 
         {exercise.targeted_primary_muscle && (
           <div>
-            <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
               Primary Muscle
             </span>
             <div className="text-gray-300">{exercise.targeted_primary_muscle}</div>
@@ -49,7 +61,7 @@ export default function ExerciseDetailDrawer({ exercise }: ExerciseDetailDrawerP
 
         {exercise.targeted_secondary_muscle && (
           <div>
-            <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
               Secondary Muscle
             </span>
             <div className="text-gray-300">{exercise.targeted_secondary_muscle}</div>
@@ -58,7 +70,7 @@ export default function ExerciseDetailDrawer({ exercise }: ExerciseDetailDrawerP
 
         {tempo && (
           <div>
-            <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
               Tempo
             </span>
             <div className="text-gray-300">{tempo}</div>
@@ -67,7 +79,7 @@ export default function ExerciseDetailDrawer({ exercise }: ExerciseDetailDrawerP
 
         {rest && (
           <div>
-            <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
               Rest
             </span>
             <div className="text-gray-300">{rest}</div>
@@ -75,7 +87,7 @@ export default function ExerciseDetailDrawer({ exercise }: ExerciseDetailDrawerP
         )}
 
         <div>
-          <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+          <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
             Rx Load
           </span>
           <div className="text-gray-300">{exercise.prescribed_load || "—"}</div>
@@ -84,7 +96,7 @@ export default function ExerciseDetailDrawer({ exercise }: ExerciseDetailDrawerP
 
       {hasAlternatives && (
         <div className="mt-3 border-t border-gray-700 pt-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+          <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
             Alternatives
           </span>
           <div className="mt-1 flex flex-wrap gap-2">

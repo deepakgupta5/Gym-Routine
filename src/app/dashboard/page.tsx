@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import { computeAdaptiveState } from "@/lib/adaptive/computeAdaptive";
@@ -23,6 +24,19 @@ const CATALOG_LABELS: Record<PrimaryCatalogKey, string> = {
   LOWER_SQUAT: "Lower Squat",
   LOWER_HINGE: "Lower Hinge",
 };
+
+function isoToDmy(iso: string) {
+  const [y, m, d] = iso.split("-");
+  return `${d}-${m}-${y}`;
+}
+
+function formatDisplayDate(isoDate: string) {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(d);
+  const day = new Intl.DateTimeFormat("en-US", { day: "2-digit", timeZone: "UTC" }).format(d);
+  const month = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(d);
+  return `${weekday}, ${day} ${month}`;
+}
 
 export default async function DashboardPage() {
   requireConfig();
@@ -183,16 +197,91 @@ export default async function DashboardPage() {
     const lastUploadDate =
       bodyRes.rows.length > 0 ? String(bodyRes.rows[bodyRes.rows.length - 1].date) : null;
 
+    // Next upcoming session (#10)
+    const nextSessionRes = blockId
+      ? await client.query<{ date: string; session_type: string; is_deload: boolean }>(
+          `select date::text as date, session_type, is_deload
+           from plan_sessions
+           where user_id = $1 and block_id = $2 and performed_at is null
+           order by date asc
+           limit 1`,
+          [userId, blockId]
+        )
+      : { rows: [] };
+    const nextSession = nextSessionRes.rows[0] ?? null;
+
+    // PR count this block (#19)
+    const prCountRes = blockId
+      ? await client.query<{ pr_count: number }>(
+          `select count(*)::int as pr_count
+           from (
+             select tsh.exercise_id, tsh.estimated_1rm,
+               max(tsh2.estimated_1rm) as prev_max
+             from top_set_history tsh
+             left join top_set_history tsh2
+               on tsh2.user_id = tsh.user_id
+               and tsh2.exercise_id = tsh.exercise_id
+               and tsh2.performed_at < tsh.performed_at
+             where tsh.user_id = $1
+             group by tsh.exercise_id, tsh.estimated_1rm, tsh.performed_at
+             having tsh.estimated_1rm > coalesce(max(tsh2.estimated_1rm), 0)
+           ) pr_sets`,
+          [userId]
+        )
+      : { rows: [{ pr_count: 0 }] };
+    const prCount = Number(prCountRes.rows[0]?.pr_count ?? 0);
+
     return (
       <main className="mx-auto max-w-5xl p-5 md:p-6">
         <h1 className="mb-4 text-2xl font-semibold text-gray-100">Dashboard</h1>
 
         <div className="grid gap-4">
+          {/* Next Workout Preview (#10) */}
+          {nextSession && (
+            <Link
+              href={`/session/${isoToDmy(nextSession.date)}`}
+              prefetch={false}
+              className="block rounded-xl border border-blue-800 bg-blue-950/30 p-4 active:opacity-80"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-blue-400">
+                    Next Workout
+                  </div>
+                  <div className="mt-1 text-lg font-semibold text-gray-100">
+                    {formatDisplayDate(nextSession.date)}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-sm text-gray-400">
+                    <span>{nextSession.session_type} session</span>
+                    {nextSession.is_deload && (
+                      <span className="rounded-full border border-amber-700 bg-amber-950/60 px-2 py-0.5 text-xs text-amber-300">
+                        Deload
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span className="text-sm text-blue-400">Go →</span>
+              </div>
+            </Link>
+          )}
+
           {/* This Week Summary */}
           <WeekSummary current={currentRollup} previous={previousRollup} />
 
+          {/* PR Count Badge (#19) */}
+          {prCount > 0 && (
+            <div className="rounded-lg border border-amber-700 bg-amber-950/30 p-3">
+              <div className="flex items-center gap-2">
+                <span className="rounded-full border border-amber-600 bg-amber-950/60 px-2.5 py-1 text-xs font-semibold text-amber-300">
+                  {prCount} PR{prCount !== 1 ? "s" : ""}
+                </span>
+                <span className="text-sm text-gray-300">Personal records set this block</span>
+              </div>
+            </div>
+          )}
+
           {/* Primary Lift Progress */}
-          {sparklines.length > 0 && (
+          {sparklines.length > 0 ? (
             <div>
               <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-gray-400">
                 Primary Lifts (Est 1RM)
@@ -203,37 +292,54 @@ export default async function DashboardPage() {
                 ))}
               </div>
             </div>
+          ) : (
+            <div className="rounded-lg border border-gray-700 bg-gray-900 p-3 text-sm text-gray-400">
+              No lift data yet. Log your first workout to see progress charts.
+            </div>
           )}
 
           {/* Body Weight Trend — only show with enough data */}
-          {weightPoints.length >= 3 && (
+          {weightPoints.length >= 3 ? (
             <WeightChart points={weightPoints} trendClass={adaptive.weight_trend_class} />
+          ) : (
+            <div className="rounded-lg border border-gray-700 bg-gray-900 p-3 text-sm text-gray-400">
+              {weightPoints.length === 0
+                ? "No body weight data."
+                : `${weightPoints.length} data point${weightPoints.length !== 1 ? "s" : ""} — need 3+ for chart.`}
+              {" "}
+              <Link href="/upload" className="text-blue-400 underline">
+                Upload body stats
+              </Link>
+            </div>
           )}
 
-          {/* Upload Reminder + Export */}
-          <div className="rounded-lg border border-gray-700 bg-gray-900 p-3 text-sm text-gray-400">
-            <div>
-              {lastUploadDate
-                ? `Last body stats upload: ${lastUploadDate}`
-                : "No body stats uploaded yet."}
-              {" \u2014 "}
-              <span className="text-gray-300">
-                Pending updates will apply at next block regeneration.
-              </span>
-            </div>
-            <div className="mt-2">
-              <a
-                href="/api/export/set-logs"
-                download
-                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-600 bg-gray-800 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-gray-100 active:opacity-80"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-                  <path d="M10.75 2.75a.75.75 0 0 0-1.5 0v8.614L6.295 8.235a.75.75 0 1 0-1.09 1.03l4.25 4.5a.75.75 0 0 0 1.09 0l4.25-4.5a.75.75 0 0 0-1.09-1.03l-2.955 3.129V2.75Z" />
-                  <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
-                </svg>
-                Export CSV
-              </a>
-            </div>
+          {/* Upload & Export Actions (#20: more prominent) */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Link
+              href="/upload"
+              className="flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-600 bg-gray-800 px-4 py-3 text-sm font-medium text-gray-200 hover:text-gray-100 active:opacity-80"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-gray-400">
+                <path d="M9.25 13.25a.75.75 0 0 0 1.5 0V4.636l2.955 3.129a.75.75 0 0 0 1.09-1.03l-4.25-4.5a.75.75 0 0 0-1.09 0l-4.25 4.5a.75.75 0 1 0 1.09 1.03L9.25 4.636v8.614Z" />
+                <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
+              </svg>
+              Upload Body Stats
+              {lastUploadDate && (
+                <span className="ml-auto text-xs text-gray-500">Last: {lastUploadDate}</span>
+              )}
+            </Link>
+
+            <a
+              href="/api/export/set-logs"
+              download
+              className="flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-600 bg-gray-800 px-4 py-3 text-sm font-medium text-gray-200 hover:text-gray-100 active:opacity-80"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-gray-400">
+                <path d="M10.75 2.75a.75.75 0 0 0-1.5 0v8.614L6.295 8.235a.75.75 0 1 0-1.09 1.03l4.25 4.5a.75.75 0 0 0 1.09 0l4.25-4.5a.75.75 0 0 0-1.09-1.03l-2.955 3.129V2.75Z" />
+                <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
+              </svg>
+              Export Workout CSV
+            </a>
           </div>
         </div>
       </main>

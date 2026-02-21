@@ -15,6 +15,8 @@ type AddSetFormProps = {
 
 const FIELD_CLASSES =
   "min-h-[44px] w-full rounded-lg border border-gray-700 bg-gray-900 p-3 text-sm text-gray-100";
+const FIELD_ERROR_CLASSES =
+  "min-h-[44px] w-full rounded-lg border border-red-700 bg-gray-900 p-3 text-sm text-gray-100";
 
 const RPE_OPTIONS = ["6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10"];
 
@@ -32,6 +34,20 @@ export default function AddSetForm({
   onLogButtonRef,
 }: AddSetFormProps) {
   const [extrasOpen, setExtrasOpen] = useState(false);
+  const [touched, setTouched] = useState<{ load?: boolean; reps?: boolean }>({});
+
+  const loadVal = Number(form.load);
+  const repsVal = Number(form.reps);
+  const loadInvalid = touched.load && (!form.load || !Number.isFinite(loadVal) || loadVal <= 0);
+  const repsInvalid = touched.reps && (!form.reps || !Number.isFinite(repsVal) || repsVal <= 0 || !Number.isInteger(repsVal));
+
+  function handleSubmit() {
+    setTouched({ load: true, reps: true });
+    const l = Number(form.load);
+    const r = Number(form.reps);
+    if (!Number.isFinite(l) || l <= 0 || !Number.isFinite(r) || r <= 0) return;
+    onSubmit();
+  }
 
   return (
     <div>
@@ -44,10 +60,14 @@ export default function AddSetForm({
             pattern="[0-9]*"
             value={form.load}
             onChange={(e) => onChange({ ...form, load: e.target.value })}
-            className={`${FIELD_CLASSES} ${isPrefilled && form.load ? "text-blue-400" : ""}`}
+            onBlur={() => setTouched((t) => ({ ...t, load: true }))}
+            className={`${loadInvalid ? FIELD_ERROR_CLASSES : FIELD_CLASSES} ${isPrefilled && form.load ? "text-blue-400" : ""}`}
             placeholder="lb"
           />
-          {isPrefilled && form.load && (
+          {loadInvalid && (
+            <div className="mt-0.5 text-xs text-red-400">Enter a valid load</div>
+          )}
+          {!loadInvalid && isPrefilled && form.load && (
             <div className="mt-0.5 text-xs text-blue-400/70">suggested</div>
           )}
           <div className="mt-1 flex gap-1.5">
@@ -74,9 +94,13 @@ export default function AddSetForm({
             pattern="[0-9]*"
             value={form.reps}
             onChange={(e) => onChange({ ...form, reps: e.target.value })}
-            className={FIELD_CLASSES}
+            onBlur={() => setTouched((t) => ({ ...t, reps: true }))}
+            className={repsInvalid ? FIELD_ERROR_CLASSES : FIELD_CLASSES}
             placeholder="reps"
           />
+          {repsInvalid && (
+            <div className="mt-0.5 text-xs text-red-400">Enter valid reps</div>
+          )}
         </label>
 
         <label className="block col-span-1">
@@ -96,7 +120,7 @@ export default function AddSetForm({
         <button
           type="button"
           ref={onLogButtonRef}
-          onClick={onSubmit}
+          onClick={handleSubmit}
           disabled={isPending}
           className="min-h-[44px] rounded-lg border border-blue-700 bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-500 active:opacity-80"
         >
@@ -104,13 +128,13 @@ export default function AddSetForm({
         </button>
       </div>
 
-      {/* Collapsible Notes / RPE */}
+      {/* Collapsible Notes / RPE — #18: more visible toggle */}
       <button
         type="button"
         onClick={() => setExtrasOpen((p) => !p)}
-        className="mt-2 text-xs text-gray-500 hover:text-gray-300"
+        className="mt-2 inline-flex items-center gap-1 rounded-md border border-gray-700 bg-gray-800/60 px-2.5 py-1.5 text-xs font-medium text-gray-300 hover:text-gray-100 active:opacity-80"
       >
-        {extrasOpen ? "− Hide Notes/RPE" : "+ Notes/RPE"}
+        {extrasOpen ? "Hide RPE / Notes" : "Add RPE / Notes"}
       </button>
 
       {extrasOpen && (
@@ -122,7 +146,7 @@ export default function AddSetForm({
               onChange={(e) => onChange({ ...form, rpe: e.target.value })}
               className={FIELD_CLASSES}
             >
-              <option value="">—</option>
+              <option value="">--</option>
               {RPE_OPTIONS.map((v) => (
                 <option key={v} value={v}>{v}</option>
               ))}

@@ -56,8 +56,8 @@ function StatBox({
 export default function WeekSummary({ current, previous }: WeekSummaryProps) {
   if (!current) {
     return (
-      <div className="rounded-lg border border-gray-700 bg-gray-900 p-4 text-sm text-gray-500">
-        No workout data this week yet.
+      <div className="rounded-lg border border-gray-700 bg-gray-900 p-4 text-sm text-gray-400">
+        No workout data this week yet. Log a session to see your weekly stats here.
       </div>
     );
   }

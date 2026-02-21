@@ -138,12 +138,12 @@ export default function ExerciseCard({
               {exercise.name}
             </h2>
           </button>
-          <div className="text-sm text-gray-400">
+          <div className="text-sm text-gray-300">
             Target {exercise.prescribed_sets} x {exercise.prescribed_reps_min}-{exercise.prescribed_reps_max} · Last: {last}
             {nextTarget && <span className="ml-1 text-blue-400"> · Next: {nextTarget} lb</span>}
           </div>
           {recentTopSets.length > 0 && (
-            <div className="mt-1 text-xs text-gray-500">
+            <div className="mt-1 text-xs text-gray-400">
               Recent:{" "}
               {recentTopSets.map((e, i) => (
                 <span key={i}>
@@ -160,14 +160,14 @@ export default function ExerciseCard({
 
         <div className="shrink-0 text-right text-sm font-medium">
           {complete ? (
-            <span className="text-green-600">✓ {setCount} / {exercise.prescribed_sets} sets</span>
+            <span className="text-green-400">✓ {setCount} / {exercise.prescribed_sets} sets</span>
           ) : (
             <span className="text-gray-300">{setCount} / {exercise.prescribed_sets} sets</span>
           )}
         </div>
       </div>
 
-      {detailOpen && <ExerciseDetailDrawer exercise={exercise} />}
+      {detailOpen && <ExerciseDetailDrawer exercise={exercise} onClose={() => setDetailOpen(false)} />}
 
       <AddSetForm
         role={exercise.role}

@@ -9,6 +9,7 @@ type SessionRow = {
   performed_at: string;
   exercise_count: number;
   total_sets: number;
+  total_tonnage: number;
 };
 
 function isoToDmy(isoDate: string) {
@@ -22,6 +23,11 @@ function formatDisplayDate(isoDate: string) {
   const day = new Intl.DateTimeFormat("en-US", { day: "2-digit", timeZone: "UTC" }).format(d);
   const month = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(d);
   return `${weekday}, ${day} ${month}`;
+}
+
+function formatTonnage(tonnage: number) {
+  if (tonnage >= 1000) return `${(tonnage / 1000).toFixed(1)}k lb`;
+  return `${Math.round(tonnage)} lb`;
 }
 
 export default async function HistoryPage() {
@@ -54,7 +60,8 @@ export default async function HistoryPage() {
          ps.is_deload,
          ps.performed_at::text as performed_at,
          (select count(*)::int from plan_exercises pe where pe.plan_session_id = ps.plan_session_id) as exercise_count,
-         (select count(*)::int from set_logs sl where sl.session_id = ps.plan_session_id) as total_sets
+         (select count(*)::int from set_logs sl where sl.session_id = ps.plan_session_id) as total_sets,
+         coalesce((select sum(sl.load * sl.reps)::float from set_logs sl where sl.session_id = ps.plan_session_id), 0) as total_tonnage
        from plan_sessions ps
        where ps.user_id = $1
          and ps.block_id = $2
@@ -65,45 +72,69 @@ export default async function HistoryPage() {
 
     const sessions = res.rows;
 
+    // Session type tags
+    const sessionTypes = Array.from(new Set(sessions.map((s) => s.session_type))).sort();
+
     return (
       <main className="mx-auto max-w-5xl p-5 md:p-6">
         <h1 className="mb-4 text-2xl font-semibold text-gray-100">History</h1>
 
         {sessions.length === 0 ? (
-          <div className="rounded-lg border border-gray-700 bg-gray-900 p-4 text-sm text-gray-500">
-            No completed sessions yet.
+          <div className="rounded-lg border border-gray-700 bg-gray-900 p-4 text-sm text-gray-400">
+            No completed sessions yet. Start logging your first workout!
           </div>
         ) : (
-          <div className="grid gap-3">
-            {sessions.map((s) => (
-              <Link
-                key={s.date}
-                href={`/session/${isoToDmy(s.date)}`}
-                prefetch={false}
-                className="block rounded-xl border border-gray-700 bg-gray-800 p-4 active:opacity-80"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-lg font-semibold text-gray-100">
-                      {formatDisplayDate(s.date)}
+          <>
+            {/* Session type tags for context */}
+            {sessionTypes.length > 1 && (
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                <span className="text-xs text-gray-500">Types:</span>
+                {sessionTypes.map((st) => (
+                  <span
+                    key={st}
+                    className="rounded-full border border-gray-700 bg-gray-800 px-2 py-0.5 text-xs text-gray-300"
+                  >
+                    {st}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="mb-2 text-xs text-gray-500">
+              {sessions.length} completed session{sessions.length !== 1 ? "s" : ""}
+            </div>
+
+            <div className="grid gap-3">
+              {sessions.map((s) => (
+                <Link
+                  key={s.date}
+                  href={`/session/${isoToDmy(s.date)}`}
+                  prefetch={false}
+                  className="block rounded-xl border border-gray-700 bg-gray-800 p-4 active:opacity-80"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-lg font-semibold text-gray-100">
+                        {formatDisplayDate(s.date)}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-gray-400">
+                        <span>{s.session_type} session</span>
+                        {s.is_deload && (
+                          <span className="rounded-full border border-amber-700 bg-amber-950/60 px-2 py-0.5 text-xs text-amber-300">
+                            Deload
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="mt-0.5 text-sm text-gray-400">
-                      {s.session_type} session
-                      {s.is_deload ? (
-                        <span className="ml-2 rounded-full border border-amber-700 bg-amber-950/60 px-2 py-0.5 text-xs text-amber-300">
-                          Deload
-                        </span>
-                      ) : null}
+                    <div className="text-right text-sm text-gray-300">
+                      <div>{s.total_sets} sets</div>
+                      <div className="text-gray-400">{formatTonnage(Number(s.total_tonnage))}</div>
                     </div>
                   </div>
-                  <div className="text-right text-sm text-gray-400">
-                    <div>{s.exercise_count} exercises</div>
-                    <div>{s.total_sets} sets</div>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
+          </>
         )}
       </main>
     );

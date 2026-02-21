@@ -206,7 +206,19 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
 
       const wasSkippedInDb = Boolean(skippedRes.rows[0]?.was_skipped);
       const skipConfirmed = skipHintFromQuery || wasSkippedInDb;
-      
+
+      // Find the next upcoming session for "Go to next workout" CTA (#3)
+      const nextSessionRes = await client.query<{ date: string }>(
+        `select date::text as date
+         from plan_sessions
+         where user_id = $1 and block_id = $2 and date > $3 and performed_at is null
+         order by date asc
+         limit 1`,
+        [CONFIG.SINGLE_USER_ID, activeBlockId, parsed.iso]
+      );
+      const nextSessionIso = nextSessionRes.rows[0]?.date ?? null;
+      const nextSessionDmy = nextSessionIso ? isoToDmy(nextSessionIso) : null;
+
       const currentDmy = parsed.dmy;
       const prevDmy = addDaysToDmy(currentDmy, -1);
       const nextDmy = addDaysToDmy(currentDmy, 1);
@@ -234,6 +246,15 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
           <h2 className="text-2xl font-semibold text-gray-100">No session scheduled</h2>
           <p className="mt-2 text-sm text-gray-400">{currentDmy}</p>
           <p className="mt-1 text-sm text-gray-500">This is a rest day or has been skipped.</p>
+          {nextSessionDmy && (
+            <Link
+              href={`/session/${nextSessionDmy}`}
+              prefetch={false}
+              className="mt-4 inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-blue-700 bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-500 active:opacity-80"
+            >
+              Go to Next Workout →
+            </Link>
+          )}
         </main>
       );
 
