@@ -8,10 +8,24 @@ export const CONFIG = {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
 };
 
-export function requireConfig() {
-  const missing = Object.entries(CONFIG)
-    .filter(([, v]) => !v)
-    .map(([k]) => k);
+type RequireConfigOptions = {
+  openai?: boolean;
+};
+
+export function requireConfig(options: RequireConfigOptions = {}) {
+  const requiredKeys: Array<keyof typeof CONFIG> = [
+    "SUPABASE_DB_URL",
+    "SINGLE_USER_ID",
+    "APP_PASSCODE_HASH",
+    "COOKIE_SIGNING_SECRET",
+    "ADMIN_SECRET",
+  ];
+
+  if (options.openai) {
+    requiredKeys.push("OPENAI_API_KEY");
+  }
+
+  const missing = requiredKeys.filter((key) => !CONFIG[key]);
 
   if (missing.length > 0) {
     throw new Error(`Missing env vars: ${missing.join(", ")}`);
