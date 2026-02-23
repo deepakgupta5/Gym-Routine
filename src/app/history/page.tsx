@@ -1,6 +1,10 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type SessionRow = {
   date: string;
@@ -33,6 +37,7 @@ function formatTonnage(tonnage: number) {
 
 export default async function HistoryPage() {
   requireConfig();
+  noStore();
   const userId = CONFIG.SINGLE_USER_ID;
   const pool = await getDb();
   const client = await pool.connect();
