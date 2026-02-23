@@ -9,6 +9,7 @@ type SessionRow = {
   performed_at: string;
   exercise_count: number;
   total_sets: number;
+  total_reps: number;  
   total_tonnage: number;
 };
 
@@ -54,22 +55,35 @@ export default async function HistoryPage() {
     }
 
     const res = await client.query<SessionRow>(
-      `select
-         ps.date::text as date,
-         ps.session_type,
-         ps.is_deload,
-         ps.performed_at::text as performed_at,
-         (select count(*)::int from plan_exercises pe where pe.plan_session_id = ps.plan_session_id) as exercise_count,
-         (select count(*)::int from set_logs sl where sl.session_id = ps.plan_session_id) as total_sets,
-         coalesce((select sum(sl.load * sl.reps)::float from set_logs sl where sl.session_id = ps.plan_session_id), 0) as total_tonnage
-       from plan_sessions ps
-       where ps.user_id = $1
-         and ps.block_id = $2
-         and ps.performed_at is not null
-       order by ps.date desc`,
-      [userId, blockId]
-    );
-
+  `with latest_logs as (
+     select distinct on (sl.session_id, sl.exercise_id, sl.set_index)
+       sl.session_id,
+       sl.exercise_id,
+       sl.set_index,
+       sl.reps,
+       sl.load::numeric as load
+     from set_logs sl
+     where sl.user_id = $1
+     order by sl.session_id, sl.exercise_id, sl.set_index, sl.performed_at desc, sl.id desc
+   )
+   select
+     ps.date::text as date,
+     ps.session_type,
+     ps.is_deload,
+     ps.performed_at::text as performed_at,
+     (select count(*)::int from plan_exercises pe where pe.plan_session_id = ps.plan_session_id) as exercise_count,
+     count(ll.*)::int as total_sets,
+     coalesce(sum(ll.reps), 0)::int as total_reps,
+     coalesce(sum(ll.load * ll.reps), 0)::float as total_tonnage
+   from plan_sessions ps
+   left join latest_logs ll on ll.session_id = ps.plan_session_id
+   where ps.user_id = $1
+     and ps.block_id = $2
+     and ps.performed_at is not null
+   group by ps.plan_session_id, ps.date, ps.session_type, ps.is_deload, ps.performed_at
+   order by ps.date desc`,
+  [userId, blockId]
+);
     const sessions = res.rows;
 
     // Session type tags
@@ -126,9 +140,10 @@ export default async function HistoryPage() {
                         )}
                       </div>
                     </div>
-                    <div className="text-right text-sm text-gray-300">
-                      <div>{s.total_sets} sets</div>
-                      <div className="text-gray-400">{formatTonnage(Number(s.total_tonnage))}</div>
+                    <div className="text-right text-gray-300">
+                  <div>{s.total_reps} reps</div> 
+                     <div>{s.total_sets} sets</div>
+              <div>{formatTonnage(Number(s.total_tonnage))}</div>
                     </div>
                   </div>
                 </Link>
