@@ -18,7 +18,7 @@ export const PRIMARY_CATALOGS: Record<PrimaryCatalogKey, number[]> = {
   LOWER_HINGE: LOWER_HINGE_PRIMARY_ROTATION,
 };
 
-export function normalizePrimaryLiftMap(input: any): Record<PrimaryCatalogKey, number> {
+export function normalizePrimaryLiftMap(input: unknown): Record<PrimaryCatalogKey, number> {
   const map: Record<PrimaryCatalogKey, number> = {
     UPPER_PUSH: PRIMARY_CATALOGS.UPPER_PUSH[0],
     UPPER_PULL: PRIMARY_CATALOGS.UPPER_PULL[0],
@@ -29,7 +29,7 @@ export function normalizePrimaryLiftMap(input: any): Record<PrimaryCatalogKey, n
   if (!input || typeof input !== "object") return map;
 
   (Object.keys(map) as PrimaryCatalogKey[]).forEach((key) => {
-    const value = Number((input as any)[key]);
+    const value = Number((input as Record<string, unknown>)[key]);
     if (!Number.isFinite(value)) return;
     if (PRIMARY_CATALOGS[key].includes(value)) {
       map[key] = value;

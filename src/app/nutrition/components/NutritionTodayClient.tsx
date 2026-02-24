@@ -196,10 +196,12 @@ export default function NutritionTodayClient() {
     setInsightsLoading(false);
   }
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     void loadDay(selectedDate);
     void loadInsights(selectedDate);
   }, [selectedDate]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function saveWithAi() {
     if (!rawInput.trim()) {

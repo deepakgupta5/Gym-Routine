@@ -23,7 +23,7 @@ export type AdaptiveState = {
   updated_bias_balance: number;
   neutral_streak: number;
   flat_streak: number;
-  pending_cardio_rule: any | null;
+  pending_cardio_rule: { mode: "force_cardio"; sessions: number; minutes: number } | null;
   adaptive_enabled: boolean;
 };
 
@@ -141,7 +141,7 @@ export function computeAdaptiveState(
     updatedBiasBalance = clamp(biasBalance + biasDelta, -4, 4);
   }
 
-  const pendingCardioRule =
+  const pendingCardioRule: AdaptiveState["pending_cardio_rule"] =
     weightTrend.trend_class === "up"
       ? { mode: "force_cardio", sessions: 3, minutes: 30 }
       : weightTrend.trend_class === "flat" && flatStreak >= 2

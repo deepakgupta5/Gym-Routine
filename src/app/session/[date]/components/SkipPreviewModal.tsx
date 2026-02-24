@@ -38,6 +38,7 @@ export default function SkipPreviewModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!isOpen) return;
 
@@ -71,6 +72,7 @@ export default function SkipPreviewModal({
       cancelled = true;
     };
   }, [isOpen, isoDate]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!isOpen) return null;
 

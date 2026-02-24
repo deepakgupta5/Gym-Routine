@@ -42,9 +42,11 @@ export default function SessionLogger({
   const [cardioSaved, setCardioSaved] = useState(Boolean(session.cardio_saved_at));
   const [showSkipPreview, setShowSkipPreview] = useState(false);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setCardioSaved(Boolean(session.cardio_saved_at));
   }, [session.cardio_saved_at]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const cardioDirty = controller.sessionMinutes.cardio !== String(session.cardio_minutes);
   const cardioValue = Number(controller.sessionMinutes.cardio);

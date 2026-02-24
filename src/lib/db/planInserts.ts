@@ -1,8 +1,9 @@
+import type { PoolClient } from "pg";
 import { PlanExerciseInput, SessionInput } from "@/lib/engine/types";
 import { sessionKey } from "@/lib/engine/utils";
 
 export async function upsertPlanSessionsReturnMap(
-  client: any,
+  client: PoolClient,
   userId: string,
   blockId: string,
   sessions: SessionInput[]
@@ -10,7 +11,7 @@ export async function upsertPlanSessionsReturnMap(
   if (sessions.length === 0) return new Map();
 
   const values: string[] = [];
-  const params: any[] = [];
+  const params: unknown[] = [];
   let i = 1;
 
   for (const s of sessions) {
@@ -45,7 +46,10 @@ export async function upsertPlanSessionsReturnMap(
     from plan_sessions
     where user_id = $1 and block_id = $2
   `;
-  const all = await client.query(selectSql, [userId, blockId]);
+  const all = await client.query<{ plan_session_id: string; date: string; session_type: string }>(
+    selectSql,
+    [userId, blockId]
+  );
 
   const map = new Map<string, string>();
   for (const r of all.rows) {
@@ -63,14 +67,14 @@ export async function upsertPlanSessionsReturnMap(
 }
 
 export async function insertPlanExercisesIdempotent(
-  client: any,
+  client: PoolClient,
   sessionIdByKey: Map<string, string>,
   exercises: PlanExerciseInput[]
 ) {
   if (exercises.length === 0) return;
 
   const values: string[] = [];
-  const params: any[] = [];
+  const params: unknown[] = [];
   let i = 1;
 
   for (const e of exercises) {

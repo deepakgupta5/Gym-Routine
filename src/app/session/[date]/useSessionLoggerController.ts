@@ -59,9 +59,11 @@ export function useSessionLoggerController({
 
   // Re-sync cardio input when the server refreshes with a new value.
   // Keeps client state truthful after router.refresh() resolves.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setSessionMinutes((prev) => ({ ...prev, cardio: String(session.cardio_minutes) }));
   }, [session.cardio_minutes]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const logButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({});
 

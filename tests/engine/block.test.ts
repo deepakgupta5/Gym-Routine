@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeBlockProgressFromSessions } from "../../src/lib/engine/block";
 import { normalizePrimaryLiftMap, rotatePrimaryLiftMap } from "../../src/lib/engine/rotation";
+import type { PlanSessionRow } from "../../src/lib/engine/schedule";
 
 const makeSession = (
   id: string,
@@ -29,13 +30,13 @@ describe("block progress", () => {
       makeSession("s", 1, "2026-02-14", "Sat", true, false),
     ];
 
-    const progress = computeBlockProgressFromSessions(sessions as any);
+    const progress = computeBlockProgressFromSessions(sessions);
     expect(progress.currentBlockWeek).toBe(1);
     expect(progress.blockComplete).toBe(false);
   });
 
   it("marks block complete when all required weeks are performed", () => {
-    const sessions: any[] = [];
+    const sessions: PlanSessionRow[] = [];
     let id = 1;
     for (let week = 1; week <= 8; week++) {
       sessions.push(makeSession(`m${id++}`, week, "2026-02-01", "Mon", true, true));
@@ -45,7 +46,7 @@ describe("block progress", () => {
       sessions.push(makeSession(`f${id++}`, week, "2026-02-05", "Fri", true, true));
     }
 
-    const progress = computeBlockProgressFromSessions(sessions as any);
+    const progress = computeBlockProgressFromSessions(sessions);
     expect(progress.blockComplete).toBe(true);
     expect(progress.currentBlockWeek).toBe(8);
   });

@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ week_start: weekStart, sessions: [], exercises: [] });
     }
 
-    const sessionIds = sessions.map((s: any) => s.plan_session_id);
+    const sessionIds = sessions.map((s: { plan_session_id: string }) => s.plan_session_id);
     const exercisesRes = await client.query(
       `select pe.*, e.name, e.movement_pattern, e.equipment_type
        from plan_exercises pe
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
       [sessionIds]
     );
 
-    const exercises = exercisesRes.rows.map((row: any) => ({
+    const exercises = exercisesRes.rows.map((row: { exercise_id: number; targeted_primary_muscle: string | null }) => ({
       ...row,
       image_url: getExerciseImageUrl(row.exercise_id, row.targeted_primary_muscle),
     }));

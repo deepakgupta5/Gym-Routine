@@ -108,9 +108,11 @@ export default function NutritionPlanClient() {
     setInsightsLoading(false);
   }
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     void loadInsights(planDate);
   }, [planDate]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function toggleProtein(value: string) {
     setAllowedProteins((prev) => {

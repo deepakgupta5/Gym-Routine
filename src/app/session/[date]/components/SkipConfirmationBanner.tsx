@@ -28,6 +28,7 @@ export default function SkipConfirmationBanner({
 }: SkipConfirmationBannerProps) {
   const [visible, setVisible] = useState(initialVisible);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (initialVisible) {
       persistSkipBanner(isoDate);
@@ -52,6 +53,7 @@ export default function SkipConfirmationBanner({
       setVisible(false);
     }
   }, [isoDate, initialVisible]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!visible) {
     return null;

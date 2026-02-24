@@ -41,6 +41,35 @@ type SetLogInput = {
   is_secondary?: boolean;
 };
 
+type ExerciseLookupRow = {
+  exercise_id: number;
+  movement_pattern: string;
+  default_targeted_primary_muscle: string;
+  default_targeted_secondary_muscle: string | null;
+};
+
+type InsertedSetRow = {
+  id: string;
+  performed_at: string;
+  session_id: string | null;
+  set_type: AllowedSetType;
+  exercise_id: number;
+  load: number;
+  reps: number;
+};
+
+type SessionLookupRow = {
+  plan_session_id: string;
+  block_id: string | null;
+  week_in_block: number | null;
+};
+
+type ExerciseMetaRow = {
+  exercise_id: number;
+  load_increment_lb: number | string;
+  load_semantic: string | null;
+};
+
 function asObject(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`${label} must be an object`);
@@ -226,8 +255,8 @@ export async function POST(req: Request) {
       [referencedExerciseIds]
     );
 
-    const exerciseById = new Map<number, any>(
-      exerciseRes.rows.map((row: any) => [Number(row.exercise_id), row])
+    const exerciseById = new Map<number, ExerciseLookupRow>(
+      exerciseRes.rows.map((row: ExerciseLookupRow) => [Number(row.exercise_id), row])
     );
 
     const invalidExerciseIds = referencedExerciseIds.filter((id) => !exerciseById.has(id));
@@ -273,7 +302,7 @@ export async function POST(req: Request) {
     });
 
     const values: string[] = [];
-    const params: any[] = [];
+    const params: unknown[] = [];
     let i = 1;
     for (const r of records) {
       params.push(
@@ -309,7 +338,7 @@ export async function POST(req: Request) {
     `;
 
     const insertedRes = await client.query(insertSql, params);
-    const inserted = insertedRes.rows as Array<any>;
+    const inserted = insertedRes.rows as InsertedSetRow[];
 
     const impactedSessions = Array.from(
       new Set(inserted.map((r) => r.session_id).filter(Boolean))
@@ -332,7 +361,7 @@ export async function POST(req: Request) {
 
     const topRows = inserted.filter((r) => r.set_type === "top");
     if (topRows.length > 0) {
-      const sessionMap = new Map<string, any>();
+      const sessionMap = new Map<string, SessionLookupRow>();
       const sessionIds = Array.from(
         new Set(topRows.map((r) => r.session_id).filter(Boolean))
       ) as string[];
@@ -348,7 +377,7 @@ export async function POST(req: Request) {
       }
 
       const topValues: string[] = [];
-      const topParams: any[] = [];
+      const topParams: unknown[] = [];
       let t = 1;
       for (const r of topRows) {
         const session = r.session_id ? sessionMap.get(r.session_id) : null;
@@ -396,7 +425,7 @@ export async function POST(req: Request) {
         [topExerciseIds]
       );
       const exerciseMeta = new Map<number, { increment: number; semantic: LoadSemantic }>(
-        exerciseMetaRes.rows.map((row: any) => [
+        exerciseMetaRes.rows.map((row: ExerciseMetaRow) => [
           Number(row.exercise_id),
           {
             increment: Number(row.load_increment_lb),

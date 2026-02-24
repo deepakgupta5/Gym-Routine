@@ -6,7 +6,7 @@ import { parseBodyStatsXlsxWithReport } from "@/lib/adaptive/parseExcel";
 import { computeAdaptiveState } from "@/lib/adaptive/computeAdaptive";
 import { logError } from "@/lib/logger";
 
-function parseBiasState(input: any) {
+function parseBiasState(input: unknown) {
   if (!input || typeof input !== "string") return {};
   try {
     const obj = JSON.parse(input);
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
     const uploadId = crypto.randomUUID();
 
     const values: string[] = [];
-    const params: any[] = [];
+    const params: unknown[] = [];
     let i = 1;
     for (const r of rows) {
       params.push(

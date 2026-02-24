@@ -104,9 +104,11 @@ export default function NutritionTrendsClient() {
     setLoading(false);
   }
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     void loadTrends();
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const weekSummary = useMemo(() => {
     if (!weekData) return null;

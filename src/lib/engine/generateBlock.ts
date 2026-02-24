@@ -34,7 +34,7 @@ type GenerateInput = {
     start_date: string;
     block_id: string;
     bias_balance?: number | null;
-    primary_lift_map?: any;
+    primary_lift_map?: unknown;
   };
   exercises: ExerciseRow[];
   blockId: string;

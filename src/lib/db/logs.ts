@@ -1,7 +1,8 @@
-import { computeRollupFromSets, getWeekRangeUtc } from "@/lib/db/rollups";
+import type { PoolClient } from "pg";
+import { computeRollupFromSets, getWeekRangeUtc, type SetLogRow } from "@/lib/db/rollups";
 
 export async function recomputeSessionPerformed(
-  client: any,
+  client: PoolClient,
   sessionId: string
 ): Promise<string | null> {
   const sql = `
@@ -30,7 +31,7 @@ export async function recomputeSessionPerformed(
     returning ps.performed_at;
   `;
 
-  const res = await client.query(sql, [sessionId]);
+  const res = await client.query<{ performed_at: string | null }>(sql, [sessionId]);
   return res.rows[0]?.performed_at ?? null;
 }
 
@@ -39,31 +40,48 @@ function toDateString(d: Date) {
 }
 
 export async function recomputeWeeklyRollup(
-  client: any,
+  client: PoolClient,
   userId: string,
   weekStart: string
 ) {
   const { start, end } = getWeekRangeUtc(weekStart);
   const endDate = toDateString(end);
 
-  const setsRes = await client.query(
+  const setsRes = await client.query<{
+    performed_at: string;
+    load: number | string;
+    reps: number | string;
+    set_type: string;
+    targeted_primary_muscle: string;
+  }>(
     `select performed_at, load, reps, set_type, targeted_primary_muscle
      from set_logs
      where user_id = $1 and performed_at >= $2 and performed_at < $3`,
     [userId, start.toISOString(), end.toISOString()]
   );
 
-  const rows = setsRes.rows.map((row: any) => ({
-    performed_at: row.performed_at,
-    load: Number(row.load),
-    reps: Number(row.reps),
-    set_type: row.set_type,
-    targeted_primary_muscle: row.targeted_primary_muscle,
-  }));
+  const rows: SetLogRow[] = setsRes.rows.flatMap((row) => {
+    if (
+      row.set_type !== "top" &&
+      row.set_type !== "backoff" &&
+      row.set_type !== "straight" &&
+      row.set_type !== "accessory"
+    ) {
+      return [];
+    }
+
+    return [{
+      performed_at: row.performed_at,
+      load: Number(row.load),
+      reps: Number(row.reps),
+      set_type: row.set_type,
+      targeted_primary_muscle: row.targeted_primary_muscle,
+    }];
+  });
 
   const rollup = computeRollupFromSets(rows);
 
-  const cardioRes = await client.query(
+  const cardioRes = await client.query<{ cardio_minutes: number | string }>(
     `select
        coalesce(sum(cardio_minutes), 0)::int as cardio_minutes
      from plan_sessions
@@ -74,7 +92,7 @@ export async function recomputeWeeklyRollup(
     [userId, weekStart, endDate]
   );
 
-  const cardioMinutes = cardioRes.rows[0]?.cardio_minutes ?? 0;
+  const cardioMinutes = Number(cardioRes.rows[0]?.cardio_minutes ?? 0);
   await client.query(
     `insert into weekly_rollups
        (user_id, week_start_date, total_sets, total_reps, total_tonnage,

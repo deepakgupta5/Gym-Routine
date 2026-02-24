@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       [userId, blockId]
     );
 
-    const sessions: PlanSessionRow[] = sessionsRes.rows.map((r: any) => ({
+    const sessions: PlanSessionRow[] = sessionsRes.rows.map((r: { plan_session_id: string; date: string; session_type: PlanSessionRow["session_type"]; is_required: boolean; performed_at: string | null; week_in_block: number }) => ({
       plan_session_id: r.plan_session_id,
       date: r.date,
       session_type: r.session_type,

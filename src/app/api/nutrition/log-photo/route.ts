@@ -83,7 +83,7 @@ export async function POST(req: Request) {
     if (message.startsWith("openai_request_failed") || message === "openai_key_missing") {
       return NextResponse.json({ error: "openai_unavailable" }, { status: 503 });
     }
-    if (message === "photo_parse_invalid_json" || result!?.items?.length === 0) {
+    if (message === "photo_parse_invalid_json") {
       return NextResponse.json({ error: "parse_failed" }, { status: 422 });
     }
     return NextResponse.json({ error: "nutrition_photo_parse_failed" }, { status: 500 });

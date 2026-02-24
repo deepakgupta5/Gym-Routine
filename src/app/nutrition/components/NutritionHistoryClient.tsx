@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type HistoryDay = {
   date: string;
@@ -40,7 +40,7 @@ export default function NutritionHistoryClient() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadHistory() {
+  const loadHistory = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -57,11 +57,13 @@ export default function NutritionHistoryClient() {
 
     setData(json as NutritionHistoryResponse);
     setLoading(false);
-  }
+  }, [from, to]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     void loadHistory();
-  }, []);
+  }, [loadHistory]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
     <main className="mx-auto max-w-5xl p-5 md:p-6">

@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
       [session.plan_session_id]
     );
 
-    const exercises = exercisesRes.rows.map((row: any) => ({
+    const exercises = exercisesRes.rows.map((row: { exercise_id: number; targeted_primary_muscle: string | null }) => ({
       ...row,
       image_url: getExerciseImageUrl(row.exercise_id, row.targeted_primary_muscle),
     }));

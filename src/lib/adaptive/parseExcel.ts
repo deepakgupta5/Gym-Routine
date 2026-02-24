@@ -24,7 +24,7 @@ function normalizeHeader(header: string) {
   return header.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-function parseExcelDate(value: any): string | null {
+function parseExcelDate(value: unknown): string | null {
   if (!value) return null;
   if (value instanceof Date) {
     return value.toISOString().slice(0, 10);
@@ -50,7 +50,7 @@ function parseHeaderDate(header: string): string | null {
   return date;
 }
 
-function isWideFormat(rows: Record<string, any>[]) {
+function isWideFormat(rows: Record<string, unknown>[]) {
   if (rows.length === 0) return false;
   const first = rows[0];
   return Object.keys(first).some((k) => k === "__EMPTY" || k === "__EMPTY_1");
@@ -72,12 +72,12 @@ export function parseBodyStatsXlsxWithReport(buffer: ArrayBuffer): ParseBodyStat
 
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName];
-    const raw = XLSX.utils.sheet_to_json(sheet, { defval: null }) as Record<string, any>[];
+    const raw = XLSX.utils.sheet_to_json(sheet, { defval: null }) as Record<string, unknown>[];
     if (raw.length === 0) continue;
 
     if (!isWideFormat(raw)) {
       for (const row of raw) {
-        const mapped: Record<string, any> = {};
+        const mapped: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(row)) {
           mapped[normalizeHeader(key)] = value;
         }
@@ -118,7 +118,7 @@ export function parseBodyStatsXlsxWithReport(buffer: ArrayBuffer): ParseBodyStat
       if (parsed) dateHeaders.set(key, parsed);
     }
 
-    const byDate: Record<string, any> = {};
+    const byDate: Record<string, Record<string, unknown>> = {};
 
     for (const row of raw) {
       const label = row["__EMPTY"] ? String(row["__EMPTY"]).trim() : "";
@@ -148,9 +148,9 @@ export function parseBodyStatsXlsxWithReport(buffer: ArrayBuffer): ParseBodyStat
 
     for (const [date, metrics] of Object.entries(byDate)) {
       const weight = Number(metrics.weight);
-      let bodyfat = metrics.bodyfat_pct;
+      let bodyfat = Number(metrics.bodyfat_pct);
       if (Number.isFinite(bodyfat) && bodyfat <= 1) {
-        bodyfat = bodyfat * 100;
+        bodyfat *= 100;
       }
 
       const leftArm = Number(metrics.left_arm);

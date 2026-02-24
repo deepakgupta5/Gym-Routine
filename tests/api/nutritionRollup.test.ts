@@ -46,7 +46,7 @@ describe("recomputeDailyRollup", () => {
         ],
       });
 
-    const client = { query } as any;
+    const client = { query } as unknown as Parameters<typeof recomputeDailyRollup>[0];
     const result = await recomputeDailyRollup(client, "user-1", "2026-02-24");
 
     expect(query).toHaveBeenCalledTimes(2);
@@ -106,7 +106,7 @@ describe("recomputeDailyRollup", () => {
         ],
       });
 
-    const client = { query } as any;
+    const client = { query } as unknown as Parameters<typeof recomputeDailyRollup>[0];
     const result = await recomputeDailyRollup(client, "user-1", "2026-02-25");
 
     expect(result.total_calories).toBe(0);
@@ -117,7 +117,7 @@ describe("recomputeDailyRollup", () => {
   it("propagates database errors", async () => {
     const client = {
       query: vi.fn().mockRejectedValueOnce(new Error("db_down")),
-    } as any;
+    } as unknown as Parameters<typeof recomputeDailyRollup>[0];
 
     await expect(recomputeDailyRollup(client, "user-1", "2026-02-25")).rejects.toThrow("db_down");
   });

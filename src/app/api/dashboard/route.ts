@@ -4,7 +4,7 @@ import { CONFIG, requireConfig } from "@/lib/config";
 import { computeAdaptiveState } from "@/lib/adaptive/computeAdaptive";
 import { normalizePrimaryLiftMap } from "@/lib/engine/rotation";
 
-function parseBiasState(input: any) {
+function parseBiasState(input: unknown) {
   if (!input || typeof input !== "string") return {};
   try {
     const obj = JSON.parse(input);
