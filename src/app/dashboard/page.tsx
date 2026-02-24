@@ -78,7 +78,7 @@ export default async function DashboardPage() {
       `select date::text as date, weight_lb, bodyfat_pct, upper_pct, lower_pct
        from body_stats_daily
        where user_id = $1
-       order by date asc`,
+       order by 1  asc`,
       [userId]
     );
 
@@ -199,15 +199,23 @@ export default async function DashboardPage() {
 
     // Next upcoming session (#10)
     const nextSessionRes = blockId
-      ? await client.query<{ date: string; session_type: string; is_deload: boolean }>(
-          `select date::text as date, session_type, is_deload
-           from plan_sessions
-           where user_id = $1 and block_id = $2 and performed_at is null
-           order by date asc
-           limit 1`,
-          [userId, blockId]
-        )
-      : { rows: [] };
+  ? await client.query(
+      `select ps.plan_session_id, ps.date::text as date, ps.session_type
+       from plan_sessions ps
+       where ps.user_id = $1
+         and ps.block_id = $2
+         and not exists (
+           select 1
+           from set_logs sl
+           where sl.user_id = ps.user_id
+             and sl.session_id = ps.plan_session_id
+         )
+       order by ps.date asc
+       limit 1`,
+      [userId, blockId]
+    )
+  : { rows: [] };
+
     const nextSession = nextSessionRes.rows[0] ?? null;
 
     // PR count this block (#19)
