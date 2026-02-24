@@ -20,6 +20,17 @@ const tabs = [
     ),
   },
   {
+    label: "Nutrition",
+    href: "/nutrition/today",
+    match: (path: string) => path === "/nutrition" || path.startsWith("/nutrition/"),
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h10M7 12h10M7 17h10" />
+      </svg>
+    ),
+  },
+  {
     label: "Dashboard",
     href: "/dashboard",
     match: (path: string) => path === "/dashboard",
@@ -31,24 +42,14 @@ const tabs = [
     ),
   },
   {
-    label: "History",
-    href: "/history",
-    match: (path: string) => path === "/history",
+    label: "More",
+    href: "/more",
+    match: (path: string) => path === "/more",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
-        <circle cx="12" cy="12" r="9" />
-        <path strokeLinecap="round" d="M12 7v5l3 3" />
-      </svg>
-    ),
-  },
-  {
-    label: "Upload",
-    href: "/upload",
-    match: (path: string) => path === "/upload",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 16V4m0 0L8 8m4-4l4 4" />
-        <path strokeLinecap="round" d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+        <circle cx="5" cy="12" r="1.5" />
+        <circle cx="12" cy="12" r="1.5" />
+        <circle cx="19" cy="12" r="1.5" />
       </svg>
     ),
   },

@@ -1,0 +1,558 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+
+type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+type MealTypeOrAuto = MealType | "auto";
+
+type MealItem = {
+  meal_item_id: string;
+  item_name: string;
+  quantity: number;
+  unit: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  fiber_g: number;
+  sugar_g: number;
+  sodium_mg: number;
+  iron_mg: number;
+  calcium_mg: number;
+  vitamin_d_mcg: number;
+  vitamin_c_mg: number;
+  potassium_mg: number;
+  source: "ai" | "manual";
+  confidence: number | null;
+  is_user_edited: boolean;
+  sort_order: number;
+};
+
+type MealLog = {
+  meal_log_id: string;
+  meal_type: MealType;
+  raw_input: string | null;
+  input_mode: "text" | "photo" | "text_photo" | "manual";
+  ai_confidence: number | null;
+  notes: string | null;
+  created_at: string;
+  items: MealItem[];
+};
+
+type NutritionTodayResponse = {
+  date: string;
+  goals: {
+    is_training_day: boolean;
+    target_calories: number;
+    target_protein_g: number;
+    target_fat_g: number;
+    target_carbs_g: number;
+    target_fiber_g: number;
+    target_sugar_g_max: number;
+    target_sodium_mg_max: number;
+    target_iron_mg: number;
+    target_vitamin_d_mcg: number;
+    target_water_ml: number;
+  };
+  totals: {
+    total_calories: number;
+    total_protein_g: number;
+    total_carbs_g: number;
+    total_fat_g: number;
+    total_fiber_g: number;
+    total_sugar_g: number;
+    total_sodium_mg: number;
+    total_iron_mg: number;
+    total_vitamin_d_mcg: number;
+    water_ml: number;
+    meal_count: number;
+  };
+  deltas: {
+    calories_remaining: number;
+    protein_remaining_g: number;
+    fat_remaining_g: number;
+    carbs_remaining_g: number;
+    fiber_remaining_g: number;
+    sugar_headroom_g: number;
+    sodium_headroom_mg: number;
+    iron_remaining_mg: number;
+    vitamin_d_remaining_mcg: number;
+    water_remaining_ml: number;
+  };
+  meals: MealLog[];
+};
+
+type ManualItemDraft = {
+  item_name: string;
+  calories: string;
+  protein_g: string;
+  carbs_g: string;
+  fat_g: string;
+};
+
+type MealDraft = { meal_type: MealType; notes: string };
+
+function isoToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function asNonNegativeNumber(value: string): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+export default function NutritionTodayClient() {
+  const searchParams = useSearchParams();
+  const initialDate = searchParams.get("date") || isoToday();
+
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [data, setData] = useState<NutritionTodayResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [mealType, setMealType] = useState<MealTypeOrAuto>("auto");
+  const [rawInput, setRawInput] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const [manualMode, setManualMode] = useState(false);
+  const [manualItem, setManualItem] = useState<ManualItemDraft>({
+    item_name: "",
+    calories: "",
+    protein_g: "",
+    carbs_g: "",
+    fat_g: "",
+  });
+
+  const [mealDrafts, setMealDrafts] = useState<Record<string, MealDraft>>({});
+
+  async function loadDay(date: string) {
+    setLoading(true);
+    setError(null);
+
+    const res = await fetch(`/api/nutrition/today?date=${date}`);
+    const json = (await res.json().catch(() => null)) as NutritionTodayResponse | { error?: string } | null;
+
+    if (!res.ok || !json || ("error" in json && json.error)) {
+      const err = json && "error" in json ? json.error : "nutrition_today_failed";
+      setError(typeof err === "string" ? err : "nutrition_today_failed");
+      setLoading(false);
+      return;
+    }
+
+    setData(json as NutritionTodayResponse);
+
+    const nextDrafts: Record<string, MealDraft> = {};
+    for (const meal of (json as NutritionTodayResponse).meals) {
+      nextDrafts[meal.meal_log_id] = {
+        meal_type: meal.meal_type,
+        notes: meal.notes ?? "",
+      };
+    }
+    setMealDrafts(nextDrafts);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    void loadDay(selectedDate);
+  }, [selectedDate]);
+
+  async function saveWithAi() {
+    if (!rawInput.trim()) {
+      setError("Enter a meal description first.");
+      return;
+    }
+
+    setError(null);
+
+    const res = await fetch("/api/nutrition/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        meal_date: selectedDate,
+        meal_type: mealType,
+        raw_input: rawInput,
+        notes,
+        save_mode: "ai_parse",
+      }),
+    });
+
+    const json = (await res.json().catch(() => null)) as { error?: string } | null;
+
+    if (res.status === 422 && json?.error === "parse_failed_manual_required") {
+      setManualMode(true);
+      setError("AI parse failed. Use manual entry.");
+      return;
+    }
+
+    if (!res.ok) {
+      setError(json?.error || "nutrition_log_save_failed");
+      return;
+    }
+
+    setRawInput("");
+    setNotes("");
+    await loadDay(selectedDate);
+  }
+
+  async function saveManual() {
+    if (!manualItem.item_name.trim()) {
+      setError("Manual item name is required.");
+      return;
+    }
+
+    setError(null);
+
+    const payload = {
+      meal_date: selectedDate,
+      meal_type: mealType,
+      notes,
+      save_mode: "manual",
+      items: [
+        {
+          item_name: manualItem.item_name.trim(),
+          quantity: 1,
+          unit: "serving",
+          calories: asNonNegativeNumber(manualItem.calories),
+          protein_g: asNonNegativeNumber(manualItem.protein_g),
+          carbs_g: asNonNegativeNumber(manualItem.carbs_g),
+          fat_g: asNonNegativeNumber(manualItem.fat_g),
+          fiber_g: 0,
+          sugar_g: 0,
+          sodium_mg: 0,
+          iron_mg: 0,
+          calcium_mg: 0,
+          vitamin_d_mcg: 0,
+          vitamin_c_mg: 0,
+          potassium_mg: 0,
+          source: "manual" as const,
+          confidence: null,
+          is_user_edited: true,
+          sort_order: 1,
+        },
+      ],
+    };
+
+    const res = await fetch("/api/nutrition/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const json = (await res.json().catch(() => null)) as { error?: string } | null;
+    if (!res.ok) {
+      setError(json?.error || "nutrition_log_save_failed");
+      return;
+    }
+
+    setManualItem({ item_name: "", calories: "", protein_g: "", carbs_g: "", fat_g: "" });
+    setNotes("");
+    await loadDay(selectedDate);
+  }
+
+  async function updateMeal(meal: MealLog) {
+    const draft = mealDrafts[meal.meal_log_id];
+    if (!draft) return;
+
+    setError(null);
+
+    const items = meal.items.map((item) => ({
+      meal_item_id: item.meal_item_id,
+      item_name: item.item_name,
+      quantity: item.quantity,
+      unit: item.unit,
+      calories: item.calories,
+      protein_g: item.protein_g,
+      carbs_g: item.carbs_g,
+      fat_g: item.fat_g,
+      fiber_g: item.fiber_g,
+      sugar_g: item.sugar_g,
+      sodium_mg: item.sodium_mg,
+      iron_mg: item.iron_mg,
+      calcium_mg: item.calcium_mg,
+      vitamin_d_mcg: item.vitamin_d_mcg,
+      vitamin_c_mg: item.vitamin_c_mg,
+      potassium_mg: item.potassium_mg,
+      source: item.source === "ai" ? "ai" : "manual",
+      confidence: item.confidence,
+      is_user_edited: true,
+      sort_order: item.sort_order,
+    }));
+
+    const res = await fetch(`/api/nutrition/log/${meal.meal_log_id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        meal_type: draft.meal_type,
+        notes: draft.notes,
+        items,
+      }),
+    });
+
+    const json = (await res.json().catch(() => null)) as { error?: string } | null;
+    if (!res.ok) {
+      setError(json?.error || "nutrition_log_update_failed");
+      return;
+    }
+
+    await loadDay(selectedDate);
+  }
+
+  async function deleteMeal(mealLogId: string) {
+    setError(null);
+
+    const res = await fetch(`/api/nutrition/log/${mealLogId}`, {
+      method: "DELETE",
+    });
+    const json = (await res.json().catch(() => null)) as { error?: string } | null;
+
+    if (!res.ok) {
+      setError(json?.error || "nutrition_log_delete_failed");
+      return;
+    }
+
+    await loadDay(selectedDate);
+  }
+
+  const headline = useMemo(() => {
+    if (!data) return "Nutrition";
+    return data.goals.is_training_day ? "Nutrition (Training Day)" : "Nutrition (Rest Day)";
+  }, [data]);
+
+  return (
+    <main className="mx-auto max-w-5xl p-5 md:p-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold text-gray-100">{headline}</h1>
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="rounded-md border border-gray-600 bg-gray-800 px-2 py-1 text-sm text-gray-100"
+        />
+      </div>
+
+      {error && (
+        <div className="mb-4 rounded-md border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
+      {loading && (
+        <div className="rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-400">
+          Loading nutrition data...
+        </div>
+      )}
+
+      {data && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-4">
+            <div className="rounded-lg border border-gray-700 bg-gray-800 p-3">
+              <div className="text-xs text-gray-400">Calories</div>
+              <div className="text-sm text-gray-100">{Math.round(data.totals.total_calories)} / {Math.round(data.goals.target_calories)}</div>
+            </div>
+            <div className="rounded-lg border border-gray-700 bg-gray-800 p-3">
+              <div className="text-xs text-gray-400">Protein</div>
+              <div className="text-sm text-gray-100">{Math.round(data.totals.total_protein_g)}g / {Math.round(data.goals.target_protein_g)}g</div>
+            </div>
+            <div className="rounded-lg border border-gray-700 bg-gray-800 p-3">
+              <div className="text-xs text-gray-400">Carbs</div>
+              <div className="text-sm text-gray-100">{Math.round(data.totals.total_carbs_g)}g / {Math.round(data.goals.target_carbs_g)}g</div>
+            </div>
+            <div className="rounded-lg border border-gray-700 bg-gray-800 p-3">
+              <div className="text-xs text-gray-400">Fat</div>
+              <div className="text-sm text-gray-100">{Math.round(data.totals.total_fat_g)}g / {Math.round(data.goals.target_fat_g)}g</div>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-lg border border-gray-700 bg-gray-900 p-4">
+            <h2 className="mb-3 text-lg font-semibold text-gray-100">Log Meal</h2>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <select
+                value={mealType}
+                onChange={(e) => setMealType(e.target.value as MealTypeOrAuto)}
+                className="rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
+              >
+                <option value="auto">Auto meal type</option>
+                <option value="breakfast">Breakfast</option>
+                <option value="lunch">Lunch</option>
+                <option value="snack">Snack</option>
+                <option value="dinner">Dinner</option>
+              </select>
+
+              <input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Notes (optional)"
+                className="rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
+              />
+            </div>
+
+            <textarea
+              value={rawInput}
+              onChange={(e) => setRawInput(e.target.value)}
+              placeholder='Example: "Had chicken sandwich and salad for lunch"'
+              className="mt-3 min-h-20 w-full rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
+            />
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={saveWithAi}
+                className="rounded-md border border-blue-700 bg-blue-600 px-3 py-2 text-sm text-white"
+              >
+                Save With AI
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setManualMode((v) => !v)}
+                className="rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-100"
+              >
+                {manualMode ? "Hide Manual" : "Add Manually"}
+              </button>
+            </div>
+
+            {manualMode && (
+              <div className="mt-4 rounded-md border border-gray-700 bg-gray-800 p-3">
+                <h3 className="mb-2 text-sm font-medium text-gray-100">Manual Item</h3>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <input
+                    value={manualItem.item_name}
+                    onChange={(e) => setManualItem((prev) => ({ ...prev, item_name: e.target.value }))}
+                    placeholder="Item name"
+                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
+                  />
+                  <input
+                    value={manualItem.calories}
+                    onChange={(e) => setManualItem((prev) => ({ ...prev, calories: e.target.value }))}
+                    placeholder="Calories"
+                    type="number"
+                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
+                  />
+                  <input
+                    value={manualItem.protein_g}
+                    onChange={(e) => setManualItem((prev) => ({ ...prev, protein_g: e.target.value }))}
+                    placeholder="Protein (g)"
+                    type="number"
+                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
+                  />
+                  <input
+                    value={manualItem.carbs_g}
+                    onChange={(e) => setManualItem((prev) => ({ ...prev, carbs_g: e.target.value }))}
+                    placeholder="Carbs (g)"
+                    type="number"
+                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
+                  />
+                  <input
+                    value={manualItem.fat_g}
+                    onChange={(e) => setManualItem((prev) => ({ ...prev, fat_g: e.target.value }))}
+                    placeholder="Fat (g)"
+                    type="number"
+                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={saveManual}
+                  className="mt-3 rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm text-white"
+                >
+                  Save Manual Meal
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5">
+            <h2 className="mb-3 text-lg font-semibold text-gray-100">Meals</h2>
+
+            {data.meals.length === 0 ? (
+              <div className="rounded-lg border border-gray-700 bg-gray-900 p-4 text-sm text-gray-400">
+                No meals logged for this date.
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                {data.meals.map((meal) => {
+                  const draft = mealDrafts[meal.meal_log_id] ?? {
+                    meal_type: meal.meal_type,
+                    notes: meal.notes ?? "",
+                  };
+
+                  return (
+                    <div key={meal.meal_log_id} className="rounded-lg border border-gray-700 bg-gray-900 p-4">
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <select
+                          value={draft.meal_type}
+                          onChange={(e) =>
+                            setMealDrafts((prev) => ({
+                              ...prev,
+                              [meal.meal_log_id]: {
+                                ...draft,
+                                meal_type: e.target.value as MealType,
+                              },
+                            }))
+                          }
+                          className="rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
+                        >
+                          <option value="breakfast">Breakfast</option>
+                          <option value="lunch">Lunch</option>
+                          <option value="snack">Snack</option>
+                          <option value="dinner">Dinner</option>
+                        </select>
+
+                        <input
+                          value={draft.notes}
+                          onChange={(e) =>
+                            setMealDrafts((prev) => ({
+                              ...prev,
+                              [meal.meal_log_id]: {
+                                ...draft,
+                                notes: e.target.value,
+                              },
+                            }))
+                          }
+                          placeholder="Meal notes"
+                          className="rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
+                        />
+                      </div>
+
+                      <div className="mt-2 text-xs text-gray-400">
+                        {meal.input_mode} {meal.ai_confidence != null ? `| confidence ${meal.ai_confidence.toFixed(2)}` : ""}
+                      </div>
+
+                      <ul className="mt-2 space-y-1 text-sm text-gray-200">
+                        {meal.items.map((item) => (
+                          <li key={item.meal_item_id} className="rounded-md border border-gray-800 bg-gray-800/40 px-2 py-1">
+                            {item.item_name} - {Math.round(item.calories)} kcal, {Math.round(item.protein_g)}g P
+                          </li>
+                        ))}
+                      </ul>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateMeal(meal)}
+                          className="rounded-md border border-blue-700 bg-blue-600 px-3 py-2 text-xs text-white"
+                        >
+                          Save Meal
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteMeal(meal.meal_log_id)}
+                          className="rounded-md border border-red-700 bg-red-600 px-3 py-2 text-xs text-white"
+                        >
+                          Delete Meal
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </main>
+  );
+}
