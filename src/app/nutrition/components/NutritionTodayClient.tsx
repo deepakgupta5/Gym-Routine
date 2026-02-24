@@ -281,6 +281,9 @@ export default function NutritionTodayClient() {
 
     if (res.status === 422 && json?.error === "parse_failed_manual_required") {
       setManualMode(true);
+      if (!manualItem.item_name.trim() && rawInput.trim()) {
+        setManualItem((prev) => ({ ...prev, item_name: rawInput.trim() }));
+      }
       setFormError("AI parse failed. Use manual entry or photo.");
       return;
     }
@@ -297,8 +300,11 @@ export default function NutritionTodayClient() {
   }
 
   async function saveManual() {
-    if (!manualItem.item_name.trim()) {
-      setFormError("Manual item name is required.");
+    const fallbackName = rawInput.trim();
+    const itemName = manualItem.item_name.trim() || fallbackName;
+
+    if (!itemName) {
+      setFormError("Manual item name is required. Or type meal text above first.");
       return;
     }
 
@@ -311,7 +317,7 @@ export default function NutritionTodayClient() {
       save_mode: "manual",
       items: [
         {
-          item_name: manualItem.item_name.trim(),
+          item_name: itemName,
           quantity: 1,
           unit: "serving",
           calories: asNonNegativeNumber(manualItem.calories),
@@ -347,6 +353,7 @@ export default function NutritionTodayClient() {
     }
 
     setManualItem({ item_name: "", calories: "", protein_g: "", carbs_g: "", fat_g: "" });
+    setRawInput("");
     setNotes("");
     await loadDay(selectedDate);
     await loadInsights(selectedDate);
@@ -627,7 +634,11 @@ export default function NutritionTodayClient() {
               <button
                 type="button"
                 onClick={() => {
-                  setManualMode((v) => !v);
+                  const next = !manualMode;
+                  setManualMode(next);
+                  if (next && !manualItem.item_name.trim() && rawInput.trim()) {
+                    setManualItem((prev) => ({ ...prev, item_name: rawInput.trim() }));
+                  }
                   setFormError(null);
                 }}
                 className="rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-100"
@@ -697,6 +708,16 @@ export default function NutritionTodayClient() {
             {manualMode && (
               <div className="mt-4 rounded-md border border-gray-700 bg-gray-800 p-3">
                 <h3 className="mb-2 text-sm font-medium text-gray-100">Manual Item</h3>
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void saveManual()}
+                    className="rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm text-white"
+                  >
+                    Save Manual Meal
+                  </button>
+                  <span className="text-xs text-gray-400">If Item name is blank, meal text above will be used.</span>
+                </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <input
                     value={manualItem.item_name}
@@ -734,13 +755,6 @@ export default function NutritionTodayClient() {
                   />
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => void saveManual()}
-                  className="mt-3 rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm text-white"
-                >
-                  Save Manual Meal
-                </button>
               </div>
             )}
           </div>
