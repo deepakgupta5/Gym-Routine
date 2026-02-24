@@ -6,17 +6,23 @@
 
 import { NextResponse } from "next/server";
 import { CONFIG, requireConfig } from "@/lib/config";
-import { logError } from "@/lib/logger";
+import { logError, logInfo } from "@/lib/logger";
 import { parsePhotoMeal } from "@/lib/nutrition/photoParse";
 
 export const dynamic = "force-dynamic";
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
-const VALID_MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "auto"];
+const VALID_MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "auto"] as const;
+const PARSE_SLO_MS = 3000;
+const LOW_CONFIDENCE_THRESHOLD = 0.3;
 
 function isIsoDate(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+function hasMeaningfulNutrition(item: { calories: number; protein_g: number; carbs_g: number; fat_g: number; fiber_g: number }): boolean {
+  return item.calories > 0 || item.protein_g > 0 || item.carbs_g > 0 || item.fat_g > 0 || item.fiber_g > 0;
 }
 
 export async function POST(req: Request) {
@@ -54,7 +60,7 @@ export async function POST(req: Request) {
   }
 
   const mealTypeRaw = formData.get("meal_type");
-  if (mealTypeRaw !== null && !VALID_MEAL_TYPES.includes(String(mealTypeRaw))) {
+  if (mealTypeRaw !== null && !(VALID_MEAL_TYPES as readonly string[]).includes(String(mealTypeRaw))) {
     return NextResponse.json({ error: "invalid_meal_type" }, { status: 400 });
   }
 
@@ -74,8 +80,11 @@ export async function POST(req: Request) {
   }
 
   let result: Awaited<ReturnType<typeof parsePhotoMeal>>;
+  let parseDurationMs: number | null = null;
   try {
+    const startedAt = Date.now();
     result = await parsePhotoMeal(imageBuffer);
+    parseDurationMs = Date.now() - startedAt;
   } catch (err) {
     // Log only event + user_id — never log image bytes or base64
     logError("photo_parse_failed", err, { user_id: userId });
@@ -89,8 +98,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "nutrition_photo_parse_failed" }, { status: 500 });
   }
 
-  if (!result.items || result.items.length === 0) {
+  if (!result.items || result.items.length === 0 || !result.items.some(hasMeaningfulNutrition)) {
     return NextResponse.json({ error: "parse_failed" }, { status: 422 });
+  }
+
+  const warnings: string[] = [];
+  if (result.confidence < LOW_CONFIDENCE_THRESHOLD) {
+    warnings.push("low_confidence_parse");
+  }
+  if (parseDurationMs != null && parseDurationMs > PARSE_SLO_MS) {
+    warnings.push("parse_slo_missed");
+    logInfo("nutrition_photo_parse_slo_missed", {
+      user_id: userId,
+      parse_duration_ms: parseDurationMs,
+    });
   }
 
   // Return parsed items only — zero image data in response
@@ -99,6 +120,8 @@ export async function POST(req: Request) {
     input_mode: "photo",
     ai_model: result.model,
     ai_confidence: result.confidence,
+    parse_duration_ms: parseDurationMs,
+    parse_slo_met: parseDurationMs == null ? null : parseDurationMs <= PARSE_SLO_MS,
     items: result.items.map((item, idx) => ({
       item_name:     item.item_name,
       quantity:      item.quantity,
@@ -120,6 +143,6 @@ export async function POST(req: Request) {
       is_user_edited: false,
       sort_order:    idx + 1,
     })),
-    warnings: [],
+    warnings,
   });
 }

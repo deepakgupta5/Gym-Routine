@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
-import { logError } from "@/lib/logger";
+import { logError, logInfo } from "@/lib/logger";
 import { callOpenAI } from "@/lib/ai/openai";
 import { buildMealParseSystemPrompt, buildMealParseUserPrompt } from "@/lib/ai/prompts";
 import { ensureNutritionProfile } from "@/lib/nutrition/profile";
@@ -14,16 +14,27 @@ export const dynamic = "force-dynamic";
 
 const ALLOWED_PROTEINS = ["chicken", "shrimp", "eggs", "dairy", "plant"];
 const VALID_MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
+const PARSE_SLO_MS = 3000;
+const LOW_CONFIDENCE_THRESHOLD = 0.3;
 type MealType = (typeof VALID_MEAL_TYPES)[number];
 
 function isIsoDate(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
-function resolveMealType(raw: string): MealType {
+function resolveAutoHour(clientTzOffsetMin: number | null): number {
+  const now = new Date();
+  if (clientTzOffsetMin == null) return now.getUTCHours();
+
+  const utcTotalMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const localMinutes = ((utcTotalMinutes - clientTzOffsetMin) % 1440 + 1440) % 1440;
+  return Math.floor(localMinutes / 60);
+}
+
+function resolveMealType(raw: string, clientTzOffsetMin: number | null): MealType {
   if ((VALID_MEAL_TYPES as readonly string[]).includes(raw)) return raw as MealType;
-  // "auto" — derive from server UTC hour
-  const hour = new Date().getUTCHours();
+
+  const hour = resolveAutoHour(clientTzOffsetMin);
   if (hour < 10) return "breakfast";
   if (hour < 14) return "lunch";
   if (hour < 17) return "snack";
@@ -37,13 +48,29 @@ function validateItemFields(item: Partial<MealItemInput>): boolean {
     "vitamin_d_mcg", "vitamin_c_mg", "potassium_mg",
     "quantity", "sort_order",
   ];
+
   for (const f of numericFields) {
     const v = Number(item[f]);
     if (!Number.isFinite(v) || v < 0) return false;
   }
+
   if (!item.item_name || typeof item.item_name !== "string") return false;
   if (!["ai", "manual"].includes(item.source as string)) return false;
   return true;
+}
+
+function hasMeaningfulNutrition(item: ParsedFoodItem): boolean {
+  return (
+    item.calories > 0 ||
+    item.protein_g > 0 ||
+    item.carbs_g > 0 ||
+    item.fat_g > 0 ||
+    item.fiber_g > 0
+  );
+}
+
+function parsedItemsUsable(items: ParsedFoodItem[]): boolean {
+  return items.length > 0 && items.some(hasMeaningfulNutrition);
 }
 
 type OpenAIParseResponse = {
@@ -63,6 +90,7 @@ async function parseMealText(
     userContent: userPrompt,
     maxTokens: 2048,
     responseFormat: "json_object",
+    timeoutMs: 2500,
   });
 
   const parsed = JSON.parse(rawJson) as OpenAIParseResponse;
@@ -92,7 +120,7 @@ async function parseMealText(
       ? items.reduce((s, i) => s + i.confidence, 0) / items.length
       : Number(parsed?.overall_confidence ?? 0.8);
 
-  return { items, confidence: overallConfidence, model: "gpt-4o-mini" };
+  return { items, confidence: Math.min(1, Math.max(0, overallConfidence)), model: "gpt-4o-mini" };
 }
 
 export async function POST(req: Request) {
@@ -102,27 +130,32 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
 
-  // Validate meal_date
   const mealDate = typeof body.meal_date === "string" ? body.meal_date : "";
   if (!mealDate || !isIsoDate(mealDate)) {
     return NextResponse.json({ error: "invalid_date" }, { status: 400 });
   }
 
-  // Validate and resolve meal_type
+  let clientTzOffsetMin: number | null = null;
+  if (body.client_tz_offset_min != null) {
+    const offset = Number(body.client_tz_offset_min);
+    if (!Number.isInteger(offset) || offset < -720 || offset > 840) {
+      return NextResponse.json({ error: "invalid_timezone_offset" }, { status: 400 });
+    }
+    clientTzOffsetMin = offset;
+  }
+
   const rawMealType = typeof body.meal_type === "string" ? body.meal_type : "";
   const allowedMealTypeValues = [...VALID_MEAL_TYPES, "auto"];
   if (!rawMealType || !allowedMealTypeValues.includes(rawMealType)) {
     return NextResponse.json({ error: "invalid_meal_type" }, { status: 400 });
   }
-  const mealType = resolveMealType(rawMealType);
+  const mealType = resolveMealType(rawMealType, clientTzOffsetMin);
 
-  // Validate save_mode
   const saveMode = body.save_mode;
   if (saveMode !== "ai_parse" && saveMode !== "manual") {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
-  // Parse user-supplied items (optional supplement for ai_parse; required for manual)
   const userItems: MealItemInput[] = Array.isArray(body.items)
     ? (body.items as MealItemInput[])
     : [];
@@ -130,6 +163,8 @@ export async function POST(req: Request) {
   let aiItems: ParsedFoodItem[] = [];
   let aiConfidence: number | null = null;
   let aiModel: string | null = null;
+  let parseDurationMs: number | null = null;
+  const warnings: string[] = [];
   let inputMode: "text" | "manual" = "manual";
   const rawInput = typeof body.raw_input === "string" ? body.raw_input.trim() : null;
 
@@ -140,17 +175,36 @@ export async function POST(req: Request) {
     if (!CONFIG.OPENAI_API_KEY) {
       return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
     }
+
     try {
+      const startedAt = Date.now();
       const result = await parseMealText(rawInput);
+      parseDurationMs = Date.now() - startedAt;
+
       aiItems = result.items;
       aiConfidence = result.confidence;
       aiModel = result.model;
       inputMode = "text";
+
+      if (!parsedItemsUsable(aiItems)) {
+        return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
+      }
+
+      if (aiConfidence < LOW_CONFIDENCE_THRESHOLD) {
+        warnings.push("low_confidence_parse");
+      }
+      if (parseDurationMs > PARSE_SLO_MS) {
+        warnings.push("parse_slo_missed");
+        logInfo("nutrition_text_parse_slo_missed", {
+          user_id: userId,
+          meal_date: mealDate,
+          parse_duration_ms: parseDurationMs,
+        });
+      }
     } catch {
       return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
     }
   } else {
-    // manual mode
     if (userItems.length === 0) {
       return NextResponse.json({ error: "invalid_item_fields" }, { status: 400 });
     }
@@ -161,7 +215,6 @@ export async function POST(req: Request) {
     }
   }
 
-  // Merge: AI items first, then any user-supplied items
   const allAiItems: MealItemInput[] = aiItems.map((item, idx) => ({
     item_name:     item.item_name,
     quantity:      item.quantity,
@@ -200,7 +253,6 @@ export async function POST(req: Request) {
     await ensureNutritionProfile(client, userId);
     await syncTrainingDay(client, userId, mealDate);
 
-    // Insert meal_logs row
     const logRes = await client.query<{ meal_log_id: string }>(
       `INSERT INTO meal_logs
          (user_id, meal_date, meal_type, raw_input, input_mode, ai_model, ai_confidence, notes)
@@ -219,7 +271,6 @@ export async function POST(req: Request) {
     );
     const mealLogId = logRes.rows[0].meal_log_id;
 
-    // Insert meal_items rows
     for (const item of allItems) {
       await client.query(
         `INSERT INTO meal_items
@@ -248,10 +299,14 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       meal_log_id: mealLogId,
+      meal_type_resolved: mealType,
       input_mode: inputMode,
       ai_model: aiModel,
       ai_confidence: aiConfidence,
+      parse_duration_ms: parseDurationMs,
+      parse_slo_met: parseDurationMs == null ? null : parseDurationMs <= PARSE_SLO_MS,
       items_saved: allItems.length,
+      warnings,
       rollup,
     });
   } catch (err) {

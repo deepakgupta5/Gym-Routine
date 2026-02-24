@@ -46,6 +46,7 @@ export async function parsePhotoMeal(imageBuffer: Buffer): Promise<MealParseResu
     ],
     maxTokens: 2048,
     responseFormat: "json_object",
+    timeoutMs: 2500,
   });
 
   // imageBase64 goes out of scope here — no longer referenced

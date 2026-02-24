@@ -13,12 +13,13 @@ export async function ensureNutritionProfile(
   await client.query(
     `INSERT INTO nutrition_profile
        (user_id, age, height_cm, sex, nutrition_goal,
-        allowed_proteins, allergies, meal_pattern)
+        allowed_proteins, allergies, meal_pattern, tdee_calculated)
      VALUES
        ($1, 49, 178, 'male', 'cut',
         '["chicken","shrimp","eggs","dairy","plant"]'::jsonb,
         '[]'::jsonb,
-        '["breakfast","lunch","dinner","snack"]'::jsonb)
+        '["breakfast","lunch","dinner","snack"]'::jsonb,
+        2550)
      ON CONFLICT (user_id) DO NOTHING`,
     [userId]
   );

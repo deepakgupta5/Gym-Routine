@@ -1,24 +1,95 @@
 /**
- * Syncs the nutrition_goals_daily row for a given date with the training
- * schedule from the ACTIVE block only.
+ * Syncs nutrition_goals_daily for a given date with active-block training status,
+ * TDEE profile settings, and weekly weight-trend adjustment.
  *
- * Critical: block_id MUST be used in the plan_sessions query.
- * Omitting block_id would leak sessions from old/inactive blocks.
- *
- * Logic:
- *   session found AND is_deload = false  =>  training day: 2200 kcal
- *   no session OR is_deload = true       =>  rest day:     2050 kcal
- *   protein always 160 g regardless of day type
+ * Rule summary:
+ * - Training day base calories = effective_tdee - 350
+ * - Rest/deload base calories = effective_tdee - 500
+ * - Effective TDEE = tdee_override if set, else tdee_calculated, else 2550
+ * - Weekly trend adjustment from body_stats_daily (last 14 days ending on date):
+ *   * <= -1.5 lb/week: +100 kcal (loss too fast)
+ *   * >= -0.25 lb/week: -100 kcal (loss too slow / plateau)
+ *   * otherwise: 0 kcal
+ * - Protein remains 160g for all day types.
  */
 
 import type { PoolClient } from "pg";
+
+type ProfileCalories = {
+  tdee_calculated: number | null;
+  tdee_override: number | null;
+};
+
+type WeightPoint = {
+  date: string;
+  weight_lb: number;
+};
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function roundTo25(value: number): number {
+  return Math.round(value / 25) * 25;
+}
+
+function dayDiff(aIso: string, bIso: string): number {
+  const a = Date.parse(`${aIso}T00:00:00Z`);
+  const b = Date.parse(`${bIso}T00:00:00Z`);
+  return Math.max(0, (b - a) / (1000 * 60 * 60 * 24));
+}
+
+async function resolveEffectiveTdee(client: PoolClient, userId: string): Promise<number> {
+  const res = await client.query<ProfileCalories>(
+    `SELECT
+       tdee_calculated::float AS tdee_calculated,
+       tdee_override::float   AS tdee_override
+     FROM nutrition_profile
+     WHERE user_id = $1`,
+    [userId]
+  );
+
+  const row = res.rows[0];
+  const raw = row?.tdee_override ?? row?.tdee_calculated ?? 2550;
+  return clamp(roundTo25(raw), 1800, 4200);
+}
+
+async function resolveWeeklyTrendAdjustment(
+  client: PoolClient,
+  userId: string,
+  date: string
+): Promise<number> {
+  const res = await client.query<WeightPoint>(
+    `SELECT
+       date::text AS date,
+       weight_lb::float AS weight_lb
+     FROM body_stats_daily
+     WHERE user_id = $1
+       AND date <= $2::date
+       AND date > ($2::date - INTERVAL '14 day')
+     ORDER BY date ASC`,
+    [userId, date]
+  );
+
+  if (res.rows.length < 4) return 0;
+
+  const first = res.rows[0];
+  const last = res.rows[res.rows.length - 1];
+  const days = dayDiff(first.date, last.date);
+  if (days < 7) return 0;
+
+  const weeklyDeltaLb = ((last.weight_lb - first.weight_lb) / days) * 7;
+
+  if (weeklyDeltaLb <= -1.5) return 100;
+  if (weeklyDeltaLb >= -0.25) return -100;
+  return 0;
+}
 
 export async function syncTrainingDay(
   client: PoolClient,
   userId: string,
   date: string // "YYYY-MM-DD"
 ): Promise<void> {
-  // Step 1: get the user's active block_id
   const profileRes = await client.query<{ block_id: string | null }>(
     `SELECT block_id FROM user_profile WHERE user_id = $1`,
     [userId]
@@ -26,7 +97,6 @@ export async function syncTrainingDay(
 
   const blockId = profileRes.rows[0]?.block_id ?? null;
 
-  // Step 2: look up that date's session in the active block only
   let isTrainingDay = false;
 
   if (blockId) {
@@ -38,14 +108,19 @@ export async function syncTrainingDay(
     );
 
     if (sessionRes.rowCount && sessionRes.rowCount > 0) {
-      const isDeload = sessionRes.rows[0].is_deload;
-      isTrainingDay = !isDeload;
+      isTrainingDay = !sessionRes.rows[0].is_deload;
     }
   }
 
-  const targetCalories = isTrainingDay ? 2200 : 2050;
+  const effectiveTdee = await resolveEffectiveTdee(client, userId);
+  const trendAdjustment = await resolveWeeklyTrendAdjustment(client, userId, date);
 
-  // Step 3: UPSERT the goals row; never touch past rows from other call sites
+  const baseTrainingCalories = effectiveTdee - 350;
+  const baseRestCalories = effectiveTdee - 500;
+  const baseCalories = isTrainingDay ? baseTrainingCalories : baseRestCalories;
+
+  const targetCalories = clamp(roundTo25(baseCalories + trendAdjustment), 1200, 4200);
+
   await client.query(
     `INSERT INTO nutrition_goals_daily
        (user_id, goal_date, is_training_day,
@@ -61,7 +136,14 @@ export async function syncTrainingDay(
      DO UPDATE SET
        is_training_day  = EXCLUDED.is_training_day,
        target_calories  = EXCLUDED.target_calories,
-       target_protein_g = EXCLUDED.target_protein_g`,
+       target_protein_g = EXCLUDED.target_protein_g,
+       target_fat_g     = EXCLUDED.target_fat_g,
+       target_fiber_g   = EXCLUDED.target_fiber_g,
+       target_sugar_g_max = EXCLUDED.target_sugar_g_max,
+       target_sodium_mg_max = EXCLUDED.target_sodium_mg_max,
+       target_iron_mg = EXCLUDED.target_iron_mg,
+       target_vitamin_d_mcg = EXCLUDED.target_vitamin_d_mcg,
+       target_water_ml = EXCLUDED.target_water_ml`,
     [userId, date, isTrainingDay, targetCalories]
   );
 }

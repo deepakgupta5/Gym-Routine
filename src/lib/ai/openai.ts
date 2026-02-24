@@ -29,6 +29,7 @@ type CallOpenAIParams = {
   userContent: UserContent;
   maxTokens?: number;
   responseFormat?: "json_object";
+  timeoutMs?: number;
 };
 
 /**
@@ -44,6 +45,7 @@ export async function callOpenAI({
   userContent,
   maxTokens = 2048,
   responseFormat,
+  timeoutMs = 2500,
 }: CallOpenAIParams): Promise<string> {
   const apiKey = CONFIG.OPENAI_API_KEY;
   if (!apiKey) {
@@ -65,14 +67,28 @@ export async function callOpenAI({
     body.response_format = { type: "json_object" };
   }
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  let res: Response;
+  try {
+    res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("openai_timeout");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");

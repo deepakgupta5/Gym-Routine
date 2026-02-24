@@ -303,6 +303,7 @@ export default function NutritionTodayClient() {
         raw_input: rawInput,
         notes,
         save_mode: "ai_parse",
+        client_tz_offset_min: new Date().getTimezoneOffset(),
       }),
     });
 
@@ -361,6 +362,7 @@ export default function NutritionTodayClient() {
       meal_type: mealType,
       notes,
       save_mode: "manual",
+      client_tz_offset_min: new Date().getTimezoneOffset(),
       items: [
         {
           item_name: itemName,
@@ -452,6 +454,7 @@ export default function NutritionTodayClient() {
         meal_type: mealType,
         notes,
         save_mode: "manual",
+        client_tz_offset_min: new Date().getTimezoneOffset(),
         items: parsedItems,
       }),
     });
