@@ -6,6 +6,7 @@ import { normalizePrimaryLiftMap, PrimaryCatalogKey } from "@/lib/engine/rotatio
 import WeekSummary from "./components/WeekSummary";
 import SparklineChart from "./components/SparklineChart";
 import WeightChart from "./components/WeightChart";
+import NutritionQuickStats from "./components/NutritionQuickStats";
 
 function parseBiasState(input: unknown) {
   if (!input || typeof input !== "string") return {};
@@ -36,6 +37,10 @@ function formatDisplayDate(isoDate: string) {
   const day = new Intl.DateTimeFormat("en-US", { day: "2-digit", timeZone: "UTC" }).format(d);
   const month = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(d);
   return `${weekday}, ${day} ${month}`;
+}
+
+function todayUtcIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export default async function DashboardPage() {
@@ -178,7 +183,7 @@ export default async function DashboardPage() {
       const series = seriesByExercise.get(exId);
       if (series && series.points.length > 0) {
         sparklines.push({
-          label: `${CATALOG_LABELS[key]} \u2014 ${series.exercise_name}`,
+          label: `${CATALOG_LABELS[key]} - ${series.exercise_name}`,
           points: series.points,
         });
       }
@@ -199,22 +204,22 @@ export default async function DashboardPage() {
 
     // Next upcoming session (#10)
     const nextSessionRes = blockId
-  ? await client.query(
-      `select ps.plan_session_id, ps.date::text as date, ps.session_type
-       from plan_sessions ps
-       where ps.user_id = $1
-         and ps.block_id = $2
-         and not exists (
-           select 1
-           from set_logs sl
-           where sl.user_id = ps.user_id
-             and sl.session_id = ps.plan_session_id
-         )
-       order by ps.date asc
-       limit 1`,
-      [userId, blockId]
-    )
-  : { rows: [] };
+      ? await client.query(
+          `select ps.plan_session_id, ps.date::text as date, ps.session_type
+           from plan_sessions ps
+           where ps.user_id = $1
+             and ps.block_id = $2
+             and not exists (
+               select 1
+               from set_logs sl
+               where sl.user_id = ps.user_id
+                 and sl.session_id = ps.plan_session_id
+           )
+           order by ps.date asc
+           limit 1`,
+          [userId, blockId]
+        )
+      : { rows: [] };
 
     const nextSession = nextSessionRes.rows[0] ?? null;
 
@@ -238,6 +243,88 @@ export default async function DashboardPage() {
         )
       : { rows: [{ pr_count: 0 }] };
     const prCount = Number(prCountRes.rows[0]?.pr_count ?? 0);
+
+    // Nutrition quick summary (today + 7-day)
+    const today = todayUtcIso();
+
+    const [nutritionGoalsRes, nutritionRollupRes, nutritionSevenDayRes] = await Promise.all([
+      client.query<{ target_calories: number; target_protein_g: number }>(
+        `select
+           target_calories::float as target_calories,
+           target_protein_g::float as target_protein_g
+         from nutrition_goals_daily
+         where user_id = $1 and goal_date = $2`,
+        [userId, today]
+      ),
+      client.query<{ total_calories: number; total_protein_g: number }>(
+        `select
+           total_calories::float as total_calories,
+           total_protein_g::float as total_protein_g
+         from daily_nutrition_rollups
+         where user_id = $1 and rollup_date = $2`,
+        [userId, today]
+      ),
+      client.query<{ total_calories: number; total_protein_g: number; target_calories: number }>(
+        `select
+           dnr.total_calories::float as total_calories,
+           dnr.total_protein_g::float as total_protein_g,
+           coalesce(ngd.target_calories, 2050)::float as target_calories
+         from daily_nutrition_rollups dnr
+         left join nutrition_goals_daily ngd
+           on ngd.user_id = dnr.user_id
+          and ngd.goal_date = dnr.rollup_date
+         where dnr.user_id = $1
+           and dnr.rollup_date >= ($2::date - interval '6 day')
+           and dnr.rollup_date <= $2::date`,
+        [userId, today]
+      ),
+    ]);
+
+    const targetCalories = Number(nutritionGoalsRes.rows[0]?.target_calories ?? 2050);
+    const targetProtein = Number(nutritionGoalsRes.rows[0]?.target_protein_g ?? 160);
+    const totalCalories = Number(nutritionRollupRes.rows[0]?.total_calories ?? 0);
+    const totalProtein = Number(nutritionRollupRes.rows[0]?.total_protein_g ?? 0);
+
+    const adherencePct =
+      targetCalories > 0 ? Math.min(100, Math.round((totalCalories / targetCalories) * 100)) : 0;
+
+    const sevenRows = nutritionSevenDayRes.rows;
+    const sevenLoggedDays = sevenRows.length;
+    const sevenAvgCalories =
+      sevenRows.length > 0
+        ? sevenRows.reduce((sum, row) => sum + Number(row.total_calories), 0) / sevenRows.length
+        : 0;
+    const sevenAvgProtein =
+      sevenRows.length > 0
+        ? sevenRows.reduce((sum, row) => sum + Number(row.total_protein_g), 0) / sevenRows.length
+        : 0;
+    const sevenAvgAdherence =
+      sevenRows.length > 0
+        ? sevenRows.reduce((sum, row) => {
+            const dayTarget = Number(row.target_calories);
+            if (dayTarget <= 0) return sum;
+            return sum + Math.min(100, (Number(row.total_calories) / dayTarget) * 100);
+          }, 0) / sevenRows.length
+        : 0;
+
+    const nutritionSummary = {
+      date: today,
+      totals: {
+        calories: totalCalories,
+        protein_g: totalProtein,
+      },
+      targets: {
+        calories: targetCalories,
+        protein_g: targetProtein,
+      },
+      adherence_pct: adherencePct,
+      seven_day: {
+        avg_calories: sevenAvgCalories,
+        avg_protein_g: sevenAvgProtein,
+        avg_adherence_pct: sevenAvgAdherence,
+        logged_days: sevenLoggedDays,
+      },
+    };
 
     return (
       <main className="mx-auto max-w-5xl p-5 md:p-6">
@@ -268,13 +355,16 @@ export default async function DashboardPage() {
                     )}
                   </div>
                 </div>
-                <span className="text-sm text-blue-400">Go →</span>
+                <span className="text-sm text-blue-400">Go -&gt;</span>
               </div>
             </Link>
           )}
 
           {/* This Week Summary */}
           <WeekSummary current={currentRollup} previous={previousRollup} />
+
+          {/* Unified nutrition summary */}
+          <NutritionQuickStats summary={nutritionSummary} />
 
           {/* PR Count Badge (#19) */}
           {prCount > 0 && (
@@ -306,14 +396,14 @@ export default async function DashboardPage() {
             </div>
           )}
 
-          {/* Body Weight Trend — only show with enough data */}
+          {/* Body Weight Trend - only show with enough data */}
           {weightPoints.length >= 3 ? (
             <WeightChart points={weightPoints} trendClass={adaptive.weight_trend_class} />
           ) : (
             <div className="rounded-lg border border-gray-700 bg-gray-900 p-3 text-sm text-gray-400">
               {weightPoints.length === 0
                 ? "No body weight data."
-                : `${weightPoints.length} data point${weightPoints.length !== 1 ? "s" : ""} — need 3+ for chart.`}
+                : `${weightPoints.length} data point${weightPoints.length !== 1 ? "s" : ""} - need 3+ for chart.`}
               {" "}
               <Link href="/upload" className="text-blue-400 underline">
                 Upload body stats

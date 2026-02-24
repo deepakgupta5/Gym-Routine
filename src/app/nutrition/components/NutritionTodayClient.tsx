@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -83,6 +84,20 @@ type NutritionTodayResponse = {
   meals: MealLog[];
 };
 
+type Insight = {
+  insight_id: string;
+  insight_type: "deficiency_alert" | "coaching" | "supplement";
+  generated_at: string;
+  recommendation_text: string;
+  is_dismissed: boolean;
+  context_json: Record<string, unknown>;
+};
+
+type NutritionInsightsResponse = {
+  date: string;
+  insights: Insight[];
+};
+
 type ManualItemDraft = {
   item_name: string;
   calories: string;
@@ -102,6 +117,12 @@ function asNonNegativeNumber(value: string): number {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
+function insightTone(insightType: Insight["insight_type"]): string {
+  if (insightType === "deficiency_alert") return "border-amber-700 bg-amber-950/30 text-amber-100";
+  if (insightType === "supplement") return "border-purple-700 bg-purple-950/30 text-purple-100";
+  return "border-sky-700 bg-sky-950/30 text-sky-100";
+}
+
 export default function NutritionTodayClient() {
   const searchParams = useSearchParams();
   const initialDate = searchParams.get("date") || isoToday();
@@ -110,6 +131,10 @@ export default function NutritionTodayClient() {
   const [data, setData] = useState<NutritionTodayResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [insights, setInsights] = useState<Insight[]>([]);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
 
   const [mealType, setMealType] = useState<MealTypeOrAuto>("auto");
   const [rawInput, setRawInput] = useState("");
@@ -153,8 +178,27 @@ export default function NutritionTodayClient() {
     setLoading(false);
   }
 
+  async function loadInsights(date: string) {
+    setInsightsLoading(true);
+    setInsightsError(null);
+
+    const res = await fetch(`/api/nutrition/insights?date=${date}`);
+    const json = (await res.json().catch(() => null)) as NutritionInsightsResponse | { error?: string } | null;
+
+    if (!res.ok || !json || ("error" in json && json.error)) {
+      const err = json && "error" in json ? json.error : "nutrition_insights_failed";
+      setInsightsError(typeof err === "string" ? err : "nutrition_insights_failed");
+      setInsightsLoading(false);
+      return;
+    }
+
+    setInsights((json as NutritionInsightsResponse).insights ?? []);
+    setInsightsLoading(false);
+  }
+
   useEffect(() => {
     void loadDay(selectedDate);
+    void loadInsights(selectedDate);
   }, [selectedDate]);
 
   async function saveWithAi() {
@@ -193,6 +237,7 @@ export default function NutritionTodayClient() {
     setRawInput("");
     setNotes("");
     await loadDay(selectedDate);
+    await loadInsights(selectedDate);
   }
 
   async function saveManual() {
@@ -248,6 +293,7 @@ export default function NutritionTodayClient() {
     setManualItem({ item_name: "", calories: "", protein_g: "", carbs_g: "", fat_g: "" });
     setNotes("");
     await loadDay(selectedDate);
+    await loadInsights(selectedDate);
   }
 
   async function updateMeal(meal: MealLog) {
@@ -296,6 +342,7 @@ export default function NutritionTodayClient() {
     }
 
     await loadDay(selectedDate);
+    await loadInsights(selectedDate);
   }
 
   async function deleteMeal(mealLogId: string) {
@@ -312,6 +359,7 @@ export default function NutritionTodayClient() {
     }
 
     await loadDay(selectedDate);
+    await loadInsights(selectedDate);
   }
 
   const headline = useMemo(() => {
@@ -329,6 +377,18 @@ export default function NutritionTodayClient() {
           onChange={(e) => setSelectedDate(e.target.value)}
           className="rounded-md border border-gray-600 bg-gray-800 px-2 py-1 text-sm text-gray-100"
         />
+      </div>
+
+      <div className="mb-4 grid gap-2 sm:grid-cols-3">
+        <Link href="/nutrition/history" className="rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-center text-sm text-gray-200">
+          History
+        </Link>
+        <Link href="/nutrition/trends" className="rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-center text-sm text-gray-200">
+          Trends
+        </Link>
+        <Link href="/nutrition/plan" className="rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-center text-sm text-gray-200">
+          Meal Plan
+        </Link>
       </div>
 
       {error && (
@@ -362,6 +422,36 @@ export default function NutritionTodayClient() {
               <div className="text-xs text-gray-400">Fat</div>
               <div className="text-sm text-gray-100">{Math.round(data.totals.total_fat_g)}g / {Math.round(data.goals.target_fat_g)}g</div>
             </div>
+          </div>
+
+          <div className="mt-5 rounded-lg border border-gray-700 bg-gray-900 p-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold text-gray-100">Insights</h2>
+              {insightsLoading && <span className="text-xs text-gray-500">Refreshing...</span>}
+            </div>
+
+            {insightsError && (
+              <div className="rounded-md border border-red-800 bg-red-950/30 px-3 py-2 text-sm text-red-300">
+                {insightsError}
+              </div>
+            )}
+
+            {!insightsError && insights.length === 0 && !insightsLoading && (
+              <div className="rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-400">
+                No insights for this date yet. Log meals to generate recommendations.
+              </div>
+            )}
+
+            {insights.length > 0 && (
+              <ul className="space-y-2">
+                {insights.map((insight) => (
+                  <li key={insight.insight_id} className={`rounded-md border px-3 py-2 text-sm ${insightTone(insight.insight_type)}`}>
+                    <div className="mb-1 text-[11px] uppercase tracking-wide opacity-90">{insight.insight_type.replace("_", " ")}</div>
+                    <p>{insight.recommendation_text}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="mt-5 rounded-lg border border-gray-700 bg-gray-900 p-4">
