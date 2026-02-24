@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snack";
 type MealTypeOrAuto = MealType | "auto";
+type EntryMode = "ai" | "manual" | "photo";
 
 type MealItem = {
   meal_item_id: string;
@@ -155,7 +156,7 @@ function mapErrorCode(errorCode: string): string {
     case "missing_raw_input":
       return "Enter a meal description first.";
     case "parse_failed_manual_required":
-      return "AI parse failed. Use manual entry or photo.";
+      return "AI parse failed. Use Manual or Photo mode.";
     case "photo_missing":
       return "Select a photo first.";
     case "unsupported_media_type":
@@ -165,10 +166,23 @@ function mapErrorCode(errorCode: string): string {
     case "image_unreadable":
       return "Photo could not be read. Try a clearer image.";
     case "openai_unavailable":
-      return "AI is not configured right now. Use manual logging.";
+      return "AI is not configured right now. Use Manual mode.";
+    case "invalid_item_fields":
+      return "Manual item details are invalid. Check fields and try again.";
     default:
       return errorCode;
   }
+}
+
+function sumMeal(meal: MealLog) {
+  return meal.items.reduce(
+    (acc, item) => {
+      acc.calories += item.calories;
+      acc.protein += item.protein_g;
+      return acc;
+    },
+    { calories: 0, protein: 0 }
+  );
 }
 
 export default function NutritionTodayClient() {
@@ -184,17 +198,11 @@ export default function NutritionTodayClient() {
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsError, setInsightsError] = useState<string | null>(null);
 
+  const [entryMode, setEntryMode] = useState<EntryMode>("ai");
   const [mealType, setMealType] = useState<MealTypeOrAuto>("auto");
   const [rawInput, setRawInput] = useState("");
   const [notes, setNotes] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
 
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoSaving, setPhotoSaving] = useState(false);
-  const cameraInputRef = useRef<HTMLInputElement | null>(null);
-  const uploadInputRef = useRef<HTMLInputElement | null>(null);
-
-  const [manualMode, setManualMode] = useState(false);
   const [manualItem, setManualItem] = useState<ManualItemDraft>({
     item_name: "",
     calories: "",
@@ -203,7 +211,25 @@ export default function NutritionTodayClient() {
     fat_g: "",
   });
 
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+  const [savingAi, setSavingAi] = useState(false);
+  const [savingManual, setSavingManual] = useState(false);
+  const [savingPhoto, setSavingPhoto] = useState(false);
+
   const [mealDrafts, setMealDrafts] = useState<Record<string, MealDraft>>({});
+  const [updatingMealId, setUpdatingMealId] = useState<string | null>(null);
+  const [deletingMealId, setDeletingMealId] = useState<string | null>(null);
+
+  function clearFormMessages() {
+    setFormError(null);
+    setFormSuccess(null);
+  }
 
   async function loadDay(date: string) {
     setLoading(true);
@@ -219,10 +245,11 @@ export default function NutritionTodayClient() {
       return;
     }
 
-    setData(json as NutritionTodayResponse);
+    const next = json as NutritionTodayResponse;
+    setData(next);
 
     const nextDrafts: Record<string, MealDraft> = {};
-    for (const meal of (json as NutritionTodayResponse).meals) {
+    for (const meal of next.meals) {
       nextDrafts[meal.meal_log_id] = {
         meal_type: meal.meal_type,
         notes: meal.notes ?? "",
@@ -260,10 +287,12 @@ export default function NutritionTodayClient() {
   async function saveWithAi() {
     if (!rawInput.trim()) {
       setFormError("Enter a meal description first.");
+      setEntryMode("ai");
       return;
     }
 
-    setFormError(null);
+    clearFormMessages();
+    setSavingAi(true);
 
     const res = await fetch("/api/nutrition/log", {
       method: "POST",
@@ -280,21 +309,25 @@ export default function NutritionTodayClient() {
     const json = (await res.json().catch(() => null)) as { error?: string } | null;
 
     if (res.status === 422 && json?.error === "parse_failed_manual_required") {
-      setManualMode(true);
-      if (!manualItem.item_name.trim() && rawInput.trim()) {
+      setSavingAi(false);
+      setEntryMode("manual");
+      if (!manualItem.item_name.trim()) {
         setManualItem((prev) => ({ ...prev, item_name: rawInput.trim() }));
       }
-      setFormError("AI parse failed. Use manual entry or photo.");
+      setFormError("AI parse failed. Switched to Manual mode.");
       return;
     }
 
     if (!res.ok) {
+      setSavingAi(false);
       setFormError(mapErrorCode(json?.error || "nutrition_log_save_failed"));
       return;
     }
 
+    setSavingAi(false);
     setRawInput("");
     setNotes("");
+    setFormSuccess("Meal saved with AI.");
     await loadDay(selectedDate);
     await loadInsights(selectedDate);
   }
@@ -304,11 +337,24 @@ export default function NutritionTodayClient() {
     const itemName = manualItem.item_name.trim() || fallbackName;
 
     if (!itemName) {
-      setFormError("Manual item name is required. Or type meal text above first.");
+      setFormError("Manual item name is required. Or type meal text first.");
+      setEntryMode("manual");
       return;
     }
 
-    setFormError(null);
+    const calories = asNonNegativeNumber(manualItem.calories);
+    const protein = asNonNegativeNumber(manualItem.protein_g);
+    const carbs = asNonNegativeNumber(manualItem.carbs_g);
+    const fat = asNonNegativeNumber(manualItem.fat_g);
+
+    if (calories <= 0 && protein <= 0 && carbs <= 0 && fat <= 0) {
+      setFormError("Add at least calories or one macro so totals can update.");
+      setEntryMode("manual");
+      return;
+    }
+
+    clearFormMessages();
+    setSavingManual(true);
 
     const payload = {
       meal_date: selectedDate,
@@ -320,10 +366,10 @@ export default function NutritionTodayClient() {
           item_name: itemName,
           quantity: 1,
           unit: "serving",
-          calories: asNonNegativeNumber(manualItem.calories),
-          protein_g: asNonNegativeNumber(manualItem.protein_g),
-          carbs_g: asNonNegativeNumber(manualItem.carbs_g),
-          fat_g: asNonNegativeNumber(manualItem.fat_g),
+          calories,
+          protein_g: protein,
+          carbs_g: carbs,
+          fat_g: fat,
           fiber_g: 0,
           sugar_g: 0,
           sodium_mg: 0,
@@ -347,14 +393,18 @@ export default function NutritionTodayClient() {
     });
 
     const json = (await res.json().catch(() => null)) as { error?: string } | null;
+
     if (!res.ok) {
+      setSavingManual(false);
       setFormError(mapErrorCode(json?.error || "nutrition_log_save_failed"));
       return;
     }
 
+    setSavingManual(false);
     setManualItem({ item_name: "", calories: "", protein_g: "", carbs_g: "", fat_g: "" });
     setRawInput("");
     setNotes("");
+    setFormSuccess("Manual meal saved.");
     await loadDay(selectedDate);
     await loadInsights(selectedDate);
   }
@@ -362,11 +412,12 @@ export default function NutritionTodayClient() {
   async function saveFromPhoto() {
     if (!photoFile) {
       setFormError("Select a photo first.");
+      setEntryMode("photo");
       return;
     }
 
-    setFormError(null);
-    setPhotoSaving(true);
+    clearFormMessages();
+    setSavingPhoto(true);
 
     const formData = new FormData();
     formData.append("photo", photoFile);
@@ -381,15 +432,15 @@ export default function NutritionTodayClient() {
     const parseJson = (await parseRes.json().catch(() => null)) as PhotoParseResponse | { error?: string } | null;
 
     if (!parseRes.ok || !parseJson || ("error" in parseJson && parseJson.error)) {
-      setPhotoSaving(false);
+      setSavingPhoto(false);
       setFormError(mapErrorCode((parseJson && "error" in parseJson ? parseJson.error : "parse_failed") || "parse_failed"));
       return;
     }
 
     const parsedItems = (parseJson as PhotoParseResponse).items ?? [];
     if (parsedItems.length === 0) {
-      setPhotoSaving(false);
-      setFormError("No food items were detected from photo. Try again or add manually.");
+      setSavingPhoto(false);
+      setFormError("No food items were detected from photo. Try a clearer image.");
       return;
     }
 
@@ -408,15 +459,17 @@ export default function NutritionTodayClient() {
     const saveJson = (await saveRes.json().catch(() => null)) as { error?: string } | null;
 
     if (!saveRes.ok) {
-      setPhotoSaving(false);
+      setSavingPhoto(false);
       setFormError(mapErrorCode(saveJson?.error || "nutrition_log_save_failed"));
       return;
     }
 
-    setPhotoSaving(false);
+    setSavingPhoto(false);
     setPhotoFile(null);
     if (cameraInputRef.current) cameraInputRef.current.value = "";
     if (uploadInputRef.current) uploadInputRef.current.value = "";
+    setNotes("");
+    setFormSuccess("Photo meal saved.");
     await loadDay(selectedDate);
     await loadInsights(selectedDate);
   }
@@ -426,6 +479,7 @@ export default function NutritionTodayClient() {
     if (!draft) return;
 
     setPageError(null);
+    setUpdatingMealId(meal.meal_log_id);
 
     const items = meal.items.map((item) => ({
       meal_item_id: item.meal_item_id,
@@ -461,28 +515,35 @@ export default function NutritionTodayClient() {
     });
 
     const json = (await res.json().catch(() => null)) as { error?: string } | null;
+    setUpdatingMealId(null);
+
     if (!res.ok) {
       setPageError(mapErrorCode(json?.error || "nutrition_log_update_failed"));
       return;
     }
 
+    setFormSuccess("Logged meal updated.");
     await loadDay(selectedDate);
     await loadInsights(selectedDate);
   }
 
   async function deleteMeal(mealLogId: string) {
     setPageError(null);
+    setDeletingMealId(mealLogId);
 
     const res = await fetch(`/api/nutrition/log/${mealLogId}`, {
       method: "DELETE",
     });
     const json = (await res.json().catch(() => null)) as { error?: string } | null;
 
+    setDeletingMealId(null);
+
     if (!res.ok) {
       setPageError(mapErrorCode(json?.error || "nutrition_log_delete_failed"));
       return;
     }
 
+    setFormSuccess("Logged meal deleted.");
     await loadDay(selectedDate);
     await loadInsights(selectedDate);
   }
@@ -506,8 +567,8 @@ export default function NutritionTodayClient() {
           value={selectedDate}
           onChange={(e) => {
             setSelectedDate(e.target.value);
-            setFormError(null);
             setPageError(null);
+            clearFormMessages();
           }}
           className="rounded-md border border-gray-600 bg-gray-800 px-2 py-1 text-sm text-gray-100"
         />
@@ -547,6 +608,229 @@ export default function NutritionTodayClient() {
           </div>
 
           <div className="mt-5 rounded-lg border border-gray-700 bg-gray-900 p-4">
+            <h2 className="mb-3 text-lg font-semibold text-gray-100">Log Meal</h2>
+
+            {formError && (
+              <div className="mb-3 rounded-md border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-300">
+                {formError}
+              </div>
+            )}
+
+            {formSuccess && (
+              <div className="mb-3 rounded-md border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">
+                {formSuccess}
+              </div>
+            )}
+
+            <div className="mb-3 grid gap-3 sm:grid-cols-2">
+              <select
+                value={mealType}
+                onChange={(e) => {
+                  setMealType(e.target.value as MealTypeOrAuto);
+                  clearFormMessages();
+                }}
+                className="rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
+              >
+                <option value="auto">Auto meal type</option>
+                <option value="breakfast">Breakfast</option>
+                <option value="lunch">Lunch</option>
+                <option value="snack">Snack</option>
+                <option value="dinner">Dinner</option>
+              </select>
+
+              <input
+                value={notes}
+                onChange={(e) => {
+                  setNotes(e.target.value);
+                  clearFormMessages();
+                }}
+                placeholder="Notes (optional)"
+                className="rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
+              />
+            </div>
+
+            <div className="mb-3 grid gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setEntryMode("ai");
+                  clearFormMessages();
+                }}
+                className={`rounded-md border px-3 py-2 text-sm ${entryMode === "ai" ? "border-blue-700 bg-blue-600 text-white" : "border-gray-600 bg-gray-800 text-gray-100"}`}
+              >
+                Text + AI
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEntryMode("manual");
+                  if (!manualItem.item_name.trim() && rawInput.trim()) {
+                    setManualItem((prev) => ({ ...prev, item_name: rawInput.trim() }));
+                  }
+                  clearFormMessages();
+                }}
+                className={`rounded-md border px-3 py-2 text-sm ${entryMode === "manual" ? "border-blue-700 bg-blue-600 text-white" : "border-gray-600 bg-gray-800 text-gray-100"}`}
+              >
+                Manual
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEntryMode("photo");
+                  clearFormMessages();
+                }}
+                className={`rounded-md border px-3 py-2 text-sm ${entryMode === "photo" ? "border-blue-700 bg-blue-600 text-white" : "border-gray-600 bg-gray-800 text-gray-100"}`}
+              >
+                Photo
+              </button>
+            </div>
+
+            {entryMode === "ai" && (
+              <div className="rounded-md border border-gray-700 bg-gray-800/60 p-3">
+                <textarea
+                  value={rawInput}
+                  onChange={(e) => {
+                    setRawInput(e.target.value);
+                    clearFormMessages();
+                  }}
+                  placeholder='Describe your meal (example: "Cheese sandwich and milk coffee")'
+                  className="min-h-24 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
+                />
+                <button
+                  type="button"
+                  onClick={() => void saveWithAi()}
+                  disabled={savingAi}
+                  className="mt-3 rounded-md border border-blue-700 bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
+                >
+                  {savingAi ? "Saving..." : "Save With AI"}
+                </button>
+              </div>
+            )}
+
+            {entryMode === "manual" && (
+              <div className="rounded-md border border-gray-700 bg-gray-800/60 p-3">
+                <div className="mb-2 text-xs text-gray-400">If item name is blank, meal text from AI tab will be used.</div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <input
+                    value={manualItem.item_name}
+                    onChange={(e) => {
+                      setManualItem((prev) => ({ ...prev, item_name: e.target.value }));
+                      clearFormMessages();
+                    }}
+                    placeholder="Item name"
+                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
+                  />
+                  <input
+                    value={manualItem.calories}
+                    onChange={(e) => {
+                      setManualItem((prev) => ({ ...prev, calories: e.target.value }));
+                      clearFormMessages();
+                    }}
+                    placeholder="Calories"
+                    type="number"
+                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
+                  />
+                  <input
+                    value={manualItem.protein_g}
+                    onChange={(e) => {
+                      setManualItem((prev) => ({ ...prev, protein_g: e.target.value }));
+                      clearFormMessages();
+                    }}
+                    placeholder="Protein (g)"
+                    type="number"
+                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
+                  />
+                  <input
+                    value={manualItem.carbs_g}
+                    onChange={(e) => {
+                      setManualItem((prev) => ({ ...prev, carbs_g: e.target.value }));
+                      clearFormMessages();
+                    }}
+                    placeholder="Carbs (g)"
+                    type="number"
+                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
+                  />
+                  <input
+                    value={manualItem.fat_g}
+                    onChange={(e) => {
+                      setManualItem((prev) => ({ ...prev, fat_g: e.target.value }));
+                      clearFormMessages();
+                    }}
+                    placeholder="Fat (g)"
+                    type="number"
+                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void saveManual()}
+                  disabled={savingManual}
+                  className="mt-3 rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm text-white disabled:opacity-50"
+                >
+                  {savingManual ? "Saving..." : "Save Manual Meal"}
+                </button>
+              </div>
+            )}
+
+            {entryMode === "photo" && (
+              <div className="rounded-md border border-gray-700 bg-gray-800/60 p-3">
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      setPhotoFile(file);
+                      clearFormMessages();
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="rounded-md border border-indigo-700 bg-indigo-600 px-3 py-2 text-sm text-white"
+                  >
+                    Take Photo
+                  </button>
+
+                  <input
+                    ref={uploadInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      setPhotoFile(file);
+                      clearFormMessages();
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => uploadInputRef.current?.click()}
+                    className="rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
+                  >
+                    Upload Photo
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void saveFromPhoto()}
+                    disabled={!photoFile || savingPhoto}
+                    className="rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm text-white disabled:opacity-50"
+                  >
+                    {savingPhoto ? "Saving..." : "Save Photo Meal"}
+                  </button>
+                </div>
+                <div className="mt-2 text-xs text-gray-400">
+                  {photoFile ? `Selected: ${photoFile.name}` : "No photo selected"}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 rounded-lg border border-gray-700 bg-gray-900 p-4">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h2 className="text-lg font-semibold text-gray-100">Insights</h2>
               {insightsLoading && <span className="text-xs text-gray-500">Refreshing...</span>}
@@ -576,189 +860,6 @@ export default function NutritionTodayClient() {
             )}
           </div>
 
-          <div className="mt-5 rounded-lg border border-gray-700 bg-gray-900 p-4">
-            <h2 className="mb-3 text-lg font-semibold text-gray-100">Log Meal</h2>
-
-            {formError && (
-              <div className="mb-3 rounded-md border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-300">
-                {formError}
-              </div>
-            )}
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <select
-                value={mealType}
-                onChange={(e) => {
-                  setMealType(e.target.value as MealTypeOrAuto);
-                  setFormError(null);
-                }}
-                className="rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
-              >
-                <option value="auto">Auto meal type</option>
-                <option value="breakfast">Breakfast</option>
-                <option value="lunch">Lunch</option>
-                <option value="snack">Snack</option>
-                <option value="dinner">Dinner</option>
-              </select>
-
-              <input
-                value={notes}
-                onChange={(e) => {
-                  setNotes(e.target.value);
-                  setFormError(null);
-                }}
-                placeholder="Notes (optional)"
-                className="rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
-              />
-            </div>
-
-            <textarea
-              value={rawInput}
-              onChange={(e) => {
-                setRawInput(e.target.value);
-                if (e.target.value.trim().length > 0) setFormError(null);
-              }}
-              placeholder='Example: "Had chicken sandwich and salad for lunch"'
-              className="mt-3 min-h-20 w-full rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
-            />
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={saveWithAi}
-                className="rounded-md border border-blue-700 bg-blue-600 px-3 py-2 text-sm text-white"
-              >
-                Save With AI
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !manualMode;
-                  setManualMode(next);
-                  if (next && !manualItem.item_name.trim() && rawInput.trim()) {
-                    setManualItem((prev) => ({ ...prev, item_name: rawInput.trim() }));
-                  }
-                  setFormError(null);
-                }}
-                className="rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-100"
-              >
-                {manualMode ? "Hide Manual" : "Add Manually"}
-              </button>
-            </div>
-
-            <div className="mt-3 rounded-md border border-gray-700 bg-gray-800/60 p-3">
-              <h3 className="mb-2 text-sm font-medium text-gray-100">Photo Logging</h3>
-
-              <div className="flex flex-wrap gap-2">
-                <input
-                  ref={cameraInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] ?? null;
-                    setPhotoFile(file);
-                    setFormError(null);
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => cameraInputRef.current?.click()}
-                  className="rounded-md border border-indigo-700 bg-indigo-600 px-3 py-2 text-sm text-white"
-                >
-                  Take Photo
-                </button>
-
-                <input
-                  ref={uploadInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] ?? null;
-                    setPhotoFile(file);
-                    setFormError(null);
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => uploadInputRef.current?.click()}
-                  className="rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
-                >
-                  Upload Photo
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => void saveFromPhoto()}
-                  disabled={!photoFile || photoSaving}
-                  className="rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm text-white disabled:opacity-50"
-                >
-                  {photoSaving ? "Saving Photo Meal..." : "Save Photo Meal"}
-                </button>
-              </div>
-
-              <div className="mt-2 text-xs text-gray-400">
-                {photoFile ? `Selected: ${photoFile.name}` : "No photo selected."}
-              </div>
-            </div>
-
-            {manualMode && (
-              <div className="mt-4 rounded-md border border-gray-700 bg-gray-800 p-3">
-                <h3 className="mb-2 text-sm font-medium text-gray-100">Manual Item</h3>
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void saveManual()}
-                    className="rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm text-white"
-                  >
-                    Save Manual Meal
-                  </button>
-                  <span className="text-xs text-gray-400">If Item name is blank, meal text above will be used.</span>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <input
-                    value={manualItem.item_name}
-                    onChange={(e) => setManualItem((prev) => ({ ...prev, item_name: e.target.value }))}
-                    placeholder="Item name"
-                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
-                  />
-                  <input
-                    value={manualItem.calories}
-                    onChange={(e) => setManualItem((prev) => ({ ...prev, calories: e.target.value }))}
-                    placeholder="Calories"
-                    type="number"
-                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
-                  />
-                  <input
-                    value={manualItem.protein_g}
-                    onChange={(e) => setManualItem((prev) => ({ ...prev, protein_g: e.target.value }))}
-                    placeholder="Protein (g)"
-                    type="number"
-                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
-                  />
-                  <input
-                    value={manualItem.carbs_g}
-                    onChange={(e) => setManualItem((prev) => ({ ...prev, carbs_g: e.target.value }))}
-                    placeholder="Carbs (g)"
-                    type="number"
-                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
-                  />
-                  <input
-                    value={manualItem.fat_g}
-                    onChange={(e) => setManualItem((prev) => ({ ...prev, fat_g: e.target.value }))}
-                    placeholder="Fat (g)"
-                    type="number"
-                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
-                  />
-                </div>
-
-              </div>
-            )}
-          </div>
-
           <div className="mt-5">
             <h2 className="mb-3 text-lg font-semibold text-gray-100">Meals</h2>
 
@@ -773,9 +874,19 @@ export default function NutritionTodayClient() {
                     meal_type: meal.meal_type,
                     notes: meal.notes ?? "",
                   };
+                  const mealTotals = sumMeal(meal);
 
                   return (
                     <div key={meal.meal_log_id} className="rounded-lg border border-gray-700 bg-gray-900 p-4">
+                      <div className="mb-2 text-xs text-gray-400">
+                        {meal.input_mode}
+                        {meal.ai_confidence != null ? ` | confidence ${meal.ai_confidence.toFixed(2)}` : ""}
+                      </div>
+
+                      <div className="mb-2 text-sm text-gray-200">
+                        {Math.round(mealTotals.calories)} kcal | {Math.round(mealTotals.protein)}g protein
+                      </div>
+
                       <div className="grid gap-2 sm:grid-cols-2">
                         <select
                           value={draft.meal_type}
@@ -812,10 +923,6 @@ export default function NutritionTodayClient() {
                         />
                       </div>
 
-                      <div className="mt-2 text-xs text-gray-400">
-                        {meal.input_mode} {meal.ai_confidence != null ? `| confidence ${meal.ai_confidence.toFixed(2)}` : ""}
-                      </div>
-
                       <ul className="mt-2 space-y-1 text-sm text-gray-200">
                         {meal.items.map((item) => (
                           <li key={item.meal_item_id} className="rounded-md border border-gray-800 bg-gray-800/40 px-2 py-1">
@@ -828,16 +935,18 @@ export default function NutritionTodayClient() {
                         <button
                           type="button"
                           onClick={() => void updateMeal(meal)}
-                          className="rounded-md border border-blue-700 bg-blue-600 px-3 py-2 text-xs text-white"
+                          disabled={updatingMealId === meal.meal_log_id}
+                          className="rounded-md border border-blue-700 bg-blue-600 px-3 py-2 text-xs text-white disabled:opacity-50"
                         >
-                          Save Meal
+                          {updatingMealId === meal.meal_log_id ? "Updating..." : "Update Meal"}
                         </button>
                         <button
                           type="button"
                           onClick={() => void deleteMeal(meal.meal_log_id)}
-                          className="rounded-md border border-red-700 bg-red-600 px-3 py-2 text-xs text-white"
+                          disabled={deletingMealId === meal.meal_log_id}
+                          className="rounded-md border border-red-700 bg-red-600 px-3 py-2 text-xs text-white disabled:opacity-50"
                         >
-                          Delete Meal
+                          {deletingMealId === meal.meal_log_id ? "Deleting..." : "Delete Meal"}
                         </button>
                       </div>
                     </div>
