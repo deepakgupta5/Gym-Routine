@@ -22,9 +22,12 @@ export default function MorePage() {
           Upload Body Stats
         </Link>
 
-        <div className="rounded-lg border border-gray-700 bg-gray-900 p-4 text-sm text-gray-400">
-          Settings (coming soon)
-        </div>
+        <Link
+          href="/settings"
+          className="rounded-lg border border-gray-700 bg-gray-800 p-4 text-sm text-gray-100 active:opacity-80"
+        >
+          Settings
+        </Link>
       </div>
     </main>
   );
