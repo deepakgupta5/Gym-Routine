@@ -16,6 +16,20 @@ export default function MorePage() {
         </Link>
 
         <Link
+          href="/nutrition/history"
+          className="rounded-lg border border-gray-700 bg-gray-800 p-4 text-sm text-gray-100 active:opacity-80"
+        >
+          Nutrition History
+        </Link>
+
+        <Link
+          href="/nutrition/trends"
+          className="rounded-lg border border-gray-700 bg-gray-800 p-4 text-sm text-gray-100 active:opacity-80"
+        >
+          Nutrition Trends
+        </Link>
+
+        <Link
           href="/upload"
           className="rounded-lg border border-gray-700 bg-gray-800 p-4 text-sm text-gray-100 active:opacity-80"
         >
