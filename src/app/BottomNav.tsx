@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 const tabs = [
   {
-    label: "Today",
+    label: "Gym",
     href: "/today",
     match: (path: string) => path === "/today" || path.startsWith("/session/"),
     icon: (

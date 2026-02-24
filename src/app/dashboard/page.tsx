@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import { computeAdaptiveState } from "@/lib/adaptive/computeAdaptive";
@@ -25,19 +24,6 @@ const CATALOG_LABELS: Record<PrimaryCatalogKey, string> = {
   LOWER_SQUAT: "Lower Squat",
   LOWER_HINGE: "Lower Hinge",
 };
-
-function isoToDmy(iso: string) {
-  const [y, m, d] = iso.split("-");
-  return `${d}-${m}-${y}`;
-}
-
-function formatDisplayDate(isoDate: string) {
-  const d = new Date(`${isoDate}T00:00:00Z`);
-  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(d);
-  const day = new Intl.DateTimeFormat("en-US", { day: "2-digit", timeZone: "UTC" }).format(d);
-  const month = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(d);
-  return `${weekday}, ${day} ${month}`;
-}
 
 function todayUtcIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -198,31 +184,6 @@ export default async function DashboardPage() {
         weight_lb: Number(r.weight_lb),
       }));
 
-    // Last upload date
-    const lastUploadDate =
-      bodyRes.rows.length > 0 ? String(bodyRes.rows[bodyRes.rows.length - 1].date) : null;
-
-    // Next upcoming session (#10)
-    const nextSessionRes = blockId
-      ? await client.query(
-          `select ps.plan_session_id, ps.date::text as date, ps.session_type
-           from plan_sessions ps
-           where ps.user_id = $1
-             and ps.block_id = $2
-             and not exists (
-               select 1
-               from set_logs sl
-               where sl.user_id = ps.user_id
-                 and sl.session_id = ps.plan_session_id
-           )
-           order by ps.date asc
-           limit 1`,
-          [userId, blockId]
-        )
-      : { rows: [] };
-
-    const nextSession = nextSessionRes.rows[0] ?? null;
-
     // PR count this block (#19)
     const prCountRes = blockId
       ? await client.query<{ pr_count: number }>(
@@ -331,35 +292,6 @@ export default async function DashboardPage() {
         <h1 className="mb-4 text-2xl font-semibold text-gray-100">Dashboard</h1>
 
         <div className="grid gap-4">
-          {/* Next Workout Preview (#10) */}
-          {nextSession && (
-            <Link
-              href={`/session/${isoToDmy(nextSession.date)}`}
-              prefetch={false}
-              className="block rounded-xl border border-blue-800 bg-blue-950/30 p-4 active:opacity-80"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-medium uppercase tracking-wide text-blue-400">
-                    Next Workout
-                  </div>
-                  <div className="mt-1 text-lg font-semibold text-gray-100">
-                    {formatDisplayDate(nextSession.date)}
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-sm text-gray-400">
-                    <span>{nextSession.session_type} session</span>
-                    {nextSession.is_deload && (
-                      <span className="rounded-full border border-amber-700 bg-amber-950/60 px-2 py-0.5 text-xs text-amber-300">
-                        Deload
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <span className="text-sm text-blue-400">Go -&gt;</span>
-              </div>
-            </Link>
-          )}
-
           {/* This Week Summary */}
           <WeekSummary current={currentRollup} previous={previousRollup} />
 
@@ -404,41 +336,8 @@ export default async function DashboardPage() {
               {weightPoints.length === 0
                 ? "No body weight data."
                 : `${weightPoints.length} data point${weightPoints.length !== 1 ? "s" : ""} - need 3+ for chart.`}
-              {" "}
-              <Link href="/upload" className="text-blue-400 underline">
-                Upload body stats
-              </Link>
             </div>
           )}
-
-          {/* Upload & Export Actions (#20: more prominent) */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Link
-              href="/upload"
-              className="flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-600 bg-gray-800 px-4 py-3 text-sm font-medium text-gray-200 hover:text-gray-100 active:opacity-80"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-gray-400">
-                <path d="M9.25 13.25a.75.75 0 0 0 1.5 0V4.636l2.955 3.129a.75.75 0 0 0 1.09-1.03l-4.25-4.5a.75.75 0 0 0-1.09 0l-4.25 4.5a.75.75 0 1 0 1.09 1.03L9.25 4.636v8.614Z" />
-                <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
-              </svg>
-              Upload Body Stats
-              {lastUploadDate && (
-                <span className="ml-auto text-xs text-gray-500">Last: {lastUploadDate}</span>
-              )}
-            </Link>
-
-            <a
-              href="/api/export/set-logs"
-              download
-              className="flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-600 bg-gray-800 px-4 py-3 text-sm font-medium text-gray-200 hover:text-gray-100 active:opacity-80"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-gray-400">
-                <path d="M10.75 2.75a.75.75 0 0 0-1.5 0v8.614L6.295 8.235a.75.75 0 1 0-1.09 1.03l4.25 4.5a.75.75 0 0 0 1.09 0l4.25-4.5a.75.75 0 0 0-1.09-1.03l-2.955 3.129V2.75Z" />
-                <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
-              </svg>
-              Export Workout CSV
-            </a>
-          </div>
         </div>
       </main>
     );
