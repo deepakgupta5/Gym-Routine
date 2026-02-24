@@ -173,5 +173,14 @@ CREATE INDEX IF NOT EXISTS idx_nutrition_plan_meals_plan
 
 -- ---------- unique index for insights upsert deduplication (Sprint 4) ----------
 -- Required by GET /api/nutrition/insights ON CONFLICT clause.
+-- Use immutable UTC-date helper because timestamptz::date is not immutable.
+CREATE OR REPLACE FUNCTION public.utc_date(ts timestamptz)
+RETURNS date
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT (ts AT TIME ZONE 'UTC')::date
+$$;
+
 CREATE UNIQUE INDEX IF NOT EXISTS uq_insights_user_type_day
-  ON nutrition_insights(user_id, insight_type, (generated_at::date));
+  ON nutrition_insights(user_id, insight_type, (public.utc_date(generated_at)));

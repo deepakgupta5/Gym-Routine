@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
            (user_id, insight_type, generated_at, context_json, recommendation_text, is_dismissed)
          VALUES
            ($1, $2, now(), $3::jsonb, $4, false)
-         ON CONFLICT (user_id, insight_type, (generated_at::date))
+         ON CONFLICT (user_id, insight_type, (public.utc_date(generated_at)))
          DO UPDATE SET
            recommendation_text = EXCLUDED.recommendation_text,
            context_json        = EXCLUDED.context_json,
@@ -159,7 +159,7 @@ export async function GET(req: NextRequest) {
          context_json
        FROM nutrition_insights
        WHERE user_id = $1
-         AND generated_at::date = $2::date
+         AND public.utc_date(generated_at) = $2::date
          AND is_dismissed = false
        ORDER BY generated_at ASC`,
       [userId, date]
