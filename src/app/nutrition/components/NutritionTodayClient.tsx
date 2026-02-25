@@ -552,17 +552,12 @@ export default function NutritionTodayClient() {
 
     if (res.status === 422 && json && "error" in json && json.error === "parse_failed_manual_required") {
       setSavingAi(false);
-      setEntryMode("manual");
-      if (!manualItem.item_name.trim()) {
-        setManualItem((prev) => ({ ...prev, item_name: normalizedInput }));
-      }
+      setEntryMode("ai");
 
       if (json.detail === "ai_not_configured") {
-        setManualFallbackHint("AI not configured. Manual mode is available.");
-        setFormError("AI not configured. Switched to Manual mode.");
+        setFormError("AI not configured. Use Manual or Photo mode.");
       } else {
-        setManualFallbackHint("AI parse failed. You can save manually now.");
-        setFormError("AI parse failed. Switched to Manual mode.");
+        setFormError("AI parse failed. You can retry Text + AI or switch to Manual/Photo.");
       }
       return;
     }
@@ -577,8 +572,8 @@ export default function NutritionTodayClient() {
     const preview = parsedJson.items ?? [];
     if (preview.length === 0) {
       setSavingAi(false);
-      setFormError("AI parse returned no items. Use Manual mode.");
-      setEntryMode("manual");
+      setFormError("AI parse returned no items. Retry Text + AI or switch to Manual/Photo.");
+      setEntryMode("ai");
       return;
     }
 
@@ -596,11 +591,10 @@ export default function NutritionTodayClient() {
   }
 
   async function saveManual() {
-    const fallbackName = rawInput.trim();
-    const itemName = manualItem.item_name.trim() || fallbackName;
+    const itemName = manualItem.item_name.trim();
 
     if (!itemName) {
-      setFormError("Manual item name is required. Or type meal text first.");
+      setFormError("Manual item name is required.");
       setEntryMode("manual");
       return;
     }
@@ -835,13 +829,11 @@ export default function NutritionTodayClient() {
 
     if (!parseRes.ok || !parseJson || ("error" in parseJson && parseJson.error)) {
       setSavingPhoto(false);
-      setEntryMode("manual");
+      setEntryMode("photo");
       const code = (parseJson && "error" in parseJson ? parseJson.error : "parse_failed") || "parse_failed";
       if (code === "openai_unavailable") {
-        setManualFallbackHint("AI not configured. Manual mode is available.");
-        setFormError("AI not configured. Switched to Manual mode.");
+        setFormError("AI not configured. Use Manual mode.");
       } else {
-        setManualFallbackHint("Photo parse failed. You can save manually now.");
         setFormError(mapErrorCode(code));
       }
       return;
@@ -851,9 +843,8 @@ export default function NutritionTodayClient() {
     const parsedItems = parsedPhoto.items ?? [];
     if (parsedItems.length === 0) {
       setSavingPhoto(false);
-      setEntryMode("manual");
-      setManualFallbackHint("Photo parse failed. You can save manually now.");
-      setFormError("No food items were detected from photo. Try a clearer image.");
+      setEntryMode("photo");
+      setFormError("No food items were detected from photo. Try a clearer image or switch to Text + AI/Manual.");
       return;
     }
 
@@ -1102,9 +1093,6 @@ export default function NutritionTodayClient() {
                 type="button"
                 onClick={() => {
                   setEntryMode("manual");
-                  if (!manualItem.item_name.trim() && rawInput.trim()) {
-                    setManualItem((prev) => ({ ...prev, item_name: rawInput.trim() }));
-                  }
                   clearFormMessages();
                 }}
                 className={`rounded-md border px-3 py-2 text-sm ${entryMode === "manual" ? "border-blue-700 bg-blue-600 text-white" : "border-gray-600 bg-gray-800 text-gray-100"}`}
@@ -1257,7 +1245,6 @@ export default function NutritionTodayClient() {
 
             {entryMode === "manual" && (
               <div className="rounded-md border border-gray-700 bg-gray-800/60 p-3">
-                <div className="mb-2 text-xs text-gray-400">If item name is blank, meal text from AI tab will be used.</div>
                 {manualFallbackHint && (
                   <div className="mb-2 rounded-md border border-amber-700 bg-amber-950/30 px-2 py-1 text-xs text-amber-200">{manualFallbackHint}</div>
                 )}
