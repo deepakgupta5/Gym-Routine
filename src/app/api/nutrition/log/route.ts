@@ -165,45 +165,11 @@ export async function POST(req: Request) {
   let aiModel: string | null = null;
   let parseDurationMs: number | null = null;
   const warnings: string[] = [];
-  let inputMode: "text" | "manual" = "manual";
+  let inputMode: "text" | "photo" | "text_photo" | "manual" = "manual";
   const rawInput = typeof body.raw_input === "string" ? body.raw_input.trim() : null;
 
   if (saveMode === "ai_parse") {
-    if (!rawInput) {
-      return NextResponse.json({ error: "missing_raw_input" }, { status: 400 });
-    }
-    if (!CONFIG.OPENAI_API_KEY) {
-      return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
-    }
-
-    try {
-      const startedAt = Date.now();
-      const result = await parseMealText(rawInput);
-      parseDurationMs = Date.now() - startedAt;
-
-      aiItems = result.items;
-      aiConfidence = result.confidence;
-      aiModel = result.model;
-      inputMode = "text";
-
-      if (!parsedItemsUsable(aiItems)) {
-        return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
-      }
-
-      if (aiConfidence < LOW_CONFIDENCE_THRESHOLD) {
-        warnings.push("low_confidence_parse");
-      }
-      if (parseDurationMs > PARSE_SLO_MS) {
-        warnings.push("parse_slo_missed");
-        logInfo("nutrition_text_parse_slo_missed", {
-          user_id: userId,
-          meal_date: mealDate,
-          parse_duration_ms: parseDurationMs,
-        });
-      }
-    } catch {
-      return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
-    }
+    return NextResponse.json({ error: "review_required_use_preview" }, { status: 409 });
   } else if (saveMode === "ai_reviewed") {
     if (!rawInput) {
       return NextResponse.json({ error: "missing_raw_input" }, { status: 400 });
@@ -218,16 +184,38 @@ export async function POST(req: Request) {
       }
     }
 
-    inputMode = "text";
-    aiModel = "gpt-4o-mini";
+    const inputModeHint = body.input_mode_hint === "photo" ? "photo" : "text";
+    inputMode = inputModeHint;
 
-    const confidences = userItems
-      .map((item) => (item.source === "ai" ? Number(item.confidence ?? 0) : null))
-      .filter((c): c is number => c !== null && Number.isFinite(c));
+    aiModel = typeof body.ai_model === "string"
+      ? body.ai_model
+      : inputModeHint === "photo"
+      ? "gpt-4o"
+      : "gpt-4o-mini";
 
-    aiConfidence = confidences.length
-      ? confidences.reduce((sum, v) => sum + v, 0) / confidences.length
-      : null;
+    const bodyConfidence = Number(body.ai_confidence);
+    if (Number.isFinite(bodyConfidence)) {
+      aiConfidence = Math.min(1, Math.max(0, bodyConfidence));
+    } else {
+      const confidences = userItems
+        .map((item) => (item.source === "ai" ? Number(item.confidence ?? 0) : null))
+        .filter((c): c is number => c !== null && Number.isFinite(c));
+
+      aiConfidence = confidences.length
+        ? confidences.reduce((sum, v) => sum + v, 0) / confidences.length
+        : null;
+    }
+
+    const bodyParseDuration = Number(body.parse_duration_ms);
+    if (Number.isFinite(bodyParseDuration) && bodyParseDuration >= 0) {
+      parseDurationMs = Math.round(bodyParseDuration);
+    }
+
+    if (Array.isArray(body.warnings)) {
+      for (const w of body.warnings) {
+        if (typeof w === "string") warnings.push(w);
+      }
+    }
   } else {
     if (userItems.length === 0) {
       return NextResponse.json({ error: "invalid_item_fields" }, { status: 400 });

@@ -195,7 +195,7 @@ describe("POST /api/nutrition/log", () => {
     expect(mocks.getDb).not.toHaveBeenCalled();
   });
 
-  it("returns 422 when AI parse is requested without OPENAI_API_KEY", async () => {
+  it("returns 409 when direct ai_parse save is attempted", async () => {
     const res = await POST(
       makeRequest({
         meal_date: "2026-02-24",
@@ -206,8 +206,8 @@ describe("POST /api/nutrition/log", () => {
     );
     const json = await res.json();
 
-    expect(res.status).toBe(422);
-    expect(json.error).toBe("parse_failed_manual_required");
+    expect(res.status).toBe(409);
+    expect(json.error).toBe("review_required_use_preview");
     expect(mocks.getDb).not.toHaveBeenCalled();
   });
 
@@ -291,41 +291,8 @@ describe("POST /api/nutrition/log", () => {
     expect(json.items_saved).toBe(1);
   });
 
-  it("parses with AI when OPENAI_API_KEY is set", async () => {
+  it("still rejects direct ai_parse save even when OPENAI_API_KEY is set", async () => {
     mocks.config.OPENAI_API_KEY = "key";
-
-    mocks.buildMealParseSystemPrompt.mockReturnValue("system");
-    mocks.buildMealParseUserPrompt.mockReturnValue("user");
-    mocks.callOpenAI.mockResolvedValue(
-      JSON.stringify({
-        items: [
-          {
-            item_name: "Egg omelette",
-            quantity: 1,
-            unit: "plate",
-            calories: 300,
-            protein_g: 20,
-            carbs_g: 10,
-            fat_g: 18,
-            fiber_g: 1,
-            sugar_g: 2,
-            sodium_mg: 350,
-            iron_mg: 2,
-            calcium_mg: 120,
-            vitamin_d_mcg: 1,
-            vitamin_c_mg: 0,
-            potassium_mg: 250,
-            confidence: 0.9,
-          },
-        ],
-      })
-    );
-
-    mocks.query
-      .mockResolvedValueOnce({})
-      .mockResolvedValueOnce({ rowCount: 1, rows: [{ meal_log_id: "meal-ai-1" }] })
-      .mockResolvedValueOnce({})
-      .mockResolvedValueOnce({});
 
     const res = await POST(
       makeRequest({
@@ -337,11 +304,8 @@ describe("POST /api/nutrition/log", () => {
     );
     const json = await res.json();
 
-    expect(res.status).toBe(200);
-    expect(json.ok).toBe(true);
-    expect(json.input_mode).toBe("text");
-    expect(json.ai_model).toBe("gpt-4o-mini");
-    expect(json.items_saved).toBe(1);
-    expect(mocks.callOpenAI).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(409);
+    expect(json.error).toBe("review_required_use_preview");
+    expect(mocks.callOpenAI).not.toHaveBeenCalled();
   });
 });

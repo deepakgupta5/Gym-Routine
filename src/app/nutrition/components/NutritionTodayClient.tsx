@@ -123,6 +123,10 @@ type PhotoParseItem = {
 
 type PhotoParseResponse = {
   ok: true;
+  ai_model: string;
+  ai_confidence: number | null;
+  parse_duration_ms?: number | null;
+  warnings?: string[];
   items: PhotoParseItem[];
 };
 
@@ -150,9 +154,18 @@ type PreviewItem = {
 
 type LogPreviewResponse = {
   ok: true;
+  ai_model: string;
   items: PreviewItem[];
   ai_confidence: number;
   parse_duration_ms: number;
+  warnings: string[];
+};
+
+type ReviewMeta = {
+  input_mode_hint: "text" | "photo";
+  ai_model: string;
+  ai_confidence: number | null;
+  parse_duration_ms: number | null;
   warnings: string[];
 };
 
@@ -204,6 +217,8 @@ function mapErrorCode(errorCode: string): string {
       return "Water amount must be between 0 and 10000 ml.";
     case "nutrition_water_update_failed":
       return "Could not update water intake.";
+    case "review_required_use_preview":
+      return "Review parsed items before saving.";
     default:
       return errorCode;
   }
@@ -252,8 +267,17 @@ export default function NutritionTodayClient() {
 
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [aiInputError, setAiInputError] = useState<string | null>(null);
+  const [manualFallbackHint, setManualFallbackHint] = useState<string | null>(null);
 
   const [aiPreviewItems, setAiPreviewItems] = useState<PreviewItem[]>([]);
+  const [reviewMeta, setReviewMeta] = useState<ReviewMeta>({
+    input_mode_hint: "text",
+    ai_model: "gpt-4o-mini",
+    ai_confidence: null,
+    parse_duration_ms: null,
+    warnings: [],
+  });
   const [savingAi, setSavingAi] = useState(false);
   const [savingReviewedAi, setSavingReviewedAi] = useState(false);
   const [savingManual, setSavingManual] = useState(false);
@@ -268,6 +292,7 @@ export default function NutritionTodayClient() {
   function clearFormMessages() {
     setFormError(null);
     setFormSuccess(null);
+    setAiInputError(null);
   }
 
   async function loadDay(date: string) {
@@ -325,7 +350,7 @@ export default function NutritionTodayClient() {
 
   async function saveWithAi() {
     if (!rawInput.trim()) {
-      setFormError("Enter a meal description first.");
+      setAiInputError("Enter a meal description first.");
       setEntryMode("ai");
       return;
     }
@@ -352,6 +377,7 @@ export default function NutritionTodayClient() {
       if (!manualItem.item_name.trim()) {
         setManualItem((prev) => ({ ...prev, item_name: rawInput.trim() }));
       }
+      setManualFallbackHint("AI parse failed. You can save manually now.");
       setFormError("AI parse failed. Switched to Manual mode.");
       return;
     }
@@ -370,7 +396,16 @@ export default function NutritionTodayClient() {
       return;
     }
 
+    const parsedJson = json as LogPreviewResponse;
     setAiPreviewItems(preview);
+    setReviewMeta({
+      input_mode_hint: "text",
+      ai_model: parsedJson.ai_model,
+      ai_confidence: parsedJson.ai_confidence,
+      parse_duration_ms: parsedJson.parse_duration_ms,
+      warnings: parsedJson.warnings ?? [],
+    });
+    setManualFallbackHint(null);
     setSavingAi(false);
     setFormSuccess("Review parsed items, edit if needed, then Save Reviewed Meal.");
   }
@@ -439,6 +474,7 @@ export default function NutritionTodayClient() {
     }
 
     setSavingManual(false);
+    setManualFallbackHint(null);
     setManualItem({ item_name: "", calories: "", protein_g: "", carbs_g: "", fat_g: "" });
     setRawInput("");
     setNotes("");
@@ -530,6 +566,11 @@ export default function NutritionTodayClient() {
         notes,
         save_mode: "ai_reviewed",
         client_tz_offset_min: new Date().getTimezoneOffset(),
+        input_mode_hint: reviewMeta.input_mode_hint,
+        ai_model: reviewMeta.ai_model,
+        ai_confidence: reviewMeta.ai_confidence,
+        parse_duration_ms: reviewMeta.parse_duration_ms,
+        warnings: reviewMeta.warnings,
         items: normalized,
       }),
     });
@@ -544,6 +585,13 @@ export default function NutritionTodayClient() {
 
     setSavingReviewedAi(false);
     setAiPreviewItems([]);
+    setReviewMeta({
+      input_mode_hint: "text",
+      ai_model: "gpt-4o-mini",
+      ai_confidence: null,
+      parse_duration_ms: null,
+      warnings: [],
+    });
     setRawInput("");
     setNotes("");
     setFormSuccess("Reviewed meal saved.");
@@ -602,46 +650,36 @@ export default function NutritionTodayClient() {
 
     if (!parseRes.ok || !parseJson || ("error" in parseJson && parseJson.error)) {
       setSavingPhoto(false);
+      setEntryMode("manual");
+      setManualFallbackHint("Photo parse failed. You can save manually now.");
       setFormError(mapErrorCode((parseJson && "error" in parseJson ? parseJson.error : "parse_failed") || "parse_failed"));
       return;
     }
 
-    const parsedItems = (parseJson as PhotoParseResponse).items ?? [];
+    const parsedPhoto = parseJson as PhotoParseResponse;
+    const parsedItems = parsedPhoto.items ?? [];
     if (parsedItems.length === 0) {
       setSavingPhoto(false);
+      setEntryMode("manual");
+      setManualFallbackHint("Photo parse failed. You can save manually now.");
       setFormError("No food items were detected from photo. Try a clearer image.");
       return;
     }
 
-    const saveRes = await fetch("/api/nutrition/log", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        meal_date: selectedDate,
-        meal_type: mealType,
-        notes,
-        save_mode: "manual",
-        client_tz_offset_min: new Date().getTimezoneOffset(),
-        items: parsedItems,
-      }),
-    });
-
-    const saveJson = (await saveRes.json().catch(() => null)) as { error?: string } | null;
-
-    if (!saveRes.ok) {
-      setSavingPhoto(false);
-      setFormError(mapErrorCode(saveJson?.error || "nutrition_log_save_failed"));
-      return;
-    }
-
     setSavingPhoto(false);
+    setAiPreviewItems(parsedItems);
+    setReviewMeta({
+      input_mode_hint: "photo",
+      ai_model: parsedPhoto.ai_model,
+      ai_confidence: parsedPhoto.ai_confidence,
+      parse_duration_ms: parsedPhoto.parse_duration_ms ?? null,
+      warnings: parsedPhoto.warnings ?? [],
+    });
+    setEntryMode("ai");
     setPhotoFile(null);
     if (cameraInputRef.current) cameraInputRef.current.value = "";
     if (uploadInputRef.current) uploadInputRef.current.value = "";
-    setNotes("");
-    setFormSuccess("Photo meal saved.");
-    await loadDay(selectedDate);
-    await loadInsights(selectedDate);
+    setFormSuccess("Photo parsed. Review items, edit if needed, then Save Reviewed Meal.");
   }
 
   async function updateMeal(meal: MealLog) {
@@ -902,6 +940,9 @@ export default function NutritionTodayClient() {
                 >
                   {savingAi ? "Parsing..." : "Parse With AI"}
                 </button>
+                {aiInputError && (
+                  <div className="mt-2 text-xs text-amber-300">{aiInputError}</div>
+                )}
 
                 {aiPreviewItems.length > 0 && (
                   <div className="mt-4 rounded-md border border-gray-700 bg-gray-900 p-3">
@@ -982,6 +1023,9 @@ export default function NutritionTodayClient() {
             {entryMode === "manual" && (
               <div className="rounded-md border border-gray-700 bg-gray-800/60 p-3">
                 <div className="mb-2 text-xs text-gray-400">If item name is blank, meal text from AI tab will be used.</div>
+                {manualFallbackHint && (
+                  <div className="mb-2 rounded-md border border-amber-700 bg-amber-950/30 px-2 py-1 text-xs text-amber-200">{manualFallbackHint}</div>
+                )}
                 <div className="grid gap-2 sm:grid-cols-2">
                   <input
                     value={manualItem.item_name}
@@ -1092,7 +1136,7 @@ export default function NutritionTodayClient() {
                     disabled={!photoFile || savingPhoto}
                     className="rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm text-white disabled:opacity-50"
                   >
-                    {savingPhoto ? "Saving..." : "Save Photo Meal"}
+                    {savingPhoto ? "Parsing..." : "Parse Photo"}
                   </button>
                 </div>
                 <div className="mt-2 text-xs text-gray-400">
