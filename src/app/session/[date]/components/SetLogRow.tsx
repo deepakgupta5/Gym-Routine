@@ -7,12 +7,6 @@ type SetLogRowProps = {
   onRepeat: () => void;
 };
 
-function badgeClass(setType: SetLogView["set_type"]) {
-  if (setType === "top") return "bg-blue-950 text-blue-300 border-blue-800";
-  if (setType === "backoff") return "bg-amber-950 text-amber-300 border-amber-800";
-  return "bg-gray-800 text-gray-300 border-gray-700";
-}
-
 export default function SetLogRow({ log, isPR = false, onEdit, onRepeat }: SetLogRowProps) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-700 bg-gray-900 p-3">
@@ -27,10 +21,8 @@ export default function SetLogRow({ log, isPR = false, onEdit, onRepeat }: SetLo
             </span>
           )}
         </div>
-        <div
-          className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${badgeClass(log.set_type)}`}
-        >
-          {log.set_type} #{log.set_index}
+        <div className="mt-1 inline-flex rounded-full border border-gray-700 bg-gray-800 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-gray-300">
+          Set #{log.set_index}
         </div>
       </div>
       <div className="flex items-center gap-2">

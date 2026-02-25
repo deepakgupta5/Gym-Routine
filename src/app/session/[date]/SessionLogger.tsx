@@ -23,7 +23,7 @@ function defaultEntryForm(role: ExerciseView["role"]) {
   return {
     load: "",
     reps: "",
-    setType: role === "primary" ? "top" : ("backoff" as const),
+    setType: role === "accessory" ? "accessory" : ("straight" as const),
     rpe: "",
     notes: "",
   };

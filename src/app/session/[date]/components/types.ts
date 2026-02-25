@@ -1,5 +1,5 @@
-export type SelectableSetType = "top" | "backoff";
-export type LoggedSetType = SelectableSetType | "accessory";
+export type SelectableSetType = "straight" | "accessory";
+export type LoggedSetType = "top" | "backoff" | "straight" | "accessory";
 
 export type SessionView = {
   plan_session_id: string;

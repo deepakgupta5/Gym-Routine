@@ -10,10 +10,10 @@ import { updateCurrentBlockWeek } from "@/lib/db/blockState";
 import { estimate1RM, computeNextTopSetLoad, LoadSemantic } from "@/lib/engine/progression";
 import { logError } from "@/lib/logger";
 
-type AllowedSetType = "top" | "backoff";
+type AllowedSetType = "top" | "backoff" | "straight" | "accessory";
 type ExerciseRole = "primary" | "secondary" | "accessory";
 
-const ALLOWED_SET_TYPES: readonly AllowedSetType[] = ["top", "backoff"];
+const ALLOWED_SET_TYPES: readonly AllowedSetType[] = ["top", "backoff", "straight", "accessory"];
 
 function isAllowedSetType(value: unknown): value is AllowedSetType {
   return typeof value === "string" && ALLOWED_SET_TYPES.includes(value as AllowedSetType);
@@ -54,6 +54,7 @@ type InsertedSetRow = {
   session_id: string | null;
   set_type: AllowedSetType;
   exercise_id: number;
+  is_primary: boolean;
   load: number;
   reps: number;
 };
@@ -334,7 +335,7 @@ export async function POST(req: Request) {
          is_primary, is_secondary, set_type, set_index, load, reps, rpe, notes)
       values
         ${values.join(",")}
-      returning id, performed_at, session_id, set_type, exercise_id, load, reps
+      returning id, performed_at, session_id, set_type, exercise_id, is_primary, load, reps
     `;
 
     const insertedRes = await client.query(insertSql, params);
@@ -359,7 +360,7 @@ export async function POST(req: Request) {
       await recomputeWeeklyRollup(client, userId, weekStart);
     }
 
-    const topRows = inserted.filter((r) => r.set_type === "top");
+    const topRows = inserted.filter((r) => r.is_primary || r.set_type === "top");
     if (topRows.length > 0) {
       const sessionMap = new Map<string, SessionLookupRow>();
       const sessionIds = Array.from(

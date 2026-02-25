@@ -10,9 +10,9 @@ import { updateCurrentBlockWeek } from "@/lib/db/blockState";
 import { estimate1RM, computeNextTopSetLoad, LoadSemantic } from "@/lib/engine/progression";
 import { logError } from "@/lib/logger";
 
-type AllowedSetType = "top" | "backoff";
+type AllowedSetType = "top" | "backoff" | "straight" | "accessory";
 
-const ALLOWED_SET_TYPES: readonly AllowedSetType[] = ["top", "backoff"];
+const ALLOWED_SET_TYPES: readonly AllowedSetType[] = ["top", "backoff", "straight", "accessory"];
 
 function isAllowedSetType(value: unknown): value is AllowedSetType {
   return typeof value === "string" && ALLOWED_SET_TYPES.includes(value as AllowedSetType);
@@ -219,7 +219,10 @@ export async function PUT(
     const biasBalance = profileRes.rows[0]?.bias_balance ?? 0;
     const blockId = profileRes.rows[0]?.block_id ?? null;
 
-    if (row.set_type === "top") {
+    const shouldTrackHistory = Boolean(row.is_primary) || row.set_type === "top";
+    const wasTrackedHistory = Boolean(existing.is_primary) || existing.set_type === "top";
+
+    if (shouldTrackHistory) {
       let session = null;
       if (row.session_id) {
         const sessionRes = await client.query(
@@ -286,7 +289,7 @@ export async function PUT(
           );
         }
       }
-    } else if (existing.set_type === "top") {
+    } else if (wasTrackedHistory) {
       await client.query("delete from top_set_history where source_set_log_id = $1", [
         row.id,
       ]);
@@ -348,7 +351,7 @@ export async function DELETE(
       await recomputeWeeklyRollup(client, userId, weekStart);
     }
 
-    if (existing.set_type === "top") {
+    if (existing.is_primary || existing.set_type === "top") {
       await client.query("delete from top_set_history where source_set_log_id = $1", [
         id,
       ]);

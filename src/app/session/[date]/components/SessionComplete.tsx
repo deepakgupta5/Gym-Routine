@@ -9,12 +9,12 @@ export default function SessionComplete({ exercises, logs }: SessionCompleteProp
   const totalSets = logs.length;
   const tonnage = logs.reduce((sum, l) => sum + Number(l.load) * l.reps, 0);
 
-  // Primary lift highlight: highest load top set for a primary exercise
+  // Primary lift highlight: highest load set for a primary exercise
   const primaryIds = new Set(
     exercises.filter((e) => e.role === "primary").map((e) => e.exercise_id)
   );
   const primaryLogs = logs
-    .filter((l) => primaryIds.has(l.exercise_id) && l.set_type === "top")
+    .filter((l) => primaryIds.has(l.exercise_id))
     .sort((a, b) => Number(b.load) - Number(a.load));
   const primaryHighlight = primaryLogs[0] ?? null;
   const primaryName = primaryHighlight

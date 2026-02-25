@@ -203,13 +203,13 @@ export default function ExerciseCard({
               editForms[log.id] || {
                 load: String(log.load),
                 reps: String(log.reps),
-                setType: log.set_type === "top" ? "top" : "backoff",
+                setType: log.set_type === "accessory" ? "accessory" : "straight",
                 notes: log.notes || "",
               };
 
             // PR detection: compare this set's estimated 1RM against historical max
             const logE1RM =
-              log.set_type === "top"
+              exercise.role === "primary"
                 ? estimate1RM(Number(log.load), log.reps)
                 : null;
             const isPR =

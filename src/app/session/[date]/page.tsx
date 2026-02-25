@@ -56,7 +56,7 @@ type SetLogRow = {
   id: string;
   session_id: string;
   exercise_id: number;
-  set_type: "top" | "backoff" | "accessory";
+  set_type: "top" | "backoff" | "straight" | "accessory";
   set_index: number;
   load: string;
   reps: number;

@@ -33,11 +33,11 @@ type TimerView = {
 };
 
 function defaultSetType(role: ExerciseView["role"]): SelectableSetType {
-  return role === "primary" ? "top" : "backoff";
+  return role === "accessory" ? "accessory" : "straight";
 }
 
 function toSelectableSetType(setType: LoggedSetType): SelectableSetType {
-  return setType === "top" ? "top" : "backoff";
+  return setType === "accessory" ? "accessory" : "straight";
 }
 
 export function useSessionLoggerController({
@@ -227,7 +227,7 @@ export function useSessionLoggerController({
       body: JSON.stringify({
         load,
         reps,
-        set_type: log.set_type === "top" ? "top" : "backoff",
+        set_type: form.setType,
         notes: form.notes || null,
       }),
     });
