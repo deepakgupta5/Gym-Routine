@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snack";
-type MealTypeOrAuto = MealType | "auto";
 type EntryMode = "ai" | "manual" | "photo";
 
 type MealItem = {
@@ -259,6 +258,14 @@ function sumMeal(meal: MealLog) {
   );
 }
 
+function defaultMealTypeFromLocalTime(): MealType {
+  const hour = new Date().getHours();
+  if (hour < 10) return "breakfast";
+  if (hour < 14) return "lunch";
+  if (hour < 17) return "snack";
+  return "dinner";
+}
+
 export default function NutritionTodayClient() {
   const searchParams = useSearchParams();
   const initialDate = searchParams.get("date") || isoToday();
@@ -273,7 +280,7 @@ export default function NutritionTodayClient() {
   const [insightsError, setInsightsError] = useState<string | null>(null);
 
   const [entryMode, setEntryMode] = useState<EntryMode>("ai");
-  const [mealType, setMealType] = useState<MealTypeOrAuto>("auto");
+  const [mealType, setMealType] = useState<MealType>(defaultMealTypeFromLocalTime());
   const [rawInput, setRawInput] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -1058,12 +1065,11 @@ export default function NutritionTodayClient() {
               <select
                 value={mealType}
                 onChange={(e) => {
-                  setMealType(e.target.value as MealTypeOrAuto);
+                  setMealType(e.target.value as MealType);
                   clearFormMessages();
                 }}
                 className="rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
               >
-                <option value="auto">Auto meal type</option>
                 <option value="breakfast">Breakfast</option>
                 <option value="lunch">Lunch</option>
                 <option value="snack">Snack</option>
