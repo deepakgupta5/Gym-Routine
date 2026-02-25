@@ -103,7 +103,8 @@ describe("GET /api/nutrition/insights", () => {
         return { rowCount: 1, rows: [{ target_protein_g: 160 }] };
       }
 
-      if (callCount === 8) {
+      // call sequence: 1=rollup, 2=goals, 3=DELETE, 4-8=5 INSERTs, 9=final SELECT
+      if (callCount === 9) {
         return {
           rowCount: 2,
           rows: [
@@ -140,7 +141,7 @@ describe("GET /api/nutrition/insights", () => {
 
     const upsertCalls = mocks.query.mock.calls.filter((c) => String(c[0]).includes("INSERT INTO nutrition_insights"));
     expect(upsertCalls.length).toBeGreaterThanOrEqual(5);
-    expect(callCount).toBe(8);
+    expect(callCount).toBe(9);
     expect(mocks.release).toHaveBeenCalledTimes(1);
   });
 });

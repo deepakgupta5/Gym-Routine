@@ -992,7 +992,7 @@ export default function NutritionTodayClient() {
                   disabled={savingAi}
                   className="mt-3 rounded-md border border-blue-700 bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
                 >
-                  {savingAi ? "Saving..." : "Save With AI"}
+                  {savingAi ? "Parsing..." : "Parse & Review"}
                 </button>
                 {aiInputError && (
                   <div className="mt-2 text-xs text-amber-300">{aiInputError}</div>

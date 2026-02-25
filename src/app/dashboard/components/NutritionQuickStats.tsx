@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 type NutritionSummary = {
   date: string;
   totals: {
@@ -57,15 +59,15 @@ export default function NutritionQuickStats({ summary }: NutritionQuickStatsProp
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
-        <a href="/nutrition/today" className="rounded-md border border-emerald-700 bg-emerald-900/40 px-2 py-1 text-emerald-100">
+        <Link href="/nutrition/today" className="rounded-md border border-emerald-700 bg-emerald-900/40 px-2 py-1 text-emerald-100">
           Open Nutrition Today
-        </a>
-        <a href="/nutrition/trends" className="rounded-md border border-emerald-700 bg-emerald-900/40 px-2 py-1 text-emerald-100">
+        </Link>
+        <Link href="/nutrition/trends" className="rounded-md border border-emerald-700 bg-emerald-900/40 px-2 py-1 text-emerald-100">
           Open Nutrition Trends
-        </a>
-        <a href="/nutrition/plan" className="rounded-md border border-emerald-700 bg-emerald-900/40 px-2 py-1 text-emerald-100">
+        </Link>
+        <Link href="/nutrition/plan" className="rounded-md border border-emerald-700 bg-emerald-900/40 px-2 py-1 text-emerald-100">
           Generate Meal Plan
-        </a>
+        </Link>
       </div>
     </section>
   );

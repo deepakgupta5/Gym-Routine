@@ -34,7 +34,7 @@ export default function RecipeLogQuickAction() {
             setMessage("Recipe name is required.");
             return;
           }
-          setMessage(`Prepared quick log for ${recipeName.trim()} (${servings || "1"} servings).`);
+          setMessage("Recipe logging is not yet available (coming soon).");
         }}
         className="mt-3 rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm text-white"
       >
