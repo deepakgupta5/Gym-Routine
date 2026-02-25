@@ -118,6 +118,13 @@ export async function GET(req: NextRequest) {
 
     const candidates = generateCandidates(rollup, goals);
 
+    await client.query(
+      `DELETE FROM nutrition_insights
+       WHERE user_id = $1
+         AND public.utc_date(generated_at) = $2::date`,
+      [userId, date]
+    );
+
     for (const c of candidates) {
       await client.query(
         `INSERT INTO nutrition_insights
