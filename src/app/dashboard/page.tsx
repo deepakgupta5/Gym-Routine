@@ -307,9 +307,9 @@ export default async function DashboardPage() {
             <div className="rounded-lg border border-amber-700 bg-amber-950/30 p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-amber-600 bg-amber-950/60 px-2.5 py-1 text-xs font-semibold text-amber-300">
-                  {prCount} PR{prCount !== 1 ? "s" : ""} (Personal Records)
+                  {prCount} Personal Record{prCount !== 1 ? "s" : ""}
                 </span>
-                <span className="text-sm text-gray-300">Set in current block</span>
+                <span className="text-sm text-gray-300">Since start of current training block</span>
               </div>
             </div>
           )}
