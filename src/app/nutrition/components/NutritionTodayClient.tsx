@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snack";
-type EntryMode = "ai" | "manual" | "photo";
+type EntryMode = "ai" | "photo";
 
 type MealItem = {
   meal_item_id: string;
@@ -174,14 +174,6 @@ type ReviewMeta = {
 };
 
 
-type ManualItemDraft = {
-  item_name: string;
-  calories: string;
-  protein_g: string;
-  carbs_g: string;
-  fat_g: string;
-};
-
 type MealDraft = { meal_type: MealType; notes: string };
 
 function isoToday(): string {
@@ -221,7 +213,7 @@ function mapErrorCode(errorCode: string): string {
     case "missing_raw_input":
       return "Enter a meal description first.";
     case "parse_failed_manual_required":
-      return "AI parse failed or is unavailable. Use Manual or Photo mode.";
+      return "AI parse failed or is unavailable. Retry Text or Photo.";
     case "photo_missing":
       return "Select a photo first.";
     case "unsupported_media_type":
@@ -231,9 +223,9 @@ function mapErrorCode(errorCode: string): string {
     case "image_unreadable":
       return "Photo could not be read. Try a clearer image.";
     case "openai_unavailable":
-      return "AI is not configured right now. Use Manual mode.";
+      return "AI is not configured right now.";
     case "invalid_item_fields":
-      return "Manual item details are invalid. Check fields and try again.";
+      return "Item details are invalid. Check fields and try again.";
     case "review_required_use_preview":
       return "Review parsed items before saving.";
     case "forbidden_protein_in_meal_log":
@@ -280,14 +272,6 @@ export default function NutritionTodayClient() {
   const [rawInput, setRawInput] = useState("");
   const [notes, setNotes] = useState("");
 
-  const [manualItem, setManualItem] = useState<ManualItemDraft>({
-    item_name: "",
-    calories: "",
-    protein_g: "",
-    carbs_g: "",
-    fat_g: "",
-  });
-
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
@@ -295,7 +279,6 @@ export default function NutritionTodayClient() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [aiInputError, setAiInputError] = useState<string | null>(null);
-  const [manualFallbackHint, setManualFallbackHint] = useState<string | null>(null);
   const [aiPreviewItems, setAiPreviewItems] = useState<PreviewItem[]>([]);
   const [reviewMeta, setReviewMeta] = useState<ReviewMeta>({
     input_mode_hint: "text",
@@ -306,7 +289,6 @@ export default function NutritionTodayClient() {
   });
   const [savingAi, setSavingAi] = useState(false);
   const [savingReviewedAi, setSavingReviewedAi] = useState(false);
-  const [savingManual, setSavingManual] = useState(false);
   const [savingPhoto, setSavingPhoto] = useState(false);
 
   const [mealDrafts, setMealDrafts] = useState<Record<string, MealDraft>>({});
@@ -356,7 +338,6 @@ export default function NutritionTodayClient() {
       parse_duration_ms: parsedJson.parse_duration_ms,
       warnings: parsedJson.warnings ?? [],
     });
-    setManualFallbackHint(null);
     setFormSuccess("Review parsed items, edit if needed, then Save Reviewed Meal.");
   }
 
@@ -546,9 +527,9 @@ export default function NutritionTodayClient() {
       setEntryMode("ai");
 
       if (json.detail === "ai_not_configured") {
-        setFormError("AI not configured. Use Manual or Photo mode.");
+        setFormError("AI not configured. Text and Photo parsing are unavailable.");
       } else {
-        setFormError("AI parse failed. You can retry Text + AI or switch to Manual/Photo.");
+        setFormError("AI parse failed. You can retry Text or switch to Photo.");
       }
       return;
     }
@@ -563,7 +544,7 @@ export default function NutritionTodayClient() {
     const preview = parsedJson.items ?? [];
     if (preview.length === 0) {
       setSavingAi(false);
-      setFormError("AI parse returned no items. Retry Text + AI or switch to Manual/Photo.");
+      setFormError("AI parse returned no items. Retry Text or switch to Photo.");
       setEntryMode("ai");
       return;
     }
@@ -579,78 +560,6 @@ export default function NutritionTodayClient() {
 
     applyParsedPreview(parsedJson);
     setSavingAi(false);
-  }
-
-  async function saveManual() {
-    const itemName = manualItem.item_name.trim();
-
-    if (!itemName) {
-      setFormError("Manual item name is required.");
-      setEntryMode("manual");
-      return;
-    }
-
-    const calories = asNonNegativeNumber(manualItem.calories);
-    const protein = asNonNegativeNumber(manualItem.protein_g);
-    const carbs = asNonNegativeNumber(manualItem.carbs_g);
-    const fat = asNonNegativeNumber(manualItem.fat_g);
-
-    clearFormMessages();
-    setSavingManual(true);
-
-    const payload = {
-      meal_date: selectedDate,
-      meal_type: mealType,
-      notes,
-      save_mode: "manual",
-      client_tz_offset_min: new Date().getTimezoneOffset(),
-      items: [
-        {
-          item_name: itemName,
-          quantity: 1,
-          unit: "serving",
-          calories,
-          protein_g: protein,
-          carbs_g: carbs,
-          fat_g: fat,
-          fiber_g: 0,
-          sugar_g: 0,
-          sodium_mg: 0,
-          iron_mg: 0,
-          calcium_mg: 0,
-          vitamin_d_mcg: 0,
-          vitamin_c_mg: 0,
-          potassium_mg: 0,
-          source: "manual" as const,
-          confidence: null,
-          is_user_edited: true,
-          sort_order: 1,
-        },
-      ],
-    };
-
-    const res = await fetch("/api/nutrition/log", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const json = (await res.json().catch(() => null)) as { error?: string } | null;
-
-    if (!res.ok) {
-      setSavingManual(false);
-      setFormError(mapErrorCode(json?.error || "nutrition_log_save_failed"));
-      return;
-    }
-
-    setSavingManual(false);
-    setManualFallbackHint(null);
-    setManualItem({ item_name: "", calories: "", protein_g: "", carbs_g: "", fat_g: "" });
-    setRawInput("");
-    setNotes("");
-    setFormSuccess("Manual meal saved.");
-    await loadDay(selectedDate);
-    await loadInsights(selectedDate);
   }
 
   function updatePreviewItem(index: number, key: keyof PreviewItem, value: string | number) {
@@ -669,7 +578,7 @@ export default function NutritionTodayClient() {
     );
   }
 
-  function addManualPreviewItem() {
+  function addPreviewItem() {
     setAiPreviewItems((prev) => [
       ...prev,
       {
@@ -796,7 +705,7 @@ export default function NutritionTodayClient() {
       setEntryMode("photo");
       const code = (parseJson && "error" in parseJson ? parseJson.error : "parse_failed") || "parse_failed";
       if (code === "openai_unavailable") {
-        setFormError("AI not configured. Use Manual mode.");
+        setFormError("AI not configured. Photo parsing is unavailable.");
       } else {
         setFormError(mapErrorCode(code));
       }
@@ -808,7 +717,7 @@ export default function NutritionTodayClient() {
     if (parsedItems.length === 0) {
       setSavingPhoto(false);
       setEntryMode("photo");
-      setFormError("No food items were detected from photo. Try a clearer image or switch to Text + AI/Manual.");
+      setFormError("No food items were detected from photo. Try a clearer image or switch to Text.");
       return;
     }
 
@@ -1010,7 +919,7 @@ export default function NutritionTodayClient() {
               />
             </div>
 
-            <div className="mb-3 grid gap-2 sm:grid-cols-3">
+            <div className="mb-3 grid gap-2 sm:grid-cols-2">
               <button
                 type="button"
                 onClick={() => {
@@ -1019,17 +928,7 @@ export default function NutritionTodayClient() {
                 }}
                 className={`rounded-md border px-3 py-2 text-sm ${entryMode === "ai" ? "border-blue-700 bg-blue-600 text-white" : "border-gray-600 bg-gray-800 text-gray-100"}`}
               >
-                Text + AI
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEntryMode("manual");
-                  clearFormMessages();
-                }}
-                className={`rounded-md border px-3 py-2 text-sm ${entryMode === "manual" ? "border-blue-700 bg-blue-600 text-white" : "border-gray-600 bg-gray-800 text-gray-100"}`}
-              >
-                Manual
+                Text
               </button>
               <button
                 type="button"
@@ -1156,10 +1055,10 @@ export default function NutritionTodayClient() {
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={addManualPreviewItem}
+                        onClick={addPreviewItem}
                         className="rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-100"
                       >
-                        Add Manual Item
+                        Add Item
                       </button>
                       <button
                         type="button"
@@ -1172,73 +1071,6 @@ export default function NutritionTodayClient() {
                     </div>
                   </div>
                 )}
-              </div>
-            )}
-
-            {entryMode === "manual" && (
-              <div className="rounded-md border border-gray-700 bg-gray-800/60 p-3">
-                {manualFallbackHint && (
-                  <div className="mb-2 rounded-md border border-amber-700 bg-amber-950/30 px-2 py-1 text-xs text-amber-200">{manualFallbackHint}</div>
-                )}
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <input
-                    value={manualItem.item_name}
-                    onChange={(e) => {
-                      setManualItem((prev) => ({ ...prev, item_name: e.target.value }));
-                      clearFormMessages();
-                    }}
-                    placeholder="Item name"
-                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
-                  />
-                  <input
-                    value={manualItem.calories}
-                    onChange={(e) => {
-                      setManualItem((prev) => ({ ...prev, calories: e.target.value }));
-                      clearFormMessages();
-                    }}
-                    placeholder="Calories"
-                    type="number"
-                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
-                  />
-                  <input
-                    value={manualItem.protein_g}
-                    onChange={(e) => {
-                      setManualItem((prev) => ({ ...prev, protein_g: e.target.value }));
-                      clearFormMessages();
-                    }}
-                    placeholder="Protein (g)"
-                    type="number"
-                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
-                  />
-                  <input
-                    value={manualItem.carbs_g}
-                    onChange={(e) => {
-                      setManualItem((prev) => ({ ...prev, carbs_g: e.target.value }));
-                      clearFormMessages();
-                    }}
-                    placeholder="Carbs (g)"
-                    type="number"
-                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
-                  />
-                  <input
-                    value={manualItem.fat_g}
-                    onChange={(e) => {
-                      setManualItem((prev) => ({ ...prev, fat_g: e.target.value }));
-                      clearFormMessages();
-                    }}
-                    placeholder="Fat (g)"
-                    type="number"
-                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void saveManual()}
-                  disabled={savingManual}
-                  className="mt-3 rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm text-white disabled:opacity-50"
-                >
-                  {savingManual ? "Saving..." : "Save Manual Meal"}
-                </button>
               </div>
             )}
 
@@ -1455,12 +1287,11 @@ export default function NutritionTodayClient() {
                   setShowClarificationModal(false);
                   setPendingPreview(null);
                   setPendingUncertaintyKcal(null);
-                  setEntryMode("manual");
-                  setManualFallbackHint("Clarification required. You can save manually.");
+                  setEntryMode("ai");
                 }}
                 className="rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-100"
               >
-                Switch to Manual
+                Cancel
               </button>
             </div>
           </div>

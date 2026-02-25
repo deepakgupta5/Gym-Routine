@@ -13,7 +13,7 @@ For compliance scoring in this repo:
 3. v1.2 addendum Sections 2-10 are exploratory and non-release-gating unless a separate local-first adoption record is added.
 4. Canonical contradiction resolutions for current release:
    - Bottom nav first tab label is `Gym`.
-   - Manual nutrition save allows zero macro/calorie values.
+   - Nutrition Day mode tabs are `Text | Photo` (no standalone Manual tab).
    - v1.2-only day-page clarification modal, shortcuts, Favorites/Recents, and Recipe mode are not required for release acceptance.
 
 ## 1) Product Objective
@@ -37,10 +37,10 @@ One daily-use system combining gym execution and nutrition adherence with low-fr
 - `npm run build`: PASS
 
 ### 2026-02-25 Implementation Update
-- Nutrition Day water tracking UI is present (water input + save action) and wired to `POST /api/nutrition/water`.
-- `GET /api/nutrition/today` includes water fields in goals/totals/deltas (`target_water_ml`, `water_ml`, `water_remaining_ml`).
-- AI-unavailable fallback message is explicit in both text-parse and photo-parse manual fallback paths.
-- Added API coverage: `tests/api/nutritionToday.test.ts` for water target/current/remaining response shape.
+- Nutrition Day mode switcher is `Text | Photo`; Text keeps the existing AI parse + review-save flow (label-only change from `Text + AI`).
+- Nutrition Day no longer exposes a standalone Manual mode card in UI.
+- AI-unavailable messaging is explicit for Text and Photo parse paths.
+- Water tracking card and `POST /api/nutrition/water` endpoint were removed from shipped UI/API scope.
 
 ## 3) Navigation + IA (Shipped)
 Bottom tabs are now:
@@ -91,7 +91,7 @@ Apply order:
 File: `src/lib/config.ts`
 - Added: `OPENAI_API_KEY`
 - Behavior: optional by default; only required when `requireConfig({ openai: true })` is used
-- Manual logging remains fully functional without OpenAI key
+- Without key, Text/Photo parse endpoints return graceful AI-unavailable errors
 
 ## 6) Endpoint Contracts (Implemented)
 
@@ -230,22 +230,13 @@ Errors:
 - `503`: `openai_unavailable`
 - `500`: `nutrition_plan_generate_failed`
 
-## 6.10 `POST /api/nutrition/water`
-Purpose: set water intake for a date in daily rollups.
-
-Request (JSON):
-- `date?: YYYY-MM-DD` (defaults to today UTC if omitted)
-- `water_ml: number` (0..10000)
-
-Success `200`:
-- `{ ok: true, date, water_ml }`
-
-Errors:
-- `400`: `invalid_body|invalid_date|invalid_water_ml`
-- `500`: `nutrition_water_update_failed`
+## 6.10 Removed Endpoint (`POST /api/nutrition/water`)
+Status:
+- Removed from shipped scope on 2026-02-25.
+- Nutrition Day no longer exposes a standalone Water card or Water save action.
 
 ## 7) Shipped UI Scope
-- Nutrition Today: logging, manual fallback, edit/delete, insight panel, water input/save
+- Nutrition Today: logging (Text + Photo), edit/delete, insight panel
 - Nutrition History: range filtering + empty states
 - Meal Plan page: constraints input + forbidden protein surfaced in UX
 - Trends page: 7-day + 30-day visuals and adherence summaries
@@ -264,7 +255,7 @@ Current checks documented in:
 Verified:
 - RLS enabled on all nutrition tables
 - Photo non-persistence constraints enforced
-- OPENAI missing-key fallback works (`ai_parse` fails safely; manual works)
+- OPENAI missing-key fallback works (Text/Photo parse fail safely with explicit unavailable messaging)
 
 ## 9) CI/Smoke Contract
 - CI workflow: `.github/workflows/ci.yml`

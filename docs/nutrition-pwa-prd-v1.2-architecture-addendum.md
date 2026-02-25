@@ -25,7 +25,7 @@ To remove contradictions with v1.0/v1.1 and shipped code:
 ### 1.0.1 Current Release Contradiction Closure (2026-02-25)
 To make audit outcomes actionable for this repo now:
 - `Gym` is the canonical first bottom-tab label.
-- Manual save baseline allows zero macro/calorie values.
+- Nutrition Day mode switcher uses `Text | Photo` (no standalone Manual tab).
 - The following v1.2 UI items are exploratory and non-release-gating until local-first adoption is explicitly approved:
   - clarification modal threshold behavior,
   - shortcut commands (`same as yesterday`, `add 1 tbsp olive oil`, `half portion`),
@@ -282,10 +282,9 @@ File target:
 - `src/app/nutrition/components/NutritionTodayClient.tsx`
 
 Track-target UX changes:
-- mode switcher tabs: `Text + AI | Manual | Photo`
+- mode switcher tabs: `Text | Photo`
 - clear per-mode primary CTA:
   - `Save With AI`
-  - `Save Manual Meal`
   - `Save Photo Meal`
 - clarification modal only when material impact threshold is exceeded,
 - shortcuts input recognition:
@@ -351,8 +350,8 @@ Uncertain units:
 - `add 1 tbsp olive oil` appends item and recomputes meal/day totals.
 - `half portion` applies 0.5 multiplier to last addressed item/meal.
 
-### 10.3 Manual mode guardrail
-- local-first experiments may add optional guardrails, but current release baseline allows manual save even with zero macro/calorie values.
+### 10.3 Text mode guardrail
+- current release keeps Text mode behavior unchanged (same AI parse + review flow), with label updated from `Text + AI` to `Text`.
 
 ### 10.4 No-cloud-default
 - app must operate fully in local mode with network disabled (except USDA lookup).
