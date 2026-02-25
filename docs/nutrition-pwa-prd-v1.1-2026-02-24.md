@@ -79,14 +79,17 @@ File: `src/lib/config.ts`
 ## 6) Endpoint Contracts (Implemented)
 
 ## 6.1 `POST /api/nutrition/log`
-Purpose: create meal log from AI parse or manual payload; recompute rollup.
+Purpose: create meal log from AI parse, reviewed parse payload, or manual payload; recompute rollup.
+
+Companion parse-preview endpoint for review-first UX:
+- `POST /api/nutrition/log-preview` returns parsed editable items before save.
 
 Request (JSON):
 - `meal_date: string (YYYY-MM-DD)`
 - `meal_type: "breakfast"|"lunch"|"dinner"|"snack"|"auto"`
-- `save_mode: "ai_parse"|"manual"`
+- `save_mode: "ai_parse"|"manual"|"ai_reviewed"`
 - `raw_input?: string` (required for `ai_parse`)
-- `items?: MealItemInput[]` (required for `manual`; optional supplement for `ai_parse`)
+- `items?: MealItemInput[]` (required for `manual` and `ai_reviewed`; optional supplement for `ai_parse`)
 - `notes?: string`
 
 Success `200`:

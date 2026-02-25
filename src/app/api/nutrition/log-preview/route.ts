@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
+import { logError, logInfo } from "@/lib/logger";
 import { callOpenAI } from "@/lib/ai/openai";
 import { buildMealParseSystemPrompt, buildMealParseUserPrompt } from "@/lib/ai/prompts";
+import { readParseP95Last7Days, recordParseMetric } from "@/lib/nutrition/parseMetrics";
 
 export const dynamic = "force-dynamic";
 
 const ALLOWED_PROTEINS = ["chicken", "shrimp", "eggs", "dairy", "plant"];
+const PARSE_SLO_MS = 3000;
 const LOW_CONFIDENCE_THRESHOLD = 0.3;
 
 type ParsedFoodItem = {
@@ -47,6 +51,8 @@ function hasMeaningfulNutrition(item: ParsedFoodItem): boolean {
 
 export async function POST(req: Request) {
   requireConfig();
+  const userId = CONFIG.SINGLE_USER_ID;
+
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
 
@@ -56,7 +62,10 @@ export async function POST(req: Request) {
   }
 
   if (!CONFIG.OPENAI_API_KEY) {
-    return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
+    return NextResponse.json(
+      { error: "parse_failed_manual_required", detail: "ai_not_configured" },
+      { status: 422 }
+    );
   }
 
   const systemPrompt = buildMealParseSystemPrompt(ALLOWED_PROTEINS);
@@ -111,6 +120,32 @@ export async function POST(req: Request) {
     if (aiConfidence < LOW_CONFIDENCE_THRESHOLD) {
       warnings.push("low_confidence_parse");
     }
+    if (parseDurationMs > PARSE_SLO_MS) {
+      warnings.push("parse_slo_missed");
+      logInfo("nutrition_parse_slo_missed", {
+        user_id: userId,
+        parse_duration_ms: parseDurationMs,
+        endpoint: "log_preview",
+      });
+    }
+
+    let parseP95Ms: number | null = null;
+    try {
+      const pool = await getDb();
+      const client = await pool.connect();
+      try {
+        await recordParseMetric(client, userId, "log_preview", parseDurationMs);
+        parseP95Ms = await readParseP95Last7Days(client, userId);
+      } finally {
+        client.release();
+      }
+    } catch (metricErr) {
+      logInfo("nutrition_parse_metrics_unavailable", {
+        user_id: userId,
+        endpoint: "log_preview",
+        error: metricErr instanceof Error ? metricErr.message : "unknown_error",
+      });
+    }
 
     return NextResponse.json({
       ok: true,
@@ -118,10 +153,13 @@ export async function POST(req: Request) {
       ai_model: "gpt-4o-mini",
       ai_confidence: Math.min(1, Math.max(0, aiConfidence)),
       parse_duration_ms: parseDurationMs,
+      parse_slo_met: parseDurationMs <= PARSE_SLO_MS,
+      parse_p95_7d_ms: parseP95Ms,
       items,
       warnings,
     });
-  } catch {
+  } catch (err) {
+    logError("nutrition_log_preview_failed", err, { user_id: userId });
     return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
   }
 }

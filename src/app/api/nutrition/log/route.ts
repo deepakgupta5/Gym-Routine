@@ -7,12 +7,14 @@ import { buildMealParseSystemPrompt, buildMealParseUserPrompt } from "@/lib/ai/p
 import { ensureNutritionProfile } from "@/lib/nutrition/profile";
 import { syncTrainingDay } from "@/lib/nutrition/syncTrainingDay";
 import { recomputeDailyRollup } from "@/lib/nutrition/rollups";
+import { readParseP95Last7Days, recordParseMetric } from "@/lib/nutrition/parseMetrics";
 import type { MealItemInput } from "@/lib/nutrition/types";
 import type { ParsedFoodItem } from "@/lib/ai/types";
 
 export const dynamic = "force-dynamic";
 
 const ALLOWED_PROTEINS = ["chicken", "shrimp", "eggs", "dairy", "plant"];
+const FORBIDDEN_PROTEIN_REGEX = /\b(fish|beef|lamb|pork|goat)\b/i;
 const VALID_MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
 const PARSE_SLO_MS = 3000;
 const LOW_CONFIDENCE_THRESHOLD = 0.3;
@@ -20,6 +22,15 @@ type MealType = (typeof VALID_MEAL_TYPES)[number];
 
 function isIsoDate(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+function containsForbiddenProtein(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return FORBIDDEN_PROTEIN_REGEX.test(text);
+}
+
+function hasForbiddenProteinInItems(items: Array<{ item_name: string }>): boolean {
+  return items.some((item) => containsForbiddenProtein(item.item_name));
 }
 
 function resolveAutoHour(clientTzOffsetMin: number | null): number {
@@ -97,22 +108,22 @@ async function parseMealText(
   const rawItems = Array.isArray(parsed?.items) ? parsed.items : [];
 
   const items: ParsedFoodItem[] = rawItems.map((item, idx) => ({
-    item_name:     String(item.item_name ?? `Item ${idx + 1}`),
-    quantity:      Math.max(0, Number(item.quantity ?? 1)),
-    unit:          String(item.unit ?? "serving"),
-    calories:      Math.max(0, Number(item.calories ?? 0)),
-    protein_g:     Math.max(0, Number(item.protein_g ?? 0)),
-    carbs_g:       Math.max(0, Number(item.carbs_g ?? 0)),
-    fat_g:         Math.max(0, Number(item.fat_g ?? 0)),
-    fiber_g:       Math.max(0, Number(item.fiber_g ?? 0)),
-    sugar_g:       Math.max(0, Number(item.sugar_g ?? 0)),
-    sodium_mg:     Math.max(0, Number(item.sodium_mg ?? 0)),
-    iron_mg:       Math.max(0, Number(item.iron_mg ?? 0)),
-    calcium_mg:    Math.max(0, Number(item.calcium_mg ?? 0)),
+    item_name: String(item.item_name ?? `Item ${idx + 1}`),
+    quantity: Math.max(0, Number(item.quantity ?? 1)),
+    unit: String(item.unit ?? "serving"),
+    calories: Math.max(0, Number(item.calories ?? 0)),
+    protein_g: Math.max(0, Number(item.protein_g ?? 0)),
+    carbs_g: Math.max(0, Number(item.carbs_g ?? 0)),
+    fat_g: Math.max(0, Number(item.fat_g ?? 0)),
+    fiber_g: Math.max(0, Number(item.fiber_g ?? 0)),
+    sugar_g: Math.max(0, Number(item.sugar_g ?? 0)),
+    sodium_mg: Math.max(0, Number(item.sodium_mg ?? 0)),
+    iron_mg: Math.max(0, Number(item.iron_mg ?? 0)),
+    calcium_mg: Math.max(0, Number(item.calcium_mg ?? 0)),
     vitamin_d_mcg: Math.max(0, Number(item.vitamin_d_mcg ?? 0)),
-    vitamin_c_mg:  Math.max(0, Number(item.vitamin_c_mg ?? 0)),
-    potassium_mg:  Math.max(0, Number(item.potassium_mg ?? 0)),
-    confidence:    Math.min(1, Math.max(0, Number(item.confidence ?? 0.8))),
+    vitamin_c_mg: Math.max(0, Number(item.vitamin_c_mg ?? 0)),
+    potassium_mg: Math.max(0, Number(item.potassium_mg ?? 0)),
+    confidence: Math.min(1, Math.max(0, Number(item.confidence ?? 0.8))),
   }));
 
   const overallConfidence =
@@ -127,7 +138,7 @@ export async function POST(req: Request) {
   requireConfig();
   const userId = CONFIG.SINGLE_USER_ID;
 
-  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
+  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
 
   const mealDate = typeof body.meal_date === "string" ? body.meal_date : "";
@@ -169,7 +180,51 @@ export async function POST(req: Request) {
   const rawInput = typeof body.raw_input === "string" ? body.raw_input.trim() : null;
 
   if (saveMode === "ai_parse") {
-    return NextResponse.json({ error: "review_required_use_preview" }, { status: 409 });
+    if (!rawInput) {
+      return NextResponse.json({ error: "missing_raw_input" }, { status: 400 });
+    }
+
+    for (const item of userItems) {
+      if (!validateItemFields(item)) {
+        return NextResponse.json({ error: "invalid_item_fields" }, { status: 400 });
+      }
+    }
+
+    if (!CONFIG.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { error: "parse_failed_manual_required", detail: "ai_not_configured" },
+        { status: 422 }
+      );
+    }
+
+    try {
+      const startedAt = Date.now();
+      const parsed = await parseMealText(rawInput);
+      parseDurationMs = Date.now() - startedAt;
+
+      if (!parsedItemsUsable(parsed.items)) {
+        return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
+      }
+
+      aiItems = parsed.items;
+      aiConfidence = parsed.confidence;
+      aiModel = parsed.model;
+      inputMode = "text";
+
+      if (aiConfidence < LOW_CONFIDENCE_THRESHOLD) {
+        warnings.push("low_confidence_parse");
+      }
+
+      if (parseDurationMs > PARSE_SLO_MS) {
+        warnings.push("parse_slo_missed");
+        logInfo("nutrition_parse_slo_missed", {
+          user_id: userId,
+          parse_duration_ms: parseDurationMs,
+        });
+      }
+    } catch {
+      return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
+    }
   } else if (saveMode === "ai_reviewed") {
     if (!rawInput) {
       return NextResponse.json({ error: "missing_raw_input" }, { status: 400 });
@@ -187,11 +242,12 @@ export async function POST(req: Request) {
     const inputModeHint = body.input_mode_hint === "photo" ? "photo" : "text";
     inputMode = inputModeHint;
 
-    aiModel = typeof body.ai_model === "string"
-      ? body.ai_model
-      : inputModeHint === "photo"
-      ? "gpt-4o"
-      : "gpt-4o-mini";
+    aiModel =
+      typeof body.ai_model === "string"
+        ? body.ai_model
+        : inputModeHint === "photo"
+          ? "gpt-4o"
+          : "gpt-4o-mini";
 
     const bodyConfidence = Number(body.ai_confidence);
     if (Number.isFinite(bodyConfidence)) {
@@ -228,25 +284,25 @@ export async function POST(req: Request) {
   }
 
   const allAiItems: MealItemInput[] = aiItems.map((item, idx) => ({
-    item_name:     item.item_name,
-    quantity:      item.quantity,
-    unit:          item.unit,
-    calories:      item.calories,
-    protein_g:     item.protein_g,
-    carbs_g:       item.carbs_g,
-    fat_g:         item.fat_g,
-    fiber_g:       item.fiber_g,
-    sugar_g:       item.sugar_g,
-    sodium_mg:     item.sodium_mg,
-    iron_mg:       item.iron_mg,
-    calcium_mg:    item.calcium_mg,
+    item_name: item.item_name,
+    quantity: item.quantity,
+    unit: item.unit,
+    calories: item.calories,
+    protein_g: item.protein_g,
+    carbs_g: item.carbs_g,
+    fat_g: item.fat_g,
+    fiber_g: item.fiber_g,
+    sugar_g: item.sugar_g,
+    sodium_mg: item.sodium_mg,
+    iron_mg: item.iron_mg,
+    calcium_mg: item.calcium_mg,
     vitamin_d_mcg: item.vitamin_d_mcg,
-    vitamin_c_mg:  item.vitamin_c_mg,
-    potassium_mg:  item.potassium_mg,
-    source:        "ai",
-    confidence:    item.confidence,
+    vitamin_c_mg: item.vitamin_c_mg,
+    potassium_mg: item.potassium_mg,
+    source: "ai",
+    confidence: item.confidence,
     is_user_edited: false,
-    sort_order:    idx + 1,
+    sort_order: idx + 1,
   }));
 
   const allItems: MealItemInput[] = [
@@ -257,13 +313,23 @@ export async function POST(req: Request) {
     })),
   ];
 
+  if (containsForbiddenProtein(rawInput) || hasForbiddenProteinInItems(allItems)) {
+    return NextResponse.json({ error: "forbidden_protein_in_meal_log" }, { status: 422 });
+  }
+
   const pool = await getDb();
   const client = await pool.connect();
+  let parseP95Ms: number | null = null;
   try {
     await client.query("BEGIN");
 
     await ensureNutritionProfile(client, userId);
     await syncTrainingDay(client, userId, mealDate);
+
+    if (saveMode === "ai_parse" && parseDurationMs != null) {
+      await recordParseMetric(client, userId, "log", parseDurationMs);
+      parseP95Ms = await readParseP95Last7Days(client, userId);
+    }
 
     const logRes = await client.query<{ meal_log_id: string }>(
       `INSERT INTO meal_logs
@@ -295,11 +361,25 @@ export async function POST(req: Request) {
            ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
         [
           mealLogId,
-          item.item_name, item.quantity, item.unit,
-          item.calories, item.protein_g, item.carbs_g, item.fat_g, item.fiber_g,
-          item.sugar_g, item.sodium_mg, item.iron_mg, item.calcium_mg,
-          item.vitamin_d_mcg, item.vitamin_c_mg, item.potassium_mg,
-          item.source, item.confidence ?? null, item.is_user_edited, item.sort_order,
+          item.item_name,
+          item.quantity,
+          item.unit,
+          item.calories,
+          item.protein_g,
+          item.carbs_g,
+          item.fat_g,
+          item.fiber_g,
+          item.sugar_g,
+          item.sodium_mg,
+          item.iron_mg,
+          item.calcium_mg,
+          item.vitamin_d_mcg,
+          item.vitamin_c_mg,
+          item.potassium_mg,
+          item.source,
+          item.confidence ?? null,
+          item.is_user_edited,
+          item.sort_order,
         ]
       );
     }
@@ -317,6 +397,7 @@ export async function POST(req: Request) {
       ai_confidence: aiConfidence,
       parse_duration_ms: parseDurationMs,
       parse_slo_met: parseDurationMs == null ? null : parseDurationMs <= PARSE_SLO_MS,
+      parse_p95_7d_ms: parseP95Ms,
       items_saved: allItems.length,
       warnings,
       rollup,

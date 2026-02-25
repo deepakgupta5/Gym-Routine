@@ -144,7 +144,7 @@ supabase/migrations/0012_nutrition_rls.sql
 
 `src/app/BottomNav.tsx` currently has: **Today | Dashboard | History | Upload**
 
-Target after Sprint 3: **Today | Nutrition | Dashboard | More**
+Target after Sprint 3 (shipped): **Gym | Nutrition | Dashboard | More**
 
 ### Existing patterns to replicate exactly
 
@@ -516,9 +516,9 @@ All new routes require the existing session cookie (`paifpe_session` — same au
   //   < 10:00 -> breakfast | 10:00-14:00 -> lunch | 14:00-17:00 -> snack | >= 17:00 -> dinner
   raw_input?: string;           // required when save_mode="ai_parse"
   notes?:     string | null;
-  save_mode:  "ai_parse" | "manual";
-  items?:     MealItemInput[];  // required when save_mode="manual"
-                                // optional when save_mode="ai_parse" (additional user-added items)
+  save_mode:  "ai_parse" | "manual" | "ai_reviewed";
+  items?:     MealItemInput[];  // required when save_mode="manual" or "ai_reviewed"
+                                // optional when save_mode="ai_parse" (supplemental user items)
 }
 
 type MealItemInput = {
@@ -550,9 +550,10 @@ type MealItemInput = {
 1. Validate `meal_date` and `meal_type`. Resolve `"auto"` from server clock.
 2. If `save_mode === "ai_parse"`: call `gpt-4o-mini` via `src/lib/ai/openai.ts`. Merge AI-returned items with any user-provided `items`. On AI failure return `422 parse_failed_manual_required`.
 3. If `OPENAI_API_KEY` missing and `save_mode="ai_parse"`: return `422 parse_failed_manual_required` immediately (do not crash).
-4. Open DB transaction: insert `meal_logs` row, insert all `meal_items` rows.
-5. Call `recomputeDailyRollup(client, userId, meal_date)` inside same transaction.
-6. COMMIT.
+4. If `save_mode === "ai_reviewed"`: accept reviewed `items` from parse-preview/photo-review and persist directly.
+5. Open DB transaction: insert `meal_logs` row, insert all `meal_items` rows.
+6. Call `recomputeDailyRollup(client, userId, meal_date)` inside same transaction.
+7. COMMIT.
 
 #### Success `200`
 
@@ -649,7 +650,7 @@ type MealItemInput = {
 }
 ```
 
-**Client flow after this response:** present items as editable cards; user reviews/edits; user confirms; client calls `POST /api/nutrition/log` with `save_mode="ai_parse"` and the (possibly edited) items array. The `input_mode` written to `meal_logs` will be `"photo"` (text-only confirm) or `"text_photo"` (if user also typed a description).
+**Client flow after this response:** present items as editable cards; user reviews/edits; user confirms; client calls `POST /api/nutrition/log` with `save_mode="ai_reviewed"` and the reviewed items array. The `input_mode` written to `meal_logs` will be `"photo"` (text-only confirm) or `"text_photo"` (if user also typed a description).
 
 #### Errors
 
@@ -1585,13 +1586,13 @@ export async function POST(req: NextRequest): Promise<NextResponse>
 // 3. Validate meal_date (required, ISODate) — 400 invalid_date if missing/malformed
 // 4. Validate meal_type (required, MealTypeOrAuto) — resolve "auto" from server clock
 //    clock rule: hour < 10 -> breakfast | 10-14 -> lunch | 14-17 -> snack | >=17 -> dinner
-// 5. Validate save_mode ("ai_parse" | "manual") — 400 invalid_body if absent
+// 5. Validate save_mode ("ai_parse" | "manual" | "ai_reviewed") — 400 invalid_body if absent
 // 6. If save_mode === "ai_parse":
 //    a. raw_input required — 400 missing_raw_input if absent
 //    b. call parseMealText(raw_input, allowedProteins) from src/lib/ai/openai.ts
 //    c. on AI failure (throws) -> return 422 parse_failed_manual_required
 //    d. merge AI items with any user-supplied items[] (user items append after AI items)
-// 7. If save_mode === "manual":
+// 7. If save_mode === "manual" OR "ai_reviewed":
 //    a. items[] required and non-empty — 400 invalid_item_fields if absent
 //    b. validate each MealItemInput: all numeric fields must be finite >= 0
 //    c. source must be "manual" for all items

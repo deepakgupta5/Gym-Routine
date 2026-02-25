@@ -5,9 +5,11 @@
 // - This route returns parsed items ONLY — writes nothing to DB
 
 import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import { logError, logInfo } from "@/lib/logger";
 import { parsePhotoMeal } from "@/lib/nutrition/photoParse";
+import { readParseP95Last7Days, recordParseMetric } from "@/lib/nutrition/parseMetrics";
 
 export const dynamic = "force-dynamic";
 
@@ -114,6 +116,26 @@ export async function POST(req: Request) {
     });
   }
 
+  let parseP95Ms: number | null = null;
+  if (parseDurationMs != null) {
+    try {
+      const pool = await getDb();
+      const client = await pool.connect();
+      try {
+        await recordParseMetric(client, userId, "log_photo", parseDurationMs);
+        parseP95Ms = await readParseP95Last7Days(client, userId);
+      } finally {
+        client.release();
+      }
+    } catch (metricErr) {
+      logInfo("nutrition_parse_metrics_unavailable", {
+        user_id: userId,
+        endpoint: "log_photo",
+        error: metricErr instanceof Error ? metricErr.message : "unknown_error",
+      });
+    }
+  }
+
   // Return parsed items only — zero image data in response
   return NextResponse.json({
     ok: true,
@@ -122,26 +144,27 @@ export async function POST(req: Request) {
     ai_confidence: result.confidence,
     parse_duration_ms: parseDurationMs,
     parse_slo_met: parseDurationMs == null ? null : parseDurationMs <= PARSE_SLO_MS,
+    parse_p95_7d_ms: parseP95Ms,
     items: result.items.map((item, idx) => ({
-      item_name:     item.item_name,
-      quantity:      item.quantity,
-      unit:          item.unit,
-      calories:      item.calories,
-      protein_g:     item.protein_g,
-      carbs_g:       item.carbs_g,
-      fat_g:         item.fat_g,
-      fiber_g:       item.fiber_g,
-      sugar_g:       item.sugar_g,
-      sodium_mg:     item.sodium_mg,
-      iron_mg:       item.iron_mg,
-      calcium_mg:    item.calcium_mg,
+      item_name: item.item_name,
+      quantity: item.quantity,
+      unit: item.unit,
+      calories: item.calories,
+      protein_g: item.protein_g,
+      carbs_g: item.carbs_g,
+      fat_g: item.fat_g,
+      fiber_g: item.fiber_g,
+      sugar_g: item.sugar_g,
+      sodium_mg: item.sodium_mg,
+      iron_mg: item.iron_mg,
+      calcium_mg: item.calcium_mg,
       vitamin_d_mcg: item.vitamin_d_mcg,
-      vitamin_c_mg:  item.vitamin_c_mg,
-      potassium_mg:  item.potassium_mg,
-      source:        "ai" as const,
-      confidence:    item.confidence,
+      vitamin_c_mg: item.vitamin_c_mg,
+      potassium_mg: item.potassium_mg,
+      source: "ai" as const,
+      confidence: item.confidence,
       is_user_edited: false,
-      sort_order:    idx + 1,
+      sort_order: idx + 1,
     })),
     warnings,
   });

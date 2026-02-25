@@ -46,9 +46,11 @@ export default function SettingsPage() {
     setLoading(false);
   }
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     void load();
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const isDirty = useMemo(() => {
     if (!data) return false;

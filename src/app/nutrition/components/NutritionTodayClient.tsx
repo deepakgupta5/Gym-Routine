@@ -55,7 +55,6 @@ type NutritionTodayResponse = {
     target_sodium_mg_max: number;
     target_iron_mg: number;
     target_vitamin_d_mcg: number;
-    target_water_ml: number;
   };
   totals: {
     total_calories: number;
@@ -67,7 +66,6 @@ type NutritionTodayResponse = {
     total_sodium_mg: number;
     total_iron_mg: number;
     total_vitamin_d_mcg: number;
-    water_ml: number;
     meal_count: number;
   };
   deltas: {
@@ -80,7 +78,6 @@ type NutritionTodayResponse = {
     sodium_headroom_mg: number;
     iron_remaining_mg: number;
     vitamin_d_remaining_mcg: number;
-    water_remaining_ml: number;
   };
   meals: MealLog[];
 };
@@ -161,6 +158,11 @@ type LogPreviewResponse = {
   warnings: string[];
 };
 
+type ApiErrorResponse = {
+  error?: string;
+  detail?: string;
+};
+
 type ReviewMeta = {
   input_mode_hint: "text" | "photo";
   ai_model: string;
@@ -180,6 +182,14 @@ type ManualItemDraft = {
 
 type MealDraft = { meal_type: MealType; notes: string };
 
+type QuickRelog = {
+  label: string;
+  meal_type: MealType;
+  notes: string;
+  raw_input: string | null;
+  items: PreviewItem[];
+};
+
 function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -187,6 +197,23 @@ function isoToday(): string {
 function asNonNegativeNumber(value: string): number {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+function isoDateMinusDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+function roundTwo(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function estimateUncertaintyKcal(items: PreviewItem[]): number {
+  return items.reduce((sum, item) => {
+    const confidence = Math.min(1, Math.max(0, item.confidence ?? 0.5));
+    return sum + item.calories * (1 - confidence);
+  }, 0);
 }
 
 function insightTone(insightType: Insight["insight_type"]): string {
@@ -200,7 +227,7 @@ function mapErrorCode(errorCode: string): string {
     case "missing_raw_input":
       return "Enter a meal description first.";
     case "parse_failed_manual_required":
-      return "AI parse failed. Use Manual or Photo mode.";
+      return "AI parse failed or is unavailable. Use Manual or Photo mode.";
     case "photo_missing":
       return "Select a photo first.";
     case "unsupported_media_type":
@@ -213,12 +240,10 @@ function mapErrorCode(errorCode: string): string {
       return "AI is not configured right now. Use Manual mode.";
     case "invalid_item_fields":
       return "Manual item details are invalid. Check fields and try again.";
-    case "invalid_water_ml":
-      return "Water amount must be between 0 and 10000 ml.";
-    case "nutrition_water_update_failed":
-      return "Could not update water intake.";
     case "review_required_use_preview":
       return "Review parsed items before saving.";
+    case "forbidden_protein_in_meal_log":
+      return "This meal contains a forbidden protein (fish, beef, lamb, pork, goat).";
     default:
       return errorCode;
   }
@@ -282,17 +307,216 @@ export default function NutritionTodayClient() {
   const [savingReviewedAi, setSavingReviewedAi] = useState(false);
   const [savingManual, setSavingManual] = useState(false);
   const [savingPhoto, setSavingPhoto] = useState(false);
-  const [waterInput, setWaterInput] = useState("");
-  const [savingWater, setSavingWater] = useState(false);
 
   const [mealDrafts, setMealDrafts] = useState<Record<string, MealDraft>>({});
   const [updatingMealId, setUpdatingMealId] = useState<string | null>(null);
   const [deletingMealId, setDeletingMealId] = useState<string | null>(null);
+  const [quickRelogs, setQuickRelogs] = useState<QuickRelog[]>([]);
+  const [showClarificationModal, setShowClarificationModal] = useState(false);
+  const [pendingPreview, setPendingPreview] = useState<LogPreviewResponse | null>(null);
+  const [pendingUncertaintyKcal, setPendingUncertaintyKcal] = useState<number | null>(null);
 
   function clearFormMessages() {
     setFormError(null);
     setFormSuccess(null);
     setAiInputError(null);
+  }
+
+  function toPreviewItem(item: MealItem, sortOrder: number): PreviewItem {
+    return {
+      item_name: item.item_name,
+      quantity: item.quantity,
+      unit: item.unit,
+      calories: item.calories,
+      protein_g: item.protein_g,
+      carbs_g: item.carbs_g,
+      fat_g: item.fat_g,
+      fiber_g: item.fiber_g,
+      sugar_g: item.sugar_g,
+      sodium_mg: item.sodium_mg,
+      iron_mg: item.iron_mg,
+      calcium_mg: item.calcium_mg,
+      vitamin_d_mcg: item.vitamin_d_mcg,
+      vitamin_c_mg: item.vitamin_c_mg,
+      potassium_mg: item.potassium_mg,
+      source: item.source,
+      confidence: item.confidence,
+      is_user_edited: true,
+      sort_order: sortOrder,
+    };
+  }
+
+  function applyParsedPreview(parsedJson: LogPreviewResponse) {
+    const preview = parsedJson.items ?? [];
+    setAiPreviewItems(preview);
+    setReviewMeta({
+      input_mode_hint: "text",
+      ai_model: parsedJson.ai_model,
+      ai_confidence: parsedJson.ai_confidence,
+      parse_duration_ms: parsedJson.parse_duration_ms,
+      warnings: parsedJson.warnings ?? [],
+    });
+    setManualFallbackHint(null);
+    setFormSuccess("Review parsed items, edit if needed, then Save Reviewed Meal.");
+  }
+
+  async function applyShortcutSameAsYesterdayBreakfast() {
+    const yesterday = isoDateMinusDays(selectedDate, 1);
+    const res = await fetch(`/api/nutrition/today?date=${yesterday}`);
+    const json = (await res.json().catch(() => null)) as NutritionTodayResponse | ApiErrorResponse | null;
+
+    if (!res.ok || !json || !("meals" in json)) {
+      setFormError("Could not load yesterday's breakfast for shortcut.");
+      return;
+    }
+
+    const breakfastMeals = (json as NutritionTodayResponse).meals.filter((meal) => meal.meal_type === "breakfast");
+    const flattened = breakfastMeals.flatMap((meal) => meal.items);
+    if (flattened.length === 0) {
+      setFormError("No breakfast meal found yesterday.");
+      return;
+    }
+
+    const preview = flattened.map((item, idx) => toPreviewItem(item, idx + 1));
+    setAiPreviewItems(preview);
+    setReviewMeta({
+      input_mode_hint: "text",
+      ai_model: "shortcut_same_as_yesterday",
+      ai_confidence: 1,
+      parse_duration_ms: 0,
+      warnings: [],
+    });
+    setEntryMode("ai");
+    setFormSuccess("Shortcut applied: same as yesterday's breakfast. Review and save.");
+  }
+
+  function applyShortcutAddOliveOil() {
+    setAiPreviewItems((prev) => {
+      const next = [...prev];
+      next.push({
+        item_name: "Olive oil",
+        quantity: 1,
+        unit: "tbsp",
+        calories: 119,
+        protein_g: 0,
+        carbs_g: 0,
+        fat_g: 13.5,
+        fiber_g: 0,
+        sugar_g: 0,
+        sodium_mg: 0,
+        iron_mg: 0,
+        calcium_mg: 0,
+        vitamin_d_mcg: 0,
+        vitamin_c_mg: 0,
+        potassium_mg: 0,
+        source: "manual",
+        confidence: 1,
+        is_user_edited: true,
+        sort_order: next.length + 1,
+      });
+      return next;
+    });
+    setFormSuccess("Shortcut applied: added 1 tbsp olive oil.");
+  }
+
+  function applyShortcutHalfPortion() {
+    if (aiPreviewItems.length === 0) {
+      setFormError("No items to apply half-portion shortcut.");
+      return;
+    }
+
+    setAiPreviewItems((prev) =>
+      prev.map((item, idx) => ({
+        ...item,
+        quantity: roundTwo(item.quantity * 0.5),
+        calories: roundTwo(item.calories * 0.5),
+        protein_g: roundTwo(item.protein_g * 0.5),
+        carbs_g: roundTwo(item.carbs_g * 0.5),
+        fat_g: roundTwo(item.fat_g * 0.5),
+        fiber_g: roundTwo(item.fiber_g * 0.5),
+        sugar_g: roundTwo(item.sugar_g * 0.5),
+        sodium_mg: roundTwo(item.sodium_mg * 0.5),
+        iron_mg: roundTwo(item.iron_mg * 0.5),
+        calcium_mg: roundTwo(item.calcium_mg * 0.5),
+        vitamin_d_mcg: roundTwo(item.vitamin_d_mcg * 0.5),
+        vitamin_c_mg: roundTwo(item.vitamin_c_mg * 0.5),
+        potassium_mg: roundTwo(item.potassium_mg * 0.5),
+        is_user_edited: true,
+        sort_order: idx + 1,
+      }))
+    );
+    setFormSuccess("Shortcut applied: half portion.");
+  }
+
+  async function loadQuickRelogs(date: string) {
+    const from = isoDateMinusDays(date, 7);
+    const to = date;
+
+    const res = await fetch(`/api/nutrition/history?from=${from}&to=${to}&page=1&pageSize=8`);
+    const json = (await res.json().catch(() => null)) as { days?: Array<{ date: string }> } | ApiErrorResponse | null;
+    if (!res.ok || !json || !("days" in json)) {
+      setQuickRelogs([]);
+      return;
+    }
+
+    const dateRows = (json.days ?? []).slice(0, 4);
+    const relogs: QuickRelog[] = [];
+
+    for (const row of dateRows) {
+      const dayRes = await fetch(`/api/nutrition/today?date=${row.date}`);
+      const dayJson = (await dayRes.json().catch(() => null)) as NutritionTodayResponse | ApiErrorResponse | null;
+      if (!dayRes.ok || !dayJson || !("meals" in dayJson)) {
+        continue;
+      }
+
+      for (const meal of (dayJson as NutritionTodayResponse).meals) {
+        if (meal.items.length === 0) continue;
+        relogs.push({
+          label: `${row.date} · ${meal.meal_type}`,
+          meal_type: meal.meal_type,
+          notes: meal.notes ?? "",
+          raw_input: meal.raw_input,
+          items: meal.items.map((item, idx) => toPreviewItem(item, idx + 1)),
+        });
+      }
+      if (relogs.length >= 6) break;
+    }
+
+    setQuickRelogs(relogs.slice(0, 6));
+  }
+
+  async function relogQuickMeal(relog: QuickRelog) {
+    clearFormMessages();
+
+    const res = await fetch("/api/nutrition/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        meal_date: selectedDate,
+        meal_type: relog.meal_type,
+        raw_input: relog.raw_input,
+        notes: relog.notes,
+        save_mode: "manual",
+        client_tz_offset_min: new Date().getTimezoneOffset(),
+        items: relog.items.map((item, idx) => ({
+          ...item,
+          source: "manual",
+          confidence: null,
+          is_user_edited: true,
+          sort_order: idx + 1,
+        })),
+      }),
+    });
+
+    const json = (await res.json().catch(() => null)) as ApiErrorResponse | null;
+    if (!res.ok) {
+      setFormError(mapErrorCode(json?.error || "nutrition_log_save_failed"));
+      return;
+    }
+
+    setFormSuccess("Recent meal re-logged.");
+    await loadDay(selectedDate);
+    await loadInsights(selectedDate);
   }
 
   async function loadDay(date: string) {
@@ -341,15 +565,17 @@ export default function NutritionTodayClient() {
     setInsightsLoading(false);
   }
 
-  /* eslint-disable react-hooks/set-state-in-effect */
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
     void loadDay(selectedDate);
     void loadInsights(selectedDate);
+    void loadQuickRelogs(selectedDate);
   }, [selectedDate]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   async function saveWithAi() {
-    if (!rawInput.trim()) {
+    const normalizedInput = rawInput.trim();
+    if (!normalizedInput) {
       setAiInputError("Enter a meal description first.");
       setEntryMode("ai");
       return;
@@ -358,27 +584,50 @@ export default function NutritionTodayClient() {
     clearFormMessages();
     setSavingAi(true);
 
+    const normalizedShortcut = normalizedInput.toLowerCase();
+    if (normalizedShortcut === "same as yesterday's breakfast" || normalizedShortcut === "same as yesterdays breakfast") {
+      await applyShortcutSameAsYesterdayBreakfast();
+      setSavingAi(false);
+      return;
+    }
+    if (normalizedShortcut === "add 1 tbsp olive oil") {
+      applyShortcutAddOliveOil();
+      setSavingAi(false);
+      return;
+    }
+    if (normalizedShortcut === "half portion") {
+      applyShortcutHalfPortion();
+      setSavingAi(false);
+      return;
+    }
+
     const res = await fetch("/api/nutrition/log-preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         meal_date: selectedDate,
         meal_type: mealType,
-        raw_input: rawInput,
+        raw_input: normalizedInput,
         client_tz_offset_min: new Date().getTimezoneOffset(),
       }),
     });
 
-    const json = (await res.json().catch(() => null)) as LogPreviewResponse | { error?: string } | null;
+    const json = (await res.json().catch(() => null)) as LogPreviewResponse | ApiErrorResponse | null;
 
     if (res.status === 422 && json && "error" in json && json.error === "parse_failed_manual_required") {
       setSavingAi(false);
       setEntryMode("manual");
       if (!manualItem.item_name.trim()) {
-        setManualItem((prev) => ({ ...prev, item_name: rawInput.trim() }));
+        setManualItem((prev) => ({ ...prev, item_name: normalizedInput }));
       }
-      setManualFallbackHint("AI parse failed. You can save manually now.");
-      setFormError("AI parse failed. Switched to Manual mode.");
+
+      if (json.detail === "ai_not_configured") {
+        setManualFallbackHint("AI not configured. Manual mode is available.");
+        setFormError("AI not configured. Switched to Manual mode.");
+      } else {
+        setManualFallbackHint("AI parse failed. You can save manually now.");
+        setFormError("AI parse failed. Switched to Manual mode.");
+      }
       return;
     }
 
@@ -388,7 +637,8 @@ export default function NutritionTodayClient() {
       return;
     }
 
-    const preview = (json as LogPreviewResponse).items ?? [];
+    const parsedJson = json as LogPreviewResponse;
+    const preview = parsedJson.items ?? [];
     if (preview.length === 0) {
       setSavingAi(false);
       setFormError("AI parse returned no items. Use Manual mode.");
@@ -396,18 +646,17 @@ export default function NutritionTodayClient() {
       return;
     }
 
-    const parsedJson = json as LogPreviewResponse;
-    setAiPreviewItems(preview);
-    setReviewMeta({
-      input_mode_hint: "text",
-      ai_model: parsedJson.ai_model,
-      ai_confidence: parsedJson.ai_confidence,
-      parse_duration_ms: parsedJson.parse_duration_ms,
-      warnings: parsedJson.warnings ?? [],
-    });
-    setManualFallbackHint(null);
+    const uncertaintyKcal = estimateUncertaintyKcal(preview);
+    if (uncertaintyKcal > 80) {
+      setPendingPreview(parsedJson);
+      setPendingUncertaintyKcal(roundTwo(uncertaintyKcal));
+      setShowClarificationModal(true);
+      setSavingAi(false);
+      return;
+    }
+
+    applyParsedPreview(parsedJson);
     setSavingAi(false);
-    setFormSuccess("Review parsed items, edit if needed, then Save Reviewed Meal.");
   }
 
   async function saveManual() {
@@ -599,33 +848,6 @@ export default function NutritionTodayClient() {
     await loadInsights(selectedDate);
   }
 
-  async function saveWaterIntake() {
-    const waterMl = asNonNegativeNumber(waterInput);
-
-    clearFormMessages();
-    setSavingWater(true);
-
-    const res = await fetch("/api/nutrition/water", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: selectedDate, water_ml: waterMl }),
-    });
-
-    const json = (await res.json().catch(() => null)) as { error?: string } | null;
-
-    if (!res.ok) {
-      setSavingWater(false);
-      setFormError(mapErrorCode(json?.error || "nutrition_water_update_failed"));
-      return;
-    }
-
-    setSavingWater(false);
-    setWaterInput("");
-    setFormSuccess("Water intake updated.");
-    await loadDay(selectedDate);
-    await loadInsights(selectedDate);
-  }
-
   async function saveFromPhoto() {
     if (!photoFile) {
       setFormError("Select a photo first.");
@@ -795,8 +1017,16 @@ export default function NutritionTodayClient() {
       )}
 
       {loading && (
-        <div className="rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-400">
-          Loading nutrition data...
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="rounded-lg border border-gray-700 bg-gray-900 p-3">
+                <div className="mb-2 h-3 w-16 animate-pulse rounded bg-gray-700" />
+                <div className="h-4 w-24 animate-pulse rounded bg-gray-700" />
+              </div>
+            ))}
+          </div>
+          <div className="h-24 animate-pulse rounded-lg border border-gray-700 bg-gray-900" />
         </div>
       )}
 
@@ -815,32 +1045,29 @@ export default function NutritionTodayClient() {
             ))}
           </div>
 
-          <div className="mt-3 rounded-lg border border-gray-700 bg-gray-900 p-4">
-            <h2 className="mb-2 text-lg font-semibold text-gray-100">Water</h2>
-            <div className="mb-2 text-sm text-gray-200">
-              {Math.round(data.totals.water_ml)} ml / {Math.round(data.goals.target_water_ml)} ml
+          <div className="mt-5 rounded-lg border border-gray-700 bg-gray-900 p-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold text-gray-100">Favorites & Recents</h2>
+              <Link href="/nutrition/recipes" className="text-xs text-blue-300 hover:underline">Recipe Mode</Link>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <input
-                value={waterInput}
-                onChange={(e) => {
-                  setWaterInput(e.target.value);
-                  clearFormMessages();
-                }}
-                placeholder="Water ml"
-                type="number"
-                min={0}
-                className="rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
-              />
-              <button
-                type="button"
-                onClick={() => void saveWaterIntake()}
-                disabled={savingWater}
-                className="rounded-md border border-sky-700 bg-sky-600 px-3 py-2 text-sm text-white disabled:opacity-50"
-              >
-                {savingWater ? "Saving..." : "Save Water"}
-              </button>
-            </div>
+
+            {quickRelogs.length === 0 ? (
+              <div className="text-sm text-gray-400">No recent meals available yet.</div>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {quickRelogs.map((relog, idx) => (
+                  <button
+                    key={`${relog.label}-${idx}`}
+                    type="button"
+                    onClick={() => void relogQuickMeal(relog)}
+                    className="rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-left text-sm text-gray-100 hover:bg-gray-700"
+                  >
+                    <div className="font-medium">{relog.label}</div>
+                    <div className="text-xs text-gray-400">{Math.round(relog.items.reduce((sum, item) => sum + item.calories, 0))} kcal</div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="mt-5 rounded-lg border border-gray-700 bg-gray-900 p-4">
@@ -932,13 +1159,46 @@ export default function NutritionTodayClient() {
                   placeholder='Describe your meal (example: "Cheese sandwich and milk coffee")'
                   className="min-h-24 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
                 />
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearFormMessages();
+                      void applyShortcutSameAsYesterdayBreakfast();
+                    }}
+                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-xs text-gray-100"
+                  >
+                    Same as yesterday
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearFormMessages();
+                      applyShortcutAddOliveOil();
+                    }}
+                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-xs text-gray-100"
+                  >
+                    Add 1 tbsp olive oil
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearFormMessages();
+                      applyShortcutHalfPortion();
+                    }}
+                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-xs text-gray-100"
+                  >
+                    Half portion
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => void saveWithAi()}
                   disabled={savingAi}
                   className="mt-3 rounded-md border border-blue-700 bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
                 >
-                  {savingAi ? "Parsing..." : "Parse With AI"}
+                  {savingAi ? "Saving..." : "Save With AI"}
                 </button>
                 {aiInputError && (
                   <div className="mt-2 text-xs text-amber-300">{aiInputError}</div>
@@ -1136,7 +1396,7 @@ export default function NutritionTodayClient() {
                     disabled={!photoFile || savingPhoto}
                     className="rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm text-white disabled:opacity-50"
                   >
-                    {savingPhoto ? "Parsing..." : "Parse Photo"}
+                    {savingPhoto ? "Saving..." : "Save Photo Meal"}
                   </button>
                 </div>
                 <div className="mt-2 text-xs text-gray-400">
@@ -1272,6 +1532,45 @@ export default function NutritionTodayClient() {
             )}
           </div>
         </>
+      )}
+      {showClarificationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border border-gray-700 bg-gray-900 p-4">
+            <h3 className="mb-2 text-lg font-semibold text-gray-100">Clarification Needed</h3>
+            <p className="mb-3 text-sm text-gray-300">
+              Estimated nutrition uncertainty is {pendingUncertaintyKcal ?? 0} kcal. Confirm before saving parsed items.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (pendingPreview) {
+                    applyParsedPreview(pendingPreview);
+                  }
+                  setShowClarificationModal(false);
+                  setPendingPreview(null);
+                  setPendingUncertaintyKcal(null);
+                }}
+                className="rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm text-white"
+              >
+                Continue with Parsed Items
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowClarificationModal(false);
+                  setPendingPreview(null);
+                  setPendingUncertaintyKcal(null);
+                  setEntryMode("manual");
+                  setManualFallbackHint("Clarification required. You can save manually.");
+                }}
+                className="rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-100"
+              >
+                Switch to Manual
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );

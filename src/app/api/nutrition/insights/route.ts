@@ -20,19 +20,17 @@ type InsightCandidate = {
 };
 
 type RollupData = {
-  total_protein_g:     number;
-  total_fiber_g:       number;
-  total_sugar_g:       number;
-  total_iron_mg:       number;
+  total_protein_g: number;
+  total_fiber_g: number;
+  total_sugar_g: number;
+  total_iron_mg: number;
   total_vitamin_d_mcg: number;
-  water_ml:            number;
 };
 
 type GoalsData = {
   target_protein_g: number;
 };
 
-// Rule-based checks per Section 5.8 trigger table
 function generateCandidates(rollup: RollupData, goals: GoalsData): InsightCandidate[] {
   const candidates: InsightCandidate[] = [];
 
@@ -76,14 +74,6 @@ function generateCandidates(rollup: RollupData, goals: GoalsData): InsightCandid
     });
   }
 
-  if (rollup.water_ml < 2000) {
-    candidates.push({
-      insight_type: "coaching",
-      recommendation_text: `Water intake is ${rollup.water_ml.toFixed(0)} ml today vs 3000 ml target. Drink a large glass of water now and before each meal.`,
-      context_json: { metric: "water_ml", value: rollup.water_ml, target: 3000 },
-    });
-  }
-
   return candidates;
 }
 
@@ -100,26 +90,22 @@ export async function GET(req: NextRequest) {
   const pool = await getDb();
   const client = await pool.connect();
   try {
-    // Fetch rollup for this date
     const rollupRes = await client.query<RollupData>(
       `SELECT
          total_protein_g::float     AS total_protein_g,
          total_fiber_g::float       AS total_fiber_g,
          total_sugar_g::float       AS total_sugar_g,
          total_iron_mg::float       AS total_iron_mg,
-         total_vitamin_d_mcg::float AS total_vitamin_d_mcg,
-         water_ml::float            AS water_ml
+         total_vitamin_d_mcg::float AS total_vitamin_d_mcg
        FROM daily_nutrition_rollups
        WHERE user_id = $1 AND rollup_date = $2`,
       [userId, date]
     );
 
-    // No meals logged → no insights
     if (!rollupRes.rowCount || rollupRes.rowCount === 0) {
       return NextResponse.json({ date, insights: [] });
     }
 
-    // Fetch goals for threshold comparison
     const goalsRes = await client.query<GoalsData>(
       `SELECT target_protein_g::float AS target_protein_g
        FROM nutrition_goals_daily
@@ -132,7 +118,6 @@ export async function GET(req: NextRequest) {
 
     const candidates = generateCandidates(rollup, goals);
 
-    // Upsert each candidate — ON CONFLICT uses uq_insights_user_type_day index
     for (const c of candidates) {
       await client.query(
         `INSERT INTO nutrition_insights
@@ -148,7 +133,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Return all non-dismissed insights generated today
     const insightsRes = await client.query(
       `SELECT
          insight_id,

@@ -12,12 +12,14 @@ const mocks = vi.hoisted(() => {
 
   const requireConfig = vi.fn();
   const logError = vi.fn();
+  const logInfo = vi.fn();
   const parsePhotoMeal = vi.fn();
 
   return {
     config,
     requireConfig,
     logError,
+    logInfo,
     parsePhotoMeal,
   };
 });
@@ -29,6 +31,7 @@ vi.mock("@/lib/config", () => ({
 
 vi.mock("@/lib/logger", () => ({
   logError: mocks.logError,
+  logInfo: mocks.logInfo,
 }));
 
 vi.mock("@/lib/nutrition/photoParse", () => ({
@@ -48,6 +51,7 @@ describe("POST /api/nutrition/log-photo", () => {
   beforeEach(() => {
     mocks.requireConfig.mockReset();
     mocks.logError.mockReset();
+    mocks.logInfo.mockReset();
     mocks.parsePhotoMeal.mockReset();
     mocks.config.OPENAI_API_KEY = "";
   });

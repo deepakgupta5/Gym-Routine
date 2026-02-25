@@ -21,9 +21,9 @@ To remove contradictions with v1.0/v1.1 and shipped code:
 - Any v1.2 item that conflicts with current server-backed Supabase + OpenAI architecture is non-blocking and not required for release acceptance.
 - Specifically, USDA-first matching and SQLite-only storage are optional future tracks, not active release gates.
 
-## 1.1 Ambiguity Resolutions (Binding)
+## 1.1 Ambiguity Resolutions (Binding for Current Repo)
 
-These clarifications are now normative for implementation and testing:
+These clarifications are normative for the current server-backed implementation and test validation in this repo:
 
 1. Parse latency
 - Measure parse stage only as `parse_duration_ms` around OpenAI call.
@@ -52,7 +52,11 @@ These clarifications are now normative for implementation and testing:
 - Override is edited via Settings (`GET/PUT /api/nutrition/profile`).
 - Override changes regenerate future goals only (`goal_date >= today`), never retroactive.
 
-## 2. Scope Additions (Exact Requirement Coverage)
+## 2. Scope Additions (Local-First Track Scope)
+
+Applicability rule:
+- Sections 2-10 are required only when the local-first track is explicitly adopted for implementation.
+- Until that adoption decision is recorded, sections 2-10 are exploratory/non-release-gating for this repo.
 
 ### 2.1 Interaction Layer
 Input support:
@@ -135,7 +139,7 @@ If OPFS is unavailable, fallback storage is IndexedDB-backed SQLite adapter.
 Create folder:
 - `src/lib/nutrition/local/migrations/`
 
-Migration files (exact):
+Proposed migration files (when local-first track is adopted):
 1. `0001_local_food_catalog.sql`
 2. `0002_local_meal_entries.sql`
 3. `0003_local_alias_pins.sql`
@@ -159,7 +163,7 @@ Mandatory columns on local entry rows:
 - `conversion_rule_id` or `conversion_rule_name`
 
 ## 4.2 Server migrations (optional sync/cache path)
-Create Supabase migrations (exact filenames):
+Proposed Supabase migrations (optional sync/cache path):
 1. `supabase/migrations/0014_food_match_cache.sql`
 2. `supabase/migrations/0015_nutrition_alias_pins.sql`
 3. `supabase/migrations/0016_nutrition_custom_foods.sql`
@@ -173,7 +177,7 @@ Purpose:
 Default behavior:
 - app functions without these sync tables; local SQLite remains source of truth unless user enables sync.
 
-## 5. Endpoint Contracts (New in v1.2)
+## 5. Endpoint Contracts (Local-First Track Proposal)
 
 All endpoints are server-side only. No API key exposure to client.
 
@@ -260,13 +264,13 @@ Purpose:
 Purpose:
 - export nutrition logs as CSV.
 
-## 6. UI Changes (Mapped)
+## 6. UI Changes (Local-First Track Mapping)
 
 ## 6.1 Nutrition Day page
 File target:
 - `src/app/nutrition/components/NutritionTodayClient.tsx`
 
-Required UX changes:
+Track-target UX changes:
 - mode switcher tabs: `Text + AI | Manual | Photo`
 - clear per-mode primary CTA:
   - `Save With AI`
@@ -284,7 +288,7 @@ File targets:
 - `src/app/nutrition/components/NutritionHistoryClient.tsx`
 - `src/app/nutrition/components/NutritionTrendsClient.tsx`
 
-Required UX changes:
+Track-target UX changes:
 - keep Nutrition History and Nutrition Trends in More section,
 - add Favorites/Recents quick-relog module on Nutrition Day.
 
@@ -294,9 +298,9 @@ New files:
 - `src/app/nutrition/components/RecipeBuilder.tsx`
 - `src/app/nutrition/components/RecipeLogQuickAction.tsx`
 
-## 7. Agent Tool Surface (v1.2)
+## 7. Agent Tool Surface (Local-First Track)
 
-Required tool-equivalent operations:
+Target tool-equivalent operations:
 1. `search_food(query)` -> `GET /api/foods/search`
 2. `pin_food(alias, food_id)` -> `POST /api/foods/pin`
 3. `log_food(...)` -> `POST /api/nutrition/log-food`
@@ -337,7 +341,7 @@ Uncertain units:
 - `half portion` applies 0.5 multiplier to last addressed item/meal.
 
 ### 10.3 Manual mode guardrail
-- manual save must require non-zero calories or macro field to prevent false zero-total logs.
+- local-first experiments may add optional guardrails, but current release baseline allows manual save even with zero macro/calorie values.
 
 ### 10.4 No-cloud-default
 - app must operate fully in local mode with network disabled (except USDA lookup).
