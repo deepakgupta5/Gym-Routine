@@ -182,14 +182,6 @@ type ManualItemDraft = {
 
 type MealDraft = { meal_type: MealType; notes: string };
 
-type QuickRelog = {
-  label: string;
-  meal_type: MealType;
-  notes: string;
-  raw_input: string | null;
-  items: PreviewItem[];
-};
-
 function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -311,7 +303,6 @@ export default function NutritionTodayClient() {
   const [mealDrafts, setMealDrafts] = useState<Record<string, MealDraft>>({});
   const [updatingMealId, setUpdatingMealId] = useState<string | null>(null);
   const [deletingMealId, setDeletingMealId] = useState<string | null>(null);
-  const [quickRelogs, setQuickRelogs] = useState<QuickRelog[]>([]);
   const [showClarificationModal, setShowClarificationModal] = useState(false);
   const [pendingPreview, setPendingPreview] = useState<LogPreviewResponse | null>(null);
   const [pendingUncertaintyKcal, setPendingUncertaintyKcal] = useState<number | null>(null);
@@ -448,77 +439,6 @@ export default function NutritionTodayClient() {
     setFormSuccess("Shortcut applied: half portion.");
   }
 
-  async function loadQuickRelogs(date: string) {
-    const from = isoDateMinusDays(date, 7);
-    const to = date;
-
-    const res = await fetch(`/api/nutrition/history?from=${from}&to=${to}&page=1&pageSize=8`);
-    const json = (await res.json().catch(() => null)) as { days?: Array<{ date: string }> } | ApiErrorResponse | null;
-    if (!res.ok || !json || !("days" in json)) {
-      setQuickRelogs([]);
-      return;
-    }
-
-    const dateRows = (json.days ?? []).slice(0, 4);
-    const relogs: QuickRelog[] = [];
-
-    for (const row of dateRows) {
-      const dayRes = await fetch(`/api/nutrition/today?date=${row.date}`);
-      const dayJson = (await dayRes.json().catch(() => null)) as NutritionTodayResponse | ApiErrorResponse | null;
-      if (!dayRes.ok || !dayJson || !("meals" in dayJson)) {
-        continue;
-      }
-
-      for (const meal of (dayJson as NutritionTodayResponse).meals) {
-        if (meal.items.length === 0) continue;
-        relogs.push({
-          label: `${row.date} · ${meal.meal_type}`,
-          meal_type: meal.meal_type,
-          notes: meal.notes ?? "",
-          raw_input: meal.raw_input,
-          items: meal.items.map((item, idx) => toPreviewItem(item, idx + 1)),
-        });
-      }
-      if (relogs.length >= 6) break;
-    }
-
-    setQuickRelogs(relogs.slice(0, 6));
-  }
-
-  async function relogQuickMeal(relog: QuickRelog) {
-    clearFormMessages();
-
-    const res = await fetch("/api/nutrition/log", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        meal_date: selectedDate,
-        meal_type: relog.meal_type,
-        raw_input: relog.raw_input,
-        notes: relog.notes,
-        save_mode: "manual",
-        client_tz_offset_min: new Date().getTimezoneOffset(),
-        items: relog.items.map((item, idx) => ({
-          ...item,
-          source: "manual",
-          confidence: null,
-          is_user_edited: true,
-          sort_order: idx + 1,
-        })),
-      }),
-    });
-
-    const json = (await res.json().catch(() => null)) as ApiErrorResponse | null;
-    if (!res.ok) {
-      setFormError(mapErrorCode(json?.error || "nutrition_log_save_failed"));
-      return;
-    }
-
-    setFormSuccess("Recent meal re-logged.");
-    await loadDay(selectedDate);
-    await loadInsights(selectedDate);
-  }
-
   async function loadDay(date: string) {
     setLoading(true);
     setPageError(null);
@@ -565,13 +485,12 @@ export default function NutritionTodayClient() {
     setInsightsLoading(false);
   }
 
-  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     void loadDay(selectedDate);
     void loadInsights(selectedDate);
-    void loadQuickRelogs(selectedDate);
   }, [selectedDate]);
-  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function saveWithAi() {
     const normalizedInput = rawInput.trim();
@@ -1043,31 +962,6 @@ export default function NutritionTodayClient() {
                 </div>
               </div>
             ))}
-          </div>
-
-          <div className="mt-5 rounded-lg border border-gray-700 bg-gray-900 p-4">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <h2 className="text-lg font-semibold text-gray-100">Favorites & Recents</h2>
-              <Link href="/nutrition/recipes" className="text-xs text-blue-300 hover:underline">Recipe Mode</Link>
-            </div>
-
-            {quickRelogs.length === 0 ? (
-              <div className="text-sm text-gray-400">No recent meals available yet.</div>
-            ) : (
-              <div className="grid gap-2 sm:grid-cols-2">
-                {quickRelogs.map((relog, idx) => (
-                  <button
-                    key={`${relog.label}-${idx}`}
-                    type="button"
-                    onClick={() => void relogQuickMeal(relog)}
-                    className="rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-left text-sm text-gray-100 hover:bg-gray-700"
-                  >
-                    <div className="font-medium">{relog.label}</div>
-                    <div className="text-xs text-gray-400">{Math.round(relog.items.reduce((sum, item) => sum + item.calories, 0))} kcal</div>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="mt-5 rounded-lg border border-gray-700 bg-gray-900 p-4">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ExportWorkoutCsvButton from "@/app/more/ExportWorkoutCsvButton";
 
 export const dynamic = "force-dynamic";
 
@@ -36,13 +37,7 @@ export default function MorePage() {
           Upload Body Stats
         </Link>
 
-        <a
-          href="/api/export/set-logs"
-          download
-          className="rounded-lg border border-gray-700 bg-gray-800 p-4 text-sm text-gray-100 active:opacity-80"
-        >
-          Export Workout CSV
-        </a>
+        <ExportWorkoutCsvButton />
 
         <Link
           href="/settings"
