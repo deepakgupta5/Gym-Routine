@@ -7,6 +7,9 @@ import SparklineChart from "./components/SparklineChart";
 import WeightChart from "./components/WeightChart";
 import NutritionQuickStats from "./components/NutritionQuickStats";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function parseBiasState(input: unknown) {
   if (!input || typeof input !== "string") return {};
   try {
