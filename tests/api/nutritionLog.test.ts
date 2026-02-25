@@ -242,6 +242,55 @@ describe("POST /api/nutrition/log", () => {
     expect(mocks.release).toHaveBeenCalledTimes(1);
   });
 
+
+  it("saves reviewed AI items after user edits", async () => {
+    mocks.query
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ meal_log_id: "meal-review-1" }] })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+
+    const res = await POST(
+      makeRequest({
+        meal_date: "2026-02-24",
+        meal_type: "auto",
+        save_mode: "ai_reviewed",
+        raw_input: "cheese sandwich and milk",
+        items: [
+          {
+            item_name: "Cheese sandwich",
+            quantity: 1,
+            unit: "serving",
+            calories: 420,
+            protein_g: 16,
+            carbs_g: 42,
+            fat_g: 18,
+            fiber_g: 3,
+            sugar_g: 4,
+            sodium_mg: 650,
+            iron_mg: 2,
+            calcium_mg: 120,
+            vitamin_d_mcg: 0,
+            vitamin_c_mg: 0,
+            potassium_mg: 180,
+            source: "ai",
+            confidence: 0.88,
+            is_user_edited: true,
+            sort_order: 1,
+          },
+        ],
+      })
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(json.input_mode).toBe("text");
+    expect(json.ai_model).toBe("gpt-4o-mini");
+    expect(json.ai_confidence).toBeCloseTo(0.88, 2);
+    expect(json.items_saved).toBe(1);
+  });
+
   it("parses with AI when OPENAI_API_KEY is set", async () => {
     mocks.config.OPENAI_API_KEY = "key";
 

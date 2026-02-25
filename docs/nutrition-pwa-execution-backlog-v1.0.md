@@ -47,6 +47,32 @@ These constraints are non-negotiable and must be enforced at every layer (SQL ch
 
 ## 1.1 Ambiguity Resolutions (Normative)
 
+## 1.2 Compliance Patch Notes (2026-02-24)
+
+The following implementation-level contracts were added to close open compliance gaps:
+
+- AI review-before-save flow:
+  - New parse-preview endpoint: `POST /api/nutrition/log-preview`
+  - Save-reviewed mode on canonical log endpoint: `save_mode='ai_reviewed'` on `POST /api/nutrition/log`
+  - UI now requires parsed item review/edit before final save for AI text flow.
+
+- Manual fallback non-blocking:
+  - Manual save no longer requires non-zero macro/calorie values.
+  - Required fields are item name + valid non-negative nutrient numbers (including zeros).
+
+- Water intake tracking:
+  - New endpoint: `POST /api/nutrition/water` with `{ date, water_ml }`
+  - Nutrition Today UI includes water input and save action.
+
+- Training-day sync with skip-day handling:
+  - `syncTrainingDay` now treats dates in `user_profile.skipped_dates` as rest-day nutrition targets.
+
+- Evidence tests added:
+  - `tests/api/nutritionLogPreview.test.ts`
+  - `tests/api/nutritionReadEndpoints.test.ts`
+  - `tests/api/nutritionWater.test.ts`
+
+
 The following definitions are binding and remove ambiguity in the original wording:
 
 ### A. Parse Response Time (`Response time < 3 seconds`)

@@ -1,0 +1,127 @@
+import { NextResponse } from "next/server";
+import { CONFIG, requireConfig } from "@/lib/config";
+import { callOpenAI } from "@/lib/ai/openai";
+import { buildMealParseSystemPrompt, buildMealParseUserPrompt } from "@/lib/ai/prompts";
+
+export const dynamic = "force-dynamic";
+
+const ALLOWED_PROTEINS = ["chicken", "shrimp", "eggs", "dairy", "plant"];
+const LOW_CONFIDENCE_THRESHOLD = 0.3;
+
+type ParsedFoodItem = {
+  item_name: string;
+  quantity: number;
+  unit: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  fiber_g: number;
+  sugar_g: number;
+  sodium_mg: number;
+  iron_mg: number;
+  calcium_mg: number;
+  vitamin_d_mcg: number;
+  vitamin_c_mg: number;
+  potassium_mg: number;
+  source: "ai";
+  confidence: number;
+  is_user_edited: boolean;
+  sort_order: number;
+};
+
+type OpenAIParseResponse = {
+  items?: Array<Partial<ParsedFoodItem>>;
+  overall_confidence?: number;
+};
+
+function hasMeaningfulNutrition(item: ParsedFoodItem): boolean {
+  return (
+    item.calories > 0 ||
+    item.protein_g > 0 ||
+    item.carbs_g > 0 ||
+    item.fat_g > 0 ||
+    item.fiber_g > 0
+  );
+}
+
+export async function POST(req: Request) {
+  requireConfig();
+  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!body) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+
+  const rawInput = typeof body.raw_input === "string" ? body.raw_input.trim() : "";
+  if (!rawInput) {
+    return NextResponse.json({ error: "missing_raw_input" }, { status: 400 });
+  }
+
+  if (!CONFIG.OPENAI_API_KEY) {
+    return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
+  }
+
+  const systemPrompt = buildMealParseSystemPrompt(ALLOWED_PROTEINS);
+  const userPrompt = buildMealParseUserPrompt(rawInput);
+
+  try {
+    const startedAt = Date.now();
+    const rawJson = await callOpenAI({
+      model: "gpt-4o-mini",
+      systemPrompt,
+      userContent: userPrompt,
+      maxTokens: 2048,
+      responseFormat: "json_object",
+      timeoutMs: 2500,
+    });
+    const parseDurationMs = Date.now() - startedAt;
+
+    const parsed = JSON.parse(rawJson) as OpenAIParseResponse;
+    const rawItems = Array.isArray(parsed?.items) ? parsed.items : [];
+
+    const items: ParsedFoodItem[] = rawItems.map((item, idx) => ({
+      item_name: String(item.item_name ?? `Item ${idx + 1}`),
+      quantity: Math.max(0, Number(item.quantity ?? 1)),
+      unit: String(item.unit ?? "serving"),
+      calories: Math.max(0, Number(item.calories ?? 0)),
+      protein_g: Math.max(0, Number(item.protein_g ?? 0)),
+      carbs_g: Math.max(0, Number(item.carbs_g ?? 0)),
+      fat_g: Math.max(0, Number(item.fat_g ?? 0)),
+      fiber_g: Math.max(0, Number(item.fiber_g ?? 0)),
+      sugar_g: Math.max(0, Number(item.sugar_g ?? 0)),
+      sodium_mg: Math.max(0, Number(item.sodium_mg ?? 0)),
+      iron_mg: Math.max(0, Number(item.iron_mg ?? 0)),
+      calcium_mg: Math.max(0, Number(item.calcium_mg ?? 0)),
+      vitamin_d_mcg: Math.max(0, Number(item.vitamin_d_mcg ?? 0)),
+      vitamin_c_mg: Math.max(0, Number(item.vitamin_c_mg ?? 0)),
+      potassium_mg: Math.max(0, Number(item.potassium_mg ?? 0)),
+      source: "ai",
+      confidence: Math.min(1, Math.max(0, Number(item.confidence ?? 0.8))),
+      is_user_edited: false,
+      sort_order: idx + 1,
+    }));
+
+    if (!items.length || !items.some(hasMeaningfulNutrition)) {
+      return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
+    }
+
+    const aiConfidence =
+      items.reduce((sum, it) => sum + it.confidence, 0) / Math.max(1, items.length) ||
+      Number(parsed?.overall_confidence ?? 0.8);
+
+    const warnings: string[] = [];
+    if (aiConfidence < LOW_CONFIDENCE_THRESHOLD) {
+      warnings.push("low_confidence_parse");
+    }
+
+    return NextResponse.json({
+      ok: true,
+      input_mode: "text",
+      ai_model: "gpt-4o-mini",
+      ai_confidence: Math.min(1, Math.max(0, aiConfidence)),
+      parse_duration_ms: parseDurationMs,
+      items,
+      warnings,
+    });
+  } catch {
+    return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
+  }
+}

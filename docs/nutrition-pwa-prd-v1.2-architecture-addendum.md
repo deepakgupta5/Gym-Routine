@@ -13,6 +13,14 @@ This addendum introduces a local-first nutrition intelligence architecture and i
 - strict tool API surface for logging/edit/undo,
 - phased MVP build order.
 
+## 1.0 Scope Precedence (Normative)
+
+To remove contradictions with v1.0/v1.1 and shipped code:
+- v1.0 backlog + v1.1 shipped PRD remain the authoritative implementation scope for this repo.
+- This v1.2 document contains exploratory architecture options and interaction patterns.
+- Any v1.2 item that conflicts with current server-backed Supabase + OpenAI architecture is non-blocking and not required for release acceptance.
+- Specifically, USDA-first matching and SQLite-only storage are optional future tracks, not active release gates.
+
 ## 1.1 Ambiguity Resolutions (Binding)
 
 These clarifications are now normative for implementation and testing:

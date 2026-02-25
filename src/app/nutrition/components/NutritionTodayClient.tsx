@@ -126,6 +126,37 @@ type PhotoParseResponse = {
   items: PhotoParseItem[];
 };
 
+type PreviewItem = {
+  item_name: string;
+  quantity: number;
+  unit: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  fiber_g: number;
+  sugar_g: number;
+  sodium_mg: number;
+  iron_mg: number;
+  calcium_mg: number;
+  vitamin_d_mcg: number;
+  vitamin_c_mg: number;
+  potassium_mg: number;
+  source: "ai" | "manual";
+  confidence: number | null;
+  is_user_edited: boolean;
+  sort_order: number;
+};
+
+type LogPreviewResponse = {
+  ok: true;
+  items: PreviewItem[];
+  ai_confidence: number;
+  parse_duration_ms: number;
+  warnings: string[];
+};
+
+
 type ManualItemDraft = {
   item_name: string;
   calories: string;
@@ -169,6 +200,10 @@ function mapErrorCode(errorCode: string): string {
       return "AI is not configured right now. Use Manual mode.";
     case "invalid_item_fields":
       return "Manual item details are invalid. Check fields and try again.";
+    case "invalid_water_ml":
+      return "Water amount must be between 0 and 10000 ml.";
+    case "nutrition_water_update_failed":
+      return "Could not update water intake.";
     default:
       return errorCode;
   }
@@ -218,9 +253,13 @@ export default function NutritionTodayClient() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
+  const [aiPreviewItems, setAiPreviewItems] = useState<PreviewItem[]>([]);
   const [savingAi, setSavingAi] = useState(false);
+  const [savingReviewedAi, setSavingReviewedAi] = useState(false);
   const [savingManual, setSavingManual] = useState(false);
   const [savingPhoto, setSavingPhoto] = useState(false);
+  const [waterInput, setWaterInput] = useState("");
+  const [savingWater, setSavingWater] = useState(false);
 
   const [mealDrafts, setMealDrafts] = useState<Record<string, MealDraft>>({});
   const [updatingMealId, setUpdatingMealId] = useState<string | null>(null);
@@ -294,22 +333,20 @@ export default function NutritionTodayClient() {
     clearFormMessages();
     setSavingAi(true);
 
-    const res = await fetch("/api/nutrition/log", {
+    const res = await fetch("/api/nutrition/log-preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         meal_date: selectedDate,
         meal_type: mealType,
         raw_input: rawInput,
-        notes,
-        save_mode: "ai_parse",
         client_tz_offset_min: new Date().getTimezoneOffset(),
       }),
     });
 
-    const json = (await res.json().catch(() => null)) as { error?: string } | null;
+    const json = (await res.json().catch(() => null)) as LogPreviewResponse | { error?: string } | null;
 
-    if (res.status === 422 && json?.error === "parse_failed_manual_required") {
+    if (res.status === 422 && json && "error" in json && json.error === "parse_failed_manual_required") {
       setSavingAi(false);
       setEntryMode("manual");
       if (!manualItem.item_name.trim()) {
@@ -319,18 +356,23 @@ export default function NutritionTodayClient() {
       return;
     }
 
-    if (!res.ok) {
+    if (!res.ok || !json || ("error" in json && json.error)) {
       setSavingAi(false);
-      setFormError(mapErrorCode(json?.error || "nutrition_log_save_failed"));
+      setFormError(mapErrorCode((json && "error" in json ? json.error : "nutrition_log_save_failed") || "nutrition_log_save_failed"));
       return;
     }
 
+    const preview = (json as LogPreviewResponse).items ?? [];
+    if (preview.length === 0) {
+      setSavingAi(false);
+      setFormError("AI parse returned no items. Use Manual mode.");
+      setEntryMode("manual");
+      return;
+    }
+
+    setAiPreviewItems(preview);
     setSavingAi(false);
-    setRawInput("");
-    setNotes("");
-    setFormSuccess("Meal saved with AI.");
-    await loadDay(selectedDate);
-    await loadInsights(selectedDate);
+    setFormSuccess("Review parsed items, edit if needed, then Save Reviewed Meal.");
   }
 
   async function saveManual() {
@@ -347,12 +389,6 @@ export default function NutritionTodayClient() {
     const protein = asNonNegativeNumber(manualItem.protein_g);
     const carbs = asNonNegativeNumber(manualItem.carbs_g);
     const fat = asNonNegativeNumber(manualItem.fat_g);
-
-    if (calories <= 0 && protein <= 0 && carbs <= 0 && fat <= 0) {
-      setFormError("Add at least calories or one macro so totals can update.");
-      setEntryMode("manual");
-      return;
-    }
 
     clearFormMessages();
     setSavingManual(true);
@@ -407,6 +443,137 @@ export default function NutritionTodayClient() {
     setRawInput("");
     setNotes("");
     setFormSuccess("Manual meal saved.");
+    await loadDay(selectedDate);
+    await loadInsights(selectedDate);
+  }
+
+  function updatePreviewItem(index: number, key: keyof PreviewItem, value: string | number) {
+    setAiPreviewItems((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== index) return item;
+        const next: PreviewItem = {
+          ...item,
+          [key]: typeof value === "string" && key !== "item_name" && key !== "unit"
+            ? asNonNegativeNumber(value)
+            : value,
+          is_user_edited: true,
+        } as PreviewItem;
+        return next;
+      })
+    );
+  }
+
+  function addManualPreviewItem() {
+    setAiPreviewItems((prev) => [
+      ...prev,
+      {
+        item_name: "",
+        quantity: 1,
+        unit: "serving",
+        calories: 0,
+        protein_g: 0,
+        carbs_g: 0,
+        fat_g: 0,
+        fiber_g: 0,
+        sugar_g: 0,
+        sodium_mg: 0,
+        iron_mg: 0,
+        calcium_mg: 0,
+        vitamin_d_mcg: 0,
+        vitamin_c_mg: 0,
+        potassium_mg: 0,
+        source: "manual",
+        confidence: null,
+        is_user_edited: true,
+        sort_order: prev.length + 1,
+      },
+    ]);
+  }
+
+  function removePreviewItem(index: number) {
+    setAiPreviewItems((prev) =>
+      prev
+        .filter((_, idx) => idx !== index)
+        .map((item, idx) => ({ ...item, sort_order: idx + 1 }))
+    );
+  }
+
+  async function saveReviewedAiMeal() {
+    if (aiPreviewItems.length === 0) {
+      setFormError("No parsed items to save.");
+      return;
+    }
+
+    const normalized = aiPreviewItems
+      .map((item, idx) => ({
+        ...item,
+        item_name: item.item_name.trim(),
+        sort_order: idx + 1,
+      }))
+      .filter((item) => item.item_name.length > 0);
+
+    if (normalized.length === 0) {
+      setFormError("At least one item name is required before saving.");
+      return;
+    }
+
+    clearFormMessages();
+    setSavingReviewedAi(true);
+
+    const res = await fetch("/api/nutrition/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        meal_date: selectedDate,
+        meal_type: mealType,
+        raw_input: rawInput,
+        notes,
+        save_mode: "ai_reviewed",
+        client_tz_offset_min: new Date().getTimezoneOffset(),
+        items: normalized,
+      }),
+    });
+
+    const json = (await res.json().catch(() => null)) as { error?: string } | null;
+
+    if (!res.ok) {
+      setSavingReviewedAi(false);
+      setFormError(mapErrorCode(json?.error || "nutrition_log_save_failed"));
+      return;
+    }
+
+    setSavingReviewedAi(false);
+    setAiPreviewItems([]);
+    setRawInput("");
+    setNotes("");
+    setFormSuccess("Reviewed meal saved.");
+    await loadDay(selectedDate);
+    await loadInsights(selectedDate);
+  }
+
+  async function saveWaterIntake() {
+    const waterMl = asNonNegativeNumber(waterInput);
+
+    clearFormMessages();
+    setSavingWater(true);
+
+    const res = await fetch("/api/nutrition/water", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: selectedDate, water_ml: waterMl }),
+    });
+
+    const json = (await res.json().catch(() => null)) as { error?: string } | null;
+
+    if (!res.ok) {
+      setSavingWater(false);
+      setFormError(mapErrorCode(json?.error || "nutrition_water_update_failed"));
+      return;
+    }
+
+    setSavingWater(false);
+    setWaterInput("");
+    setFormSuccess("Water intake updated.");
     await loadDay(selectedDate);
     await loadInsights(selectedDate);
   }
@@ -610,6 +777,34 @@ export default function NutritionTodayClient() {
             ))}
           </div>
 
+          <div className="mt-3 rounded-lg border border-gray-700 bg-gray-900 p-4">
+            <h2 className="mb-2 text-lg font-semibold text-gray-100">Water</h2>
+            <div className="mb-2 text-sm text-gray-200">
+              {Math.round(data.totals.water_ml)} ml / {Math.round(data.goals.target_water_ml)} ml
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <input
+                value={waterInput}
+                onChange={(e) => {
+                  setWaterInput(e.target.value);
+                  clearFormMessages();
+                }}
+                placeholder="Water ml"
+                type="number"
+                min={0}
+                className="rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
+              />
+              <button
+                type="button"
+                onClick={() => void saveWaterIntake()}
+                disabled={savingWater}
+                className="rounded-md border border-sky-700 bg-sky-600 px-3 py-2 text-sm text-white disabled:opacity-50"
+              >
+                {savingWater ? "Saving..." : "Save Water"}
+              </button>
+            </div>
+          </div>
+
           <div className="mt-5 rounded-lg border border-gray-700 bg-gray-900 p-4">
             <h2 className="mb-3 text-lg font-semibold text-gray-100">Log Meal</h2>
 
@@ -705,8 +900,82 @@ export default function NutritionTodayClient() {
                   disabled={savingAi}
                   className="mt-3 rounded-md border border-blue-700 bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
                 >
-                  {savingAi ? "Saving..." : "Save With AI"}
+                  {savingAi ? "Parsing..." : "Parse With AI"}
                 </button>
+
+                {aiPreviewItems.length > 0 && (
+                  <div className="mt-4 rounded-md border border-gray-700 bg-gray-900 p-3">
+                    <div className="mb-2 text-sm font-medium text-gray-100">Review Parsed Items</div>
+                    <div className="space-y-3">
+                      {aiPreviewItems.map((item, idx) => (
+                        <div key={`${item.item_name}-${idx}`} className="rounded-md border border-gray-700 bg-gray-800 p-2">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <span className="text-xs text-gray-400">Item {idx + 1} ({item.source})</span>
+                            <button
+                              type="button"
+                              onClick={() => removePreviewItem(idx)}
+                              className="rounded border border-red-700 bg-red-600 px-2 py-1 text-[11px] text-white"
+                            >
+                              Remove
+                            </button>
+                          </div>
+
+                          <div className="grid gap-2 sm:grid-cols-3">
+                            <input
+                              value={item.item_name}
+                              onChange={(e) => updatePreviewItem(idx, "item_name", e.target.value)}
+                              placeholder="Item"
+                              className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100"
+                            />
+                            <input
+                              value={item.quantity}
+                              onChange={(e) => updatePreviewItem(idx, "quantity", e.target.value)}
+                              placeholder="Qty"
+                              type="number"
+                              className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100"
+                            />
+                            <input
+                              value={item.unit}
+                              onChange={(e) => updatePreviewItem(idx, "unit", e.target.value)}
+                              placeholder="Unit"
+                              className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100"
+                            />
+                            <input value={item.calories} onChange={(e) => updatePreviewItem(idx, "calories", e.target.value)} placeholder="Calories" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            <input value={item.protein_g} onChange={(e) => updatePreviewItem(idx, "protein_g", e.target.value)} placeholder="Protein g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            <input value={item.carbs_g} onChange={(e) => updatePreviewItem(idx, "carbs_g", e.target.value)} placeholder="Carbs g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            <input value={item.fat_g} onChange={(e) => updatePreviewItem(idx, "fat_g", e.target.value)} placeholder="Fat g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            <input value={item.fiber_g} onChange={(e) => updatePreviewItem(idx, "fiber_g", e.target.value)} placeholder="Fiber g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            <input value={item.sugar_g} onChange={(e) => updatePreviewItem(idx, "sugar_g", e.target.value)} placeholder="Sugar g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            <input value={item.sodium_mg} onChange={(e) => updatePreviewItem(idx, "sodium_mg", e.target.value)} placeholder="Sodium mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            <input value={item.iron_mg} onChange={(e) => updatePreviewItem(idx, "iron_mg", e.target.value)} placeholder="Iron mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            <input value={item.calcium_mg} onChange={(e) => updatePreviewItem(idx, "calcium_mg", e.target.value)} placeholder="Calcium mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            <input value={item.vitamin_d_mcg} onChange={(e) => updatePreviewItem(idx, "vitamin_d_mcg", e.target.value)} placeholder="Vitamin D mcg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            <input value={item.vitamin_c_mg} onChange={(e) => updatePreviewItem(idx, "vitamin_c_mg", e.target.value)} placeholder="Vitamin C mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            <input value={item.potassium_mg} onChange={(e) => updatePreviewItem(idx, "potassium_mg", e.target.value)} placeholder="Potassium mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={addManualPreviewItem}
+                        className="rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-100"
+                      >
+                        Add Manual Item
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void saveReviewedAiMeal()}
+                        disabled={savingReviewedAi}
+                        className="rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm text-white disabled:opacity-50"
+                      >
+                        {savingReviewedAi ? "Saving..." : "Save Reviewed Meal"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

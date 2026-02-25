@@ -90,16 +90,18 @@ export async function syncTrainingDay(
   userId: string,
   date: string // "YYYY-MM-DD"
 ): Promise<void> {
-  const profileRes = await client.query<{ block_id: string | null }>(
-    `SELECT block_id FROM user_profile WHERE user_id = $1`,
+  const profileRes = await client.query<{ block_id: string | null; skipped_dates: string[] | null }>(
+    `SELECT block_id, skipped_dates FROM user_profile WHERE user_id = $1`,
     [userId]
   );
 
   const blockId = profileRes.rows[0]?.block_id ?? null;
+  const skippedDates = profileRes.rows[0]?.skipped_dates ?? [];
+  const isSkippedDate = skippedDates.includes(date);
 
   let isTrainingDay = false;
 
-  if (blockId) {
+  if (blockId && !isSkippedDate) {
     const sessionRes = await client.query<{ is_deload: boolean }>(
       `SELECT is_deload
        FROM plan_sessions

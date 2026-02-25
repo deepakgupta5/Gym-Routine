@@ -152,7 +152,7 @@ export async function POST(req: Request) {
   const mealType = resolveMealType(rawMealType, clientTzOffsetMin);
 
   const saveMode = body.save_mode;
-  if (saveMode !== "ai_parse" && saveMode !== "manual") {
+  if (saveMode !== "ai_parse" && saveMode !== "manual" && saveMode !== "ai_reviewed") {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
@@ -204,6 +204,30 @@ export async function POST(req: Request) {
     } catch {
       return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
     }
+  } else if (saveMode === "ai_reviewed") {
+    if (!rawInput) {
+      return NextResponse.json({ error: "missing_raw_input" }, { status: 400 });
+    }
+    if (userItems.length === 0) {
+      return NextResponse.json({ error: "invalid_item_fields" }, { status: 400 });
+    }
+
+    for (const item of userItems) {
+      if (!validateItemFields(item)) {
+        return NextResponse.json({ error: "invalid_item_fields" }, { status: 400 });
+      }
+    }
+
+    inputMode = "text";
+    aiModel = "gpt-4o-mini";
+
+    const confidences = userItems
+      .map((item) => (item.source === "ai" ? Number(item.confidence ?? 0) : null))
+      .filter((c): c is number => c !== null && Number.isFinite(c));
+
+    aiConfidence = confidences.length
+      ? confidences.reduce((sum, v) => sum + v, 0) / confidences.length
+      : null;
   } else {
     if (userItems.length === 0) {
       return NextResponse.json({ error: "invalid_item_fields" }, { status: 400 });
