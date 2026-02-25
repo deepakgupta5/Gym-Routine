@@ -200,10 +200,11 @@ export default async function DashboardPage() {
                and tsh2.exercise_id = tsh.exercise_id
                and tsh2.performed_at < tsh.performed_at
              where tsh.user_id = $1
+               and tsh.block_id = $2
              group by tsh.exercise_id, tsh.estimated_1rm, tsh.performed_at
              having tsh.estimated_1rm > coalesce(max(tsh2.estimated_1rm), 0)
            ) pr_sets`,
-          [userId]
+          [userId, blockId]
         )
       : { rows: [{ pr_count: 0 }] };
     const prCount = Number(prCountRes.rows[0]?.pr_count ?? 0);
@@ -304,11 +305,11 @@ export default async function DashboardPage() {
           {/* PR Count Badge (#19) */}
           {prCount > 0 && (
             <div className="rounded-lg border border-amber-700 bg-amber-950/30 p-3">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-amber-600 bg-amber-950/60 px-2.5 py-1 text-xs font-semibold text-amber-300">
-                  {prCount} PR{prCount !== 1 ? "s" : ""}
+                  {prCount} PR{prCount !== 1 ? "s" : ""} (Personal Records)
                 </span>
-                <span className="text-sm text-gray-300">Personal records set this block</span>
+                <span className="text-sm text-gray-300">Set in current block</span>
               </div>
             </div>
           )}
