@@ -71,6 +71,7 @@ The following implementation-level contracts were added to close open compliance
   - `tests/api/nutritionLogPreview.test.ts`
   - `tests/api/nutritionReadEndpoints.test.ts`
   - `tests/api/nutritionWater.test.ts`
+  - `tests/api/nutritionToday.test.ts`
 
 
 The following definitions are binding and remove ambiguity in the original wording:
@@ -1089,7 +1090,7 @@ Days with no logged data return zero totals and `adherence_pct: 0`. `adherence_p
 
 | ID | Story | Files | Notes |
 |---|---|---|---|
-| S3.1 | Bottom tab restructure | `src/app/BottomNav.tsx`, `src/app/more/page.tsx` | Replace Today/Dashboard/History/Upload with Today/Nutrition/Dashboard/More. "More" page links to History (`/history`), Upload (`/upload`), and Settings (placeholder). |
+| S3.1 | Bottom tab restructure | `src/app/BottomNav.tsx`, `src/app/more/page.tsx` | Replace Today/Dashboard/History/Upload with Gym/Nutrition/Dashboard/More. "More" page links to History (`/history`), Upload (`/upload`), and Settings (placeholder). |
 | S3.2 | Nutrition Today page | `src/app/nutrition/today/page.tsx`, `src/app/nutrition/components/DailySummary.tsx`, `src/app/nutrition/components/MealCard.tsx`, `src/app/nutrition/components/MacroRings.tsx`, `src/app/nutrition/components/AddMealButton.tsx`, `src/app/nutrition/components/MealLogDrawer.tsx` | Fetches `/api/nutrition/today`. Shows macro rings, meal list with expand/edit/delete, add-meal button. |
 | S3.3 | Nutrition History page | `src/app/nutrition/history/page.tsx` | Fetches `/api/nutrition/history`. Day-summary list. Tap day to expand meal list. |
 | S3.4 | Loading + error states | `src/app/nutrition/today/loading.tsx`, `src/app/nutrition/today/error.tsx` | Skeleton loader. Error boundary with retry CTA. |

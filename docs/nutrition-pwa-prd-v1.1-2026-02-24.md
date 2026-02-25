@@ -1,9 +1,20 @@
 # Nutrition + Gym Integrated PWA PRD (Updated)
 
 Version: 1.1  
-Date: 2026-02-24  
+Date: 2026-02-25  
 Type: Single integrated PWA  
 Source of truth: Current repository implementation + applied migrations
+
+
+## 0) Document Precedence Lock (2026-02-25)
+For compliance scoring in this repo:
+1. Canonical release-gating UI and behavior contract is this v1.1 document.
+2. v1.0 backlog remains a detailed implementation reference; when wording conflicts with v1.1 shipped summary, v1.1 prevails.
+3. v1.2 addendum Sections 2-10 are exploratory and non-release-gating unless a separate local-first adoption record is added.
+4. Canonical contradiction resolutions for current release:
+   - Bottom nav first tab label is `Gym`.
+   - Manual nutrition save allows zero macro/calorie values.
+   - v1.2-only day-page clarification modal, shortcuts, Favorites/Recents, and Recipe mode are not required for release acceptance.
 
 ## 1) Product Objective
 One daily-use system combining gym execution and nutrition adherence with low-friction logging, focused on fat loss, waist reduction, and muscle retention.
@@ -24,6 +35,12 @@ One daily-use system combining gym execution and nutrition adherence with low-fr
 - `npm run lint`: PASS
 - `npm test`: PASS
 - `npm run build`: PASS
+
+### 2026-02-25 Implementation Update
+- Nutrition Day water tracking UI is present (water input + save action) and wired to `POST /api/nutrition/water`.
+- `GET /api/nutrition/today` includes water fields in goals/totals/deltas (`target_water_ml`, `water_ml`, `water_remaining_ml`).
+- AI-unavailable fallback message is explicit in both text-parse and photo-parse manual fallback paths.
+- Added API coverage: `tests/api/nutritionToday.test.ts` for water target/current/remaining response shape.
 
 ## 3) Navigation + IA (Shipped)
 Bottom tabs are now:
@@ -152,6 +169,10 @@ Success `200`:
 - `{ date, goals, totals, deltas, meals }`
 
 Notes:
+- Includes water fields for day tracking:
+  - `goals.target_water_ml`
+  - `totals.water_ml`
+  - `deltas.water_remaining_ml`
 - Sparse data guaranteed (defaults returned; never null shape)
 - Auto-syncs training/rest goal for the date
 
@@ -209,8 +230,22 @@ Errors:
 - `503`: `openai_unavailable`
 - `500`: `nutrition_plan_generate_failed`
 
+## 6.10 `POST /api/nutrition/water`
+Purpose: set water intake for a date in daily rollups.
+
+Request (JSON):
+- `date?: YYYY-MM-DD` (defaults to today UTC if omitted)
+- `water_ml: number` (0..10000)
+
+Success `200`:
+- `{ ok: true, date, water_ml }`
+
+Errors:
+- `400`: `invalid_body|invalid_date|invalid_water_ml`
+- `500`: `nutrition_water_update_failed`
+
 ## 7) Shipped UI Scope
-- Nutrition Today: logging, manual fallback, edit/delete, insight panel
+- Nutrition Today: logging, manual fallback, edit/delete, insight panel, water input/save
 - Nutrition History: range filtering + empty states
 - Meal Plan page: constraints input + forbidden protein surfaced in UX
 - Trends page: 7-day + 30-day visuals and adherence summaries

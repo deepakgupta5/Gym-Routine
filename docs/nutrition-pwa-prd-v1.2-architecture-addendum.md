@@ -21,6 +21,17 @@ To remove contradictions with v1.0/v1.1 and shipped code:
 - Any v1.2 item that conflicts with current server-backed Supabase + OpenAI architecture is non-blocking and not required for release acceptance.
 - Specifically, USDA-first matching and SQLite-only storage are optional future tracks, not active release gates.
 
+
+### 1.0.1 Current Release Contradiction Closure (2026-02-25)
+To make audit outcomes actionable for this repo now:
+- `Gym` is the canonical first bottom-tab label.
+- Manual save baseline allows zero macro/calorie values.
+- The following v1.2 UI items are exploratory and non-release-gating until local-first adoption is explicitly approved:
+  - clarification modal threshold behavior,
+  - shortcut commands (`same as yesterday`, `add 1 tbsp olive oil`, `half portion`),
+  - Favorites/Recents quick-relog module,
+  - Recipe mode UI.
+
 ## 1.1 Ambiguity Resolutions (Binding for Current Repo)
 
 These clarifications are normative for the current server-backed implementation and test validation in this repo:

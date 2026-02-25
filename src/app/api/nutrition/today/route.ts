@@ -26,6 +26,7 @@ type GoalsRow = {
   target_sodium_mg_max: number;
   target_iron_mg: number;
   target_vitamin_d_mcg: number;
+  target_water_ml: number;
 };
 
 type RollupRow = {
@@ -38,6 +39,7 @@ type RollupRow = {
   total_sodium_mg: number;
   total_iron_mg: number;
   total_vitamin_d_mcg: number;
+  water_ml: number;
   meal_count: number;
 };
 
@@ -52,6 +54,7 @@ const DEFAULT_GOALS: GoalsRow = {
   target_sodium_mg_max: 2300,
   target_iron_mg: 8,
   target_vitamin_d_mcg: 15,
+  target_water_ml: 3000,
 };
 
 const ZERO_ROLLUP: RollupRow = {
@@ -64,6 +67,7 @@ const ZERO_ROLLUP: RollupRow = {
   total_sodium_mg: 0,
   total_iron_mg: 0,
   total_vitamin_d_mcg: 0,
+  water_ml: 0,
   meal_count: 0,
 };
 
@@ -95,7 +99,8 @@ export async function GET(req: NextRequest) {
            target_sugar_g_max::float   AS target_sugar_g_max,
            target_sodium_mg_max::float AS target_sodium_mg_max,
            target_iron_mg::float       AS target_iron_mg,
-           target_vitamin_d_mcg::float AS target_vitamin_d_mcg
+           target_vitamin_d_mcg::float AS target_vitamin_d_mcg,
+           target_water_ml::float      AS target_water_ml
          FROM nutrition_goals_daily
          WHERE user_id = $1 AND goal_date = $2`,
         [userId, date]
@@ -111,6 +116,7 @@ export async function GET(req: NextRequest) {
            total_sodium_mg::float     AS total_sodium_mg,
            total_iron_mg::float       AS total_iron_mg,
            total_vitamin_d_mcg::float AS total_vitamin_d_mcg,
+           water_ml::float            AS water_ml,
            meal_count
          FROM daily_nutrition_rollups
          WHERE user_id = $1 AND rollup_date = $2`,
@@ -175,6 +181,7 @@ export async function GET(req: NextRequest) {
       sodium_headroom_mg: goals.target_sodium_mg_max - totals.total_sodium_mg,
       iron_remaining_mg: Math.max(0, goals.target_iron_mg - totals.total_iron_mg),
       vitamin_d_remaining_mcg: Math.max(0, goals.target_vitamin_d_mcg - totals.total_vitamin_d_mcg),
+      water_remaining_ml: Math.max(0, goals.target_water_ml - totals.water_ml),
     };
 
     return NextResponse.json({ date, goals, totals, deltas, meals });

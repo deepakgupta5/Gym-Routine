@@ -55,6 +55,7 @@ type NutritionTodayResponse = {
     target_sodium_mg_max: number;
     target_iron_mg: number;
     target_vitamin_d_mcg: number;
+    target_water_ml: number;
   };
   totals: {
     total_calories: number;
@@ -66,6 +67,7 @@ type NutritionTodayResponse = {
     total_sodium_mg: number;
     total_iron_mg: number;
     total_vitamin_d_mcg: number;
+    water_ml: number;
     meal_count: number;
   };
   deltas: {
@@ -78,6 +80,7 @@ type NutritionTodayResponse = {
     sodium_headroom_mg: number;
     iron_remaining_mg: number;
     vitamin_d_remaining_mcg: number;
+    water_remaining_ml: number;
   };
   meals: MealLog[];
 };
@@ -236,6 +239,10 @@ function mapErrorCode(errorCode: string): string {
       return "Review parsed items before saving.";
     case "forbidden_protein_in_meal_log":
       return "This meal contains a forbidden protein (fish, beef, lamb, pork, goat).";
+    case "invalid_water_ml":
+      return "Water must be between 0 and 10000 ml.";
+    case "nutrition_water_update_failed":
+      return "Could not save water intake. Try again.";
     default:
       return errorCode;
   }
@@ -286,6 +293,8 @@ export default function NutritionTodayClient() {
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [aiInputError, setAiInputError] = useState<string | null>(null);
   const [manualFallbackHint, setManualFallbackHint] = useState<string | null>(null);
+  const [waterInputMl, setWaterInputMl] = useState("0");
+  const [savingWater, setSavingWater] = useState(false);
 
   const [aiPreviewItems, setAiPreviewItems] = useState<PreviewItem[]>([]);
   const [reviewMeta, setReviewMeta] = useState<ReviewMeta>({
@@ -455,6 +464,7 @@ export default function NutritionTodayClient() {
 
     const next = json as NutritionTodayResponse;
     setData(next);
+    setWaterInputMl(String(Math.round(next.totals.water_ml ?? 0)));
 
     const nextDrafts: Record<string, MealDraft> = {};
     for (const meal of next.meals) {
@@ -651,6 +661,33 @@ export default function NutritionTodayClient() {
     await loadInsights(selectedDate);
   }
 
+  async function saveWater() {
+    const waterMl = Math.round(asNonNegativeNumber(waterInputMl));
+
+    clearFormMessages();
+    setSavingWater(true);
+
+    const res = await fetch("/api/nutrition/water", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: selectedDate, water_ml: waterMl }),
+    });
+
+    const json = (await res.json().catch(() => null)) as { error?: string; water_ml?: number } | null;
+
+    if (!res.ok) {
+      setSavingWater(false);
+      setFormError(mapErrorCode(json?.error || "nutrition_water_update_failed"));
+      return;
+    }
+
+    setSavingWater(false);
+    setWaterInputMl(String(Math.round(json?.water_ml ?? waterMl)));
+    setFormSuccess("Water intake saved.");
+    await loadDay(selectedDate);
+    await loadInsights(selectedDate);
+  }
+
   function updatePreviewItem(index: number, key: keyof PreviewItem, value: string | number) {
     setAiPreviewItems((prev) =>
       prev.map((item, idx) => {
@@ -792,8 +829,14 @@ export default function NutritionTodayClient() {
     if (!parseRes.ok || !parseJson || ("error" in parseJson && parseJson.error)) {
       setSavingPhoto(false);
       setEntryMode("manual");
-      setManualFallbackHint("Photo parse failed. You can save manually now.");
-      setFormError(mapErrorCode((parseJson && "error" in parseJson ? parseJson.error : "parse_failed") || "parse_failed"));
+      const code = (parseJson && "error" in parseJson ? parseJson.error : "parse_failed") || "parse_failed";
+      if (code === "openai_unavailable") {
+        setManualFallbackHint("AI not configured. Manual mode is available.");
+        setFormError("AI not configured. Switched to Manual mode.");
+      } else {
+        setManualFallbackHint("Photo parse failed. You can save manually now.");
+        setFormError(mapErrorCode(code));
+      }
       return;
     }
 
@@ -962,6 +1005,38 @@ export default function NutritionTodayClient() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="mt-5 rounded-lg border border-gray-700 bg-gray-900 p-4">
+            <h2 className="mb-3 text-lg font-semibold text-gray-100">Water</h2>
+            <div className="text-sm text-gray-200">
+              {Math.round(data.totals.water_ml)} ml / {Math.round(data.goals.target_water_ml)} ml
+            </div>
+            <div className="mt-2 text-xs text-gray-400">
+              Remaining: {Math.round(data.deltas.water_remaining_ml)} ml
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <input
+                type="number"
+                min={0}
+                max={10000}
+                value={waterInputMl}
+                onChange={(e) => {
+                  setWaterInputMl(e.target.value);
+                  clearFormMessages();
+                }}
+                placeholder="Water (ml)"
+                className="w-40 rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
+              />
+              <button
+                type="button"
+                onClick={() => void saveWater()}
+                disabled={savingWater}
+                className="rounded-md border border-sky-700 bg-sky-600 px-3 py-2 text-sm text-white disabled:opacity-50"
+              >
+                {savingWater ? "Saving..." : "Save Water"}
+              </button>
+            </div>
           </div>
 
           <div className="mt-5 rounded-lg border border-gray-700 bg-gray-900 p-4">
