@@ -160,7 +160,7 @@ export function useSessionLoggerController({
         targeted_primary_muscle: ex.targeted_primary_muscle,
         targeted_secondary_muscle: ex.targeted_secondary_muscle,
         role: ex.role,
-        set_type: form.setType,
+        set_type: defaultSetType(ex.role),
         set_index: setIndex,
         load,
         reps,
@@ -227,7 +227,7 @@ export function useSessionLoggerController({
       body: JSON.stringify({
         load,
         reps,
-        set_type: form.setType,
+        set_type: log.set_type === "top" ? "top" : "backoff",
         notes: form.notes || null,
       }),
     });

@@ -171,7 +171,6 @@ export default function ExerciseCard({
 
       {!complete && (
         <AddSetForm
-          role={exercise.role}
           form={form}
           isPending={pendingKey === `add-${exercise.exercise_id}`}
           isPrefilled={isPrefilled}

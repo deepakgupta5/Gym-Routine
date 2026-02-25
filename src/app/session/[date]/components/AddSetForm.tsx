@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { EntryForm, ExerciseView } from "./types";
+import { EntryForm } from "./types";
 
 type AddSetFormProps = {
-  role: ExerciseView["role"];
   form: EntryForm;
   isPending: boolean;
   isPrefilled?: boolean;
@@ -20,12 +19,8 @@ const FIELD_ERROR_CLASSES =
 
 const RPE_OPTIONS = ["6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10"];
 
-function defaultSetType(role: ExerciseView["role"]) {
-  return role === "primary" ? "top" : "backoff";
-}
 
 export default function AddSetForm({
-  role,
   form,
   isPending,
   isPrefilled = false,
@@ -51,7 +46,7 @@ export default function AddSetForm({
 
   return (
     <div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
         <label className="block">
           <div className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-400">Load</div>
           <input
@@ -101,20 +96,6 @@ export default function AddSetForm({
           {repsInvalid && (
             <div className="mt-0.5 text-xs text-red-400">Enter valid reps</div>
           )}
-        </label>
-
-        <label className="block col-span-1">
-          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-400">Set Type</div>
-          <select
-            value={form.setType || defaultSetType(role)}
-            onChange={(e) =>
-              onChange({ ...form, setType: e.target.value as EntryForm["setType"] })
-            }
-            className={FIELD_CLASSES}
-          >
-            <option value="top">top</option>
-            <option value="backoff">backoff</option>
-          </select>
         </label>
 
         <button

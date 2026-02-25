@@ -57,7 +57,7 @@ export default function EditSetForm({
 
   return (
     <div className="grid gap-2 rounded-lg border border-gray-700 bg-gray-900 p-3">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_1fr]">
+      <div className="grid grid-cols-2 gap-2">
         <input
           type="number"
           inputMode="decimal"
@@ -76,14 +76,6 @@ export default function EditSetForm({
           className={INPUT_CLASSES}
           placeholder="Reps"
         />
-        <select
-          value={form.setType}
-          onChange={(e) => onChange({ ...form, setType: e.target.value as EditForm["setType"] })}
-          className={INPUT_CLASSES}
-        >
-          <option value="top">top</option>
-          <option value="backoff">backoff</option>
-        </select>
       </div>
 
       <input
