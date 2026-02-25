@@ -39,8 +39,13 @@ One daily-use system combining gym execution and nutrition adherence with low-fr
 ### 2026-02-25 Implementation Update
 - Nutrition Day mode switcher is `Text | Photo`; Text keeps the existing AI parse + review-save flow (label-only change from `Text + AI`).
 - Nutrition Day no longer exposes a standalone Manual mode card in UI.
-- AI-unavailable messaging is explicit for Text and Photo parse paths.
+- Nutrition Day meal-type selector now exposes only `Breakfast | Lunch | Snack | Dinner` (no `Auto meal type` option in UI).
+- AI-unavailable messaging is explicit for Text and Photo parse paths, with no forced mode switch.
 - Water tracking card and `POST /api/nutrition/water` endpoint were removed from shipped UI/API scope.
+- Dashboard PR badge wording is explicit: `Personal Record(s)` with scope text `Since start of current training block`.
+- Dashboard sparkline/weight charts include explicit span indicators in days/weeks.
+- Session logger uses neutral logged-set labeling (`Set #N`) with no TOP/BACKOFF default tagging in the current UI.
+- `Export Workout CSV` remains an in-app download action from `More` without routing users to a dead-end export screen.
 
 ## 3) Navigation + IA (Shipped)
 Bottom tabs are now:
@@ -236,15 +241,19 @@ Status:
 - Nutrition Day no longer exposes a standalone Water card or Water save action.
 
 ## 7) Shipped UI Scope
-- Nutrition Today: logging (Text + Photo), edit/delete, insight panel
+- Nutrition Today: logging (Text + Photo tabs), edit/delete, insight panel
+- Nutrition Today meal-type selector in logger: `Breakfast | Lunch | Snack | Dinner` (UI excludes `Auto`)
 - Nutrition History: range filtering + empty states
 - Meal Plan page: constraints input + forbidden protein surfaced in UX
 - Trends page: 7-day + 30-day visuals and adherence summaries
 - Dashboard merge: `NutritionQuickStats` integrated into gym dashboard
+- Dashboard PR badge copy is explicit (`Personal Record(s)` + block scope text)
+- Dashboard charts show explicit day/week span indicators
+- Session logger logged-set labels are neutral (`Set #N`) instead of TOP/BACKOFF defaults
 - Dashboard cleanup shipped:
   - top "Next Workout" card removed
   - upload/export action block removed from dashboard
-  - export moved under More page
+  - export moved under More page as in-app CSV download action
   - bottom tab label now "Gym"
 
 ## 8) Security + Privacy Verification
