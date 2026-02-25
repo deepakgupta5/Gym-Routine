@@ -39,7 +39,10 @@ One daily-use system combining gym execution and nutrition adherence with low-fr
 ### 2026-02-25 Implementation Update
 - Nutrition Day mode switcher is `Text | Photo`; Text keeps the existing AI parse + review-save flow (label-only change from `Text + AI`).
 - Nutrition Day no longer exposes a standalone Manual mode card in UI.
+- Nutrition Day free-text meal input is shown above the `Text | Photo` mode controls.
 - Nutrition Day meal-type selector now exposes only `Breakfast | Lunch | Snack | Dinner` (no `Auto meal type` option in UI).
+- Nutrition Day add-meal card no longer shows shortcut action chips (`Same as yesterday`, `Add 1 tbsp olive oil`, `Half portion`).
+- Nutrition Day add-meal card no longer shows an optional notes input.
 - AI-unavailable messaging is explicit for Text and Photo parse paths, with no forced mode switch.
 - Water tracking card and `POST /api/nutrition/water` endpoint were removed from shipped UI/API scope.
 - Dashboard PR badge wording is explicit: `Personal Record(s)` with scope text `Since start of current training block`.
@@ -242,6 +245,7 @@ Status:
 
 ## 7) Shipped UI Scope
 - Nutrition Today: logging (Text + Photo tabs), edit/delete, insight panel
+- Nutrition Today logger layout: free-text meal input above mode controls, no add-meal notes field, no shortcut action chips
 - Nutrition Today meal-type selector in logger: `Breakfast | Lunch | Snack | Dinner` (UI excludes `Auto`)
 - Nutrition History: range filtering + empty states
 - Meal Plan page: constraints input + forbidden protein surfaced in UX

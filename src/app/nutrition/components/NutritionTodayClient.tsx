@@ -173,7 +173,6 @@ type ReviewMeta = {
   warnings: string[];
 };
 
-
 type MealDraft = { meal_type: MealType; notes: string };
 
 function isoToday(): string {
@@ -183,12 +182,6 @@ function isoToday(): string {
 function asNonNegativeNumber(value: string): number {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? n : 0;
-}
-
-function isoDateMinusDays(date: string, days: number): string {
-  const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - days);
-  return d.toISOString().slice(0, 10);
 }
 
 function roundTwo(value: number): number {
@@ -270,7 +263,6 @@ export default function NutritionTodayClient() {
   const [entryMode, setEntryMode] = useState<EntryMode>("ai");
   const [mealType, setMealType] = useState<MealType>(defaultMealTypeFromLocalTime());
   const [rawInput, setRawInput] = useState("");
-  const [notes, setNotes] = useState("");
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -304,29 +296,6 @@ export default function NutritionTodayClient() {
     setAiInputError(null);
   }
 
-  function toPreviewItem(item: MealItem, sortOrder: number): PreviewItem {
-    return {
-      item_name: item.item_name,
-      quantity: item.quantity,
-      unit: item.unit,
-      calories: item.calories,
-      protein_g: item.protein_g,
-      carbs_g: item.carbs_g,
-      fat_g: item.fat_g,
-      fiber_g: item.fiber_g,
-      sugar_g: item.sugar_g,
-      sodium_mg: item.sodium_mg,
-      iron_mg: item.iron_mg,
-      calcium_mg: item.calcium_mg,
-      vitamin_d_mcg: item.vitamin_d_mcg,
-      vitamin_c_mg: item.vitamin_c_mg,
-      potassium_mg: item.potassium_mg,
-      source: item.source,
-      confidence: item.confidence,
-      is_user_edited: true,
-      sort_order: sortOrder,
-    };
-  }
 
   function applyParsedPreview(parsedJson: LogPreviewResponse) {
     const preview = parsedJson.items ?? [];
@@ -339,94 +308,6 @@ export default function NutritionTodayClient() {
       warnings: parsedJson.warnings ?? [],
     });
     setFormSuccess("Review parsed items, edit if needed, then Save Reviewed Meal.");
-  }
-
-  async function applyShortcutSameAsYesterdayBreakfast() {
-    const yesterday = isoDateMinusDays(selectedDate, 1);
-    const res = await fetch(`/api/nutrition/today?date=${yesterday}`);
-    const json = (await res.json().catch(() => null)) as NutritionTodayResponse | ApiErrorResponse | null;
-
-    if (!res.ok || !json || !("meals" in json)) {
-      setFormError("Could not load yesterday's breakfast for shortcut.");
-      return;
-    }
-
-    const breakfastMeals = (json as NutritionTodayResponse).meals.filter((meal) => meal.meal_type === "breakfast");
-    const flattened = breakfastMeals.flatMap((meal) => meal.items);
-    if (flattened.length === 0) {
-      setFormError("No breakfast meal found yesterday.");
-      return;
-    }
-
-    const preview = flattened.map((item, idx) => toPreviewItem(item, idx + 1));
-    setAiPreviewItems(preview);
-    setReviewMeta({
-      input_mode_hint: "text",
-      ai_model: "shortcut_same_as_yesterday",
-      ai_confidence: 1,
-      parse_duration_ms: 0,
-      warnings: [],
-    });
-    setEntryMode("ai");
-    setFormSuccess("Shortcut applied: same as yesterday's breakfast. Review and save.");
-  }
-
-  function applyShortcutAddOliveOil() {
-    setAiPreviewItems((prev) => {
-      const next = [...prev];
-      next.push({
-        item_name: "Olive oil",
-        quantity: 1,
-        unit: "tbsp",
-        calories: 119,
-        protein_g: 0,
-        carbs_g: 0,
-        fat_g: 13.5,
-        fiber_g: 0,
-        sugar_g: 0,
-        sodium_mg: 0,
-        iron_mg: 0,
-        calcium_mg: 0,
-        vitamin_d_mcg: 0,
-        vitamin_c_mg: 0,
-        potassium_mg: 0,
-        source: "manual",
-        confidence: 1,
-        is_user_edited: true,
-        sort_order: next.length + 1,
-      });
-      return next;
-    });
-    setFormSuccess("Shortcut applied: added 1 tbsp olive oil.");
-  }
-
-  function applyShortcutHalfPortion() {
-    if (aiPreviewItems.length === 0) {
-      setFormError("No items to apply half-portion shortcut.");
-      return;
-    }
-
-    setAiPreviewItems((prev) =>
-      prev.map((item, idx) => ({
-        ...item,
-        quantity: roundTwo(item.quantity * 0.5),
-        calories: roundTwo(item.calories * 0.5),
-        protein_g: roundTwo(item.protein_g * 0.5),
-        carbs_g: roundTwo(item.carbs_g * 0.5),
-        fat_g: roundTwo(item.fat_g * 0.5),
-        fiber_g: roundTwo(item.fiber_g * 0.5),
-        sugar_g: roundTwo(item.sugar_g * 0.5),
-        sodium_mg: roundTwo(item.sodium_mg * 0.5),
-        iron_mg: roundTwo(item.iron_mg * 0.5),
-        calcium_mg: roundTwo(item.calcium_mg * 0.5),
-        vitamin_d_mcg: roundTwo(item.vitamin_d_mcg * 0.5),
-        vitamin_c_mg: roundTwo(item.vitamin_c_mg * 0.5),
-        potassium_mg: roundTwo(item.potassium_mg * 0.5),
-        is_user_edited: true,
-        sort_order: idx + 1,
-      }))
-    );
-    setFormSuccess("Shortcut applied: half portion.");
   }
 
   async function loadDay(date: string) {
@@ -491,23 +372,6 @@ export default function NutritionTodayClient() {
 
     clearFormMessages();
     setSavingAi(true);
-
-    const normalizedShortcut = normalizedInput.toLowerCase();
-    if (normalizedShortcut === "same as yesterday's breakfast" || normalizedShortcut === "same as yesterdays breakfast") {
-      await applyShortcutSameAsYesterdayBreakfast();
-      setSavingAi(false);
-      return;
-    }
-    if (normalizedShortcut === "add 1 tbsp olive oil") {
-      applyShortcutAddOliveOil();
-      setSavingAi(false);
-      return;
-    }
-    if (normalizedShortcut === "half portion") {
-      applyShortcutHalfPortion();
-      setSavingAi(false);
-      return;
-    }
 
     const res = await fetch("/api/nutrition/log-preview", {
       method: "POST",
@@ -642,7 +506,7 @@ export default function NutritionTodayClient() {
         meal_date: selectedDate,
         meal_type: mealType,
         raw_input: rawInput,
-        notes,
+        notes: "",
         save_mode: "ai_reviewed",
         client_tz_offset_min: new Date().getTimezoneOffset(),
         input_mode_hint: reviewMeta.input_mode_hint,
@@ -672,7 +536,6 @@ export default function NutritionTodayClient() {
       warnings: [],
     });
     setRawInput("");
-    setNotes("");
     setFormSuccess("Reviewed meal saved.");
     await loadDay(selectedDate);
     await loadInsights(selectedDate);
@@ -893,7 +756,7 @@ export default function NutritionTodayClient() {
               </div>
             )}
 
-            <div className="mb-3 grid gap-3 sm:grid-cols-2">
+            <div className="mb-3">
               <select
                 value={mealType}
                 onChange={(e) => {
@@ -908,14 +771,17 @@ export default function NutritionTodayClient() {
                 <option value="dinner">Dinner</option>
               </select>
 
-              <input
-                value={notes}
+            </div>
+
+            <div className="mb-3">
+              <textarea
+                value={rawInput}
                 onChange={(e) => {
-                  setNotes(e.target.value);
+                  setRawInput(e.target.value);
                   clearFormMessages();
                 }}
-                placeholder="Notes (optional)"
-                className="rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
+                placeholder='Describe your meal (example: "Cheese sandwich and milk coffee")'
+                className="min-h-24 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
               />
             </div>
 
@@ -944,48 +810,6 @@ export default function NutritionTodayClient() {
 
             {entryMode === "ai" && (
               <div className="rounded-md border border-gray-700 bg-gray-800/60 p-3">
-                <textarea
-                  value={rawInput}
-                  onChange={(e) => {
-                    setRawInput(e.target.value);
-                    clearFormMessages();
-                  }}
-                  placeholder='Describe your meal (example: "Cheese sandwich and milk coffee")'
-                  className="min-h-24 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-sm text-gray-100"
-                />
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clearFormMessages();
-                      void applyShortcutSameAsYesterdayBreakfast();
-                    }}
-                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-xs text-gray-100"
-                  >
-                    Same as yesterday
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clearFormMessages();
-                      applyShortcutAddOliveOil();
-                    }}
-                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-xs text-gray-100"
-                  >
-                    Add 1 tbsp olive oil
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clearFormMessages();
-                      applyShortcutHalfPortion();
-                    }}
-                    className="rounded-md border border-gray-600 bg-gray-900 px-2 py-2 text-xs text-gray-100"
-                  >
-                    Half portion
-                  </button>
-                </div>
-
                 <button
                   type="button"
                   onClick={() => void saveWithAi()}
