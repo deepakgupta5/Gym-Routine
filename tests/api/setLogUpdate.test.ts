@@ -41,6 +41,7 @@ vi.mock("@/lib/logger", () => ({
   logError: vi.fn(),
 }));
 
+import { type NextRequest } from "next/server";
 import { DELETE, PUT } from "../../src/app/api/logs/set/[id]/route";
 
 function makePutRequest(body: unknown) {
@@ -48,7 +49,7 @@ function makePutRequest(body: unknown) {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  });
+  }) as unknown as NextRequest;
 }
 
 function params(id: string) {
@@ -137,7 +138,7 @@ describe("DELETE /api/logs/set/:id", () => {
       .mockResolvedValueOnce({ rowCount: 0, rows: [] })
       .mockResolvedValueOnce({});
 
-    const res = await DELETE(new Request("http://localhost/api/logs/set/missing"), params("missing"));
+    const res = await DELETE(new Request("http://localhost/api/logs/set/missing") as unknown as NextRequest, params("missing"));
     const json = await res.json();
 
     expect(res.status).toBe(404);
@@ -160,7 +161,7 @@ describe("DELETE /api/logs/set/:id", () => {
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ block_id: null }] })
       .mockResolvedValueOnce({});
 
-    const res = await DELETE(new Request("http://localhost/api/logs/set/set-1"), params("set-1"));
+    const res = await DELETE(new Request("http://localhost/api/logs/set/set-1") as unknown as NextRequest, params("set-1"));
     const json = await res.json();
 
     expect(res.status).toBe(200);
