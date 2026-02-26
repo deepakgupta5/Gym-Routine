@@ -201,6 +201,33 @@ function insightTone(insightType: Insight["insight_type"]): string {
   return "border-sky-700 bg-sky-950/30 text-sky-100";
 }
 
+function mapPreviewParseDetail(detail?: string): string {
+  switch (detail) {
+    case "ai_not_configured":
+      return "AI not configured. Text and Photo parsing are unavailable.";
+    case "openai_auth_failed":
+      return "AI request failed: API key or model access is invalid.";
+    case "openai_rate_limited":
+      return "AI request was rate limited. Try again shortly.";
+    case "openai_timeout":
+      return "AI request timed out. Try again.";
+    case "openai_model_unavailable":
+      return "AI model is unavailable for this key.";
+    case "openai_request_failed":
+      return "AI request failed upstream. Try again.";
+    case "openai_empty_response":
+      return "AI returned an empty response. Try again.";
+    case "openai_response_invalid_json":
+      return "AI returned an invalid response. Try again.";
+    case "parse_empty_items":
+      return "AI parse returned no items. Retry with clearer meal text.";
+    case "parse_no_meaningful_nutrition":
+      return "AI parse had no usable nutrition values. Edit text and retry.";
+    default:
+      return "AI parse failed. You can retry Text or switch to Photo.";
+  }
+}
+
 function mapErrorCode(errorCode: string): string {
   switch (errorCode) {
     case "missing_raw_input":
@@ -389,12 +416,7 @@ export default function NutritionTodayClient() {
     if (res.status === 422 && json && "error" in json && json.error === "parse_failed_manual_required") {
       setSavingAi(false);
       setEntryMode("ai");
-
-      if (json.detail === "ai_not_configured") {
-        setFormError("AI not configured. Text and Photo parsing are unavailable.");
-      } else {
-        setFormError("AI parse failed. You can retry Text or switch to Photo.");
-      }
+      setFormError(mapPreviewParseDetail(typeof json.detail === "string" ? json.detail : undefined));
       return;
     }
 

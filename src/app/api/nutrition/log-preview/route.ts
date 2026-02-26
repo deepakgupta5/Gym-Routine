@@ -49,6 +49,43 @@ function hasMeaningfulNutrition(item: ParsedFoodItem): boolean {
   );
 }
 
+type ParseFailureDetail =
+  | "ai_not_configured"
+  | "openai_timeout"
+  | "openai_auth_failed"
+  | "openai_rate_limited"
+  | "openai_model_unavailable"
+  | "openai_request_failed"
+  | "openai_empty_response"
+  | "openai_response_invalid_json"
+  | "parse_empty_items"
+  | "parse_no_meaningful_nutrition"
+  | "unknown_parse_failure";
+
+function mapParseFailureDetail(err: unknown): ParseFailureDetail {
+  if (err instanceof SyntaxError) {
+    return "openai_response_invalid_json";
+  }
+
+  const message = err instanceof Error ? err.message : String(err ?? "");
+
+  if (message === "openai_key_missing") return "ai_not_configured";
+  if (message === "openai_timeout") return "openai_timeout";
+  if (message === "openai_empty_response") return "openai_empty_response";
+
+  if (message.startsWith("openai_request_failed:")) {
+    const statusToken = message.split(":", 3)[1] ?? "";
+    const status = Number(statusToken);
+
+    if (status === 401 || status === 403) return "openai_auth_failed";
+    if (status === 404) return "openai_model_unavailable";
+    if (status === 429) return "openai_rate_limited";
+    return "openai_request_failed";
+  }
+
+  return "unknown_parse_failure";
+}
+
 export async function POST(req: Request) {
   requireConfig();
   const userId = CONFIG.SINGLE_USER_ID;
@@ -108,8 +145,18 @@ export async function POST(req: Request) {
       sort_order: idx + 1,
     }));
 
-    if (!items.length || !items.some(hasMeaningfulNutrition)) {
-      return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
+    if (!items.length) {
+      return NextResponse.json(
+        { error: "parse_failed_manual_required", detail: "parse_empty_items" as ParseFailureDetail },
+        { status: 422 }
+      );
+    }
+
+    if (!items.some(hasMeaningfulNutrition)) {
+      return NextResponse.json(
+        { error: "parse_failed_manual_required", detail: "parse_no_meaningful_nutrition" as ParseFailureDetail },
+        { status: 422 }
+      );
     }
 
     const aiConfidence =
@@ -159,7 +206,8 @@ export async function POST(req: Request) {
       warnings,
     });
   } catch (err) {
-    logError("nutrition_log_preview_failed", err, { user_id: userId });
-    return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
+    const detail = mapParseFailureDetail(err);
+    logError("nutrition_log_preview_failed", err, { user_id: userId, detail });
+    return NextResponse.json({ error: "parse_failed_manual_required", detail }, { status: 422 });
   }
 }
