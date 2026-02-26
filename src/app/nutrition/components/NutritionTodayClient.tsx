@@ -813,10 +813,12 @@ export default function NutritionTodayClient() {
                 onClick={() => {
                   setEntryMode("ai");
                   clearFormMessages();
+                  void saveWithAi();
                 }}
-                className={`rounded-md border px-3 py-2 text-sm ${entryMode === "ai" ? "border-blue-700 bg-blue-600 text-white" : "border-gray-600 bg-gray-800 text-gray-100"}`}
+                disabled={savingAi}
+                className={`rounded-md border px-3 py-2 text-sm ${entryMode === "ai" ? "border-blue-700 bg-blue-600 text-white" : "border-gray-600 bg-gray-800 text-gray-100"} disabled:opacity-50`}
               >
-                Text
+                {savingAi ? "Parsing..." : "Text"}
               </button>
               <button
                 type="button"
@@ -832,14 +834,6 @@ export default function NutritionTodayClient() {
 
             {entryMode === "ai" && (
               <div className="rounded-md border border-gray-700 bg-gray-800/60 p-3">
-                <button
-                  type="button"
-                  onClick={() => void saveWithAi()}
-                  disabled={savingAi}
-                  className="mt-3 rounded-md border border-blue-700 bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
-                >
-                  {savingAi ? "Parsing..." : "Parse & Review"}
-                </button>
                 {aiInputError && (
                   <div className="mt-2 text-xs text-amber-300">{aiInputError}</div>
                 )}

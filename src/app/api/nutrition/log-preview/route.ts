@@ -86,6 +86,63 @@ function mapParseFailureDetail(err: unknown): ParseFailureDetail {
   return "unknown_parse_failure";
 }
 
+
+type OpenAIRetryResult = {
+  rawJson: string;
+  parseDurationMs: number;
+  retriedAfterTimeout: boolean;
+};
+
+async function callOpenAIWithTimeoutRetry(params: {
+  model: "gpt-4o-mini";
+  systemPrompt: string;
+  userContent: string;
+  maxTokens: number;
+  responseFormat: "json_object";
+  timeoutMs: number;
+  retryTimeoutMs: number;
+  userId: string;
+}): Promise<OpenAIRetryResult> {
+  const startedAt = Date.now();
+  try {
+    const rawJson = await callOpenAI({
+      model: params.model,
+      systemPrompt: params.systemPrompt,
+      userContent: params.userContent,
+      maxTokens: params.maxTokens,
+      responseFormat: params.responseFormat,
+      timeoutMs: params.timeoutMs,
+    });
+    return { rawJson, parseDurationMs: Date.now() - startedAt, retriedAfterTimeout: false };
+  } catch (err) {
+    if (!(err instanceof Error) || err.message !== "openai_timeout") {
+      throw err;
+    }
+
+    logInfo("nutrition_log_preview_timeout_retry", {
+      user_id: params.userId,
+      timeout_ms: params.timeoutMs,
+      retry_timeout_ms: params.retryTimeoutMs,
+    });
+
+    const retryStartedAt = Date.now();
+    const rawJson = await callOpenAI({
+      model: params.model,
+      systemPrompt: params.systemPrompt,
+      userContent: params.userContent,
+      maxTokens: params.maxTokens,
+      responseFormat: params.responseFormat,
+      timeoutMs: params.retryTimeoutMs,
+    });
+
+    return {
+      rawJson,
+      parseDurationMs: Date.now() - retryStartedAt,
+      retriedAfterTimeout: true,
+    };
+  }
+}
+
 export async function POST(req: Request) {
   requireConfig();
   const userId = CONFIG.SINGLE_USER_ID;
@@ -109,16 +166,16 @@ export async function POST(req: Request) {
   const userPrompt = buildMealParseUserPrompt(rawInput);
 
   try {
-    const startedAt = Date.now();
-    const rawJson = await callOpenAI({
+    const { rawJson, parseDurationMs, retriedAfterTimeout } = await callOpenAIWithTimeoutRetry({
       model: "gpt-4o-mini",
       systemPrompt,
       userContent: userPrompt,
       maxTokens: 2048,
       responseFormat: "json_object",
       timeoutMs: 2500,
+      retryTimeoutMs: 6000,
+      userId,
     });
-    const parseDurationMs = Date.now() - startedAt;
 
     const parsed = JSON.parse(rawJson) as OpenAIParseResponse;
     const rawItems = Array.isArray(parsed?.items) ? parsed.items : [];
@@ -166,6 +223,9 @@ export async function POST(req: Request) {
     const warnings: string[] = [];
     if (aiConfidence < LOW_CONFIDENCE_THRESHOLD) {
       warnings.push("low_confidence_parse");
+    }
+    if (retriedAfterTimeout) {
+      warnings.push("parse_timeout_retried");
     }
     if (parseDurationMs > PARSE_SLO_MS) {
       warnings.push("parse_slo_missed");
