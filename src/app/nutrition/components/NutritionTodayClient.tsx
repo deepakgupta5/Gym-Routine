@@ -224,7 +224,9 @@ function mapPreviewParseDetail(detail?: string): string {
     case "parse_no_meaningful_nutrition":
       return "AI parse had no usable nutrition values. Edit text and retry.";
     default:
-      return "AI parse failed. You can retry Text or switch to Photo.";
+      return detail
+        ? `AI parse failed (${detail}). Retry Text or Photo.`
+        : "AI parse failed. You can retry Text or switch to Photo.";
   }
 }
 

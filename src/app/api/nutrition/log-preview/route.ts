@@ -91,55 +91,110 @@ type OpenAIRetryResult = {
   rawJson: string;
   parseDurationMs: number;
   retriedAfterTimeout: boolean;
+  modelUsed: "gpt-4o-mini" | "gpt-4o";
+  usedModelFallback: boolean;
 };
 
 async function callOpenAIWithTimeoutRetry(params: {
-  model: "gpt-4o-mini";
   systemPrompt: string;
   userContent: string;
   maxTokens: number;
   responseFormat: "json_object";
   timeoutMs: number;
   retryTimeoutMs: number;
+  modelFallbackTimeoutMs: number;
   userId: string;
 }): Promise<OpenAIRetryResult> {
-  const startedAt = Date.now();
+  function isTimeoutError(err: unknown): boolean {
+    return err instanceof Error && err.message === "openai_timeout";
+  }
+
+  function isModelUnavailableError(err: unknown): boolean {
+    return (
+      err instanceof Error &&
+      (err.message.startsWith("openai_request_failed:404:") ||
+        err.message === "openai_model_unavailable")
+    );
+  }
+
+  const firstStartedAt = Date.now();
   try {
     const rawJson = await callOpenAI({
-      model: params.model,
+      model: "gpt-4o-mini",
       systemPrompt: params.systemPrompt,
       userContent: params.userContent,
       maxTokens: params.maxTokens,
       responseFormat: params.responseFormat,
       timeoutMs: params.timeoutMs,
     });
-    return { rawJson, parseDurationMs: Date.now() - startedAt, retriedAfterTimeout: false };
-  } catch (err) {
-    if (!(err instanceof Error) || err.message !== "openai_timeout") {
-      throw err;
-    }
-
-    logInfo("nutrition_log_preview_timeout_retry", {
-      user_id: params.userId,
-      timeout_ms: params.timeoutMs,
-      retry_timeout_ms: params.retryTimeoutMs,
-    });
-
-    const retryStartedAt = Date.now();
-    const rawJson = await callOpenAI({
-      model: params.model,
-      systemPrompt: params.systemPrompt,
-      userContent: params.userContent,
-      maxTokens: params.maxTokens,
-      responseFormat: params.responseFormat,
-      timeoutMs: params.retryTimeoutMs,
-    });
 
     return {
       rawJson,
-      parseDurationMs: Date.now() - retryStartedAt,
-      retriedAfterTimeout: true,
+      parseDurationMs: Date.now() - firstStartedAt,
+      retriedAfterTimeout: false,
+      modelUsed: "gpt-4o-mini",
+      usedModelFallback: false,
     };
+  } catch (firstErr) {
+    let lastErr: unknown = firstErr;
+
+    if (isTimeoutError(firstErr)) {
+      logInfo("nutrition_log_preview_timeout_retry", {
+        user_id: params.userId,
+        timeout_ms: params.timeoutMs,
+        retry_timeout_ms: params.retryTimeoutMs,
+      });
+
+      const retryStartedAt = Date.now();
+      try {
+        const rawJson = await callOpenAI({
+          model: "gpt-4o-mini",
+          systemPrompt: params.systemPrompt,
+          userContent: params.userContent,
+          maxTokens: params.maxTokens,
+          responseFormat: params.responseFormat,
+          timeoutMs: params.retryTimeoutMs,
+        });
+
+        return {
+          rawJson,
+          parseDurationMs: Date.now() - retryStartedAt,
+          retriedAfterTimeout: true,
+          modelUsed: "gpt-4o-mini",
+          usedModelFallback: false,
+        };
+      } catch (retryErr) {
+        lastErr = retryErr;
+      }
+    }
+
+    if (isModelUnavailableError(lastErr)) {
+      logInfo("nutrition_log_preview_model_fallback", {
+        user_id: params.userId,
+        from_model: "gpt-4o-mini",
+        to_model: "gpt-4o",
+      });
+
+      const fallbackStartedAt = Date.now();
+      const rawJson = await callOpenAI({
+        model: "gpt-4o",
+        systemPrompt: params.systemPrompt,
+        userContent: params.userContent,
+        maxTokens: params.maxTokens,
+        responseFormat: params.responseFormat,
+        timeoutMs: params.modelFallbackTimeoutMs,
+      });
+
+      return {
+        rawJson,
+        parseDurationMs: Date.now() - fallbackStartedAt,
+        retriedAfterTimeout: isTimeoutError(firstErr),
+        modelUsed: "gpt-4o",
+        usedModelFallback: true,
+      };
+    }
+
+    throw lastErr;
   }
 }
 
@@ -166,14 +221,14 @@ export async function POST(req: Request) {
   const userPrompt = buildMealParseUserPrompt(rawInput);
 
   try {
-    const { rawJson, parseDurationMs, retriedAfterTimeout } = await callOpenAIWithTimeoutRetry({
-      model: "gpt-4o-mini",
+    const { rawJson, parseDurationMs, retriedAfterTimeout, modelUsed, usedModelFallback } = await callOpenAIWithTimeoutRetry({
       systemPrompt,
       userContent: userPrompt,
       maxTokens: 2048,
       responseFormat: "json_object",
       timeoutMs: 2500,
       retryTimeoutMs: 6000,
+      modelFallbackTimeoutMs: 7000,
       userId,
     });
 
@@ -227,6 +282,9 @@ export async function POST(req: Request) {
     if (retriedAfterTimeout) {
       warnings.push("parse_timeout_retried");
     }
+    if (usedModelFallback) {
+      warnings.push("parse_model_fallback_used");
+    }
     if (parseDurationMs > PARSE_SLO_MS) {
       warnings.push("parse_slo_missed");
       logInfo("nutrition_parse_slo_missed", {
@@ -257,7 +315,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       input_mode: "text",
-      ai_model: "gpt-4o-mini",
+      ai_model: modelUsed,
       ai_confidence: Math.min(1, Math.max(0, aiConfidence)),
       parse_duration_ms: parseDurationMs,
       parse_slo_met: parseDurationMs <= PARSE_SLO_MS,
