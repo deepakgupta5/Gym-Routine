@@ -299,9 +299,6 @@ export default async function DashboardPage() {
           {/* This Week Summary */}
           <WeekSummary current={currentRollup} previous={previousRollup} />
 
-          {/* Unified nutrition summary */}
-          <NutritionQuickStats summary={nutritionSummary} />
-
           {/* PR Count Badge (#19) */}
           {prCount > 0 && (
             <div className="rounded-lg border border-amber-700 bg-amber-950/30 p-3">
@@ -342,6 +339,9 @@ export default async function DashboardPage() {
                 : `${weightPoints.length} data point${weightPoints.length !== 1 ? "s" : ""} - need 3+ for chart.`}
             </div>
           )}
+
+          {/* Unified nutrition summary */}
+          <NutritionQuickStats summary={nutritionSummary} />
         </div>
       </main>
     );

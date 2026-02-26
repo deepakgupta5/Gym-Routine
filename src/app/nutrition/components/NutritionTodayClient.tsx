@@ -236,6 +236,10 @@ function mapErrorCode(errorCode: string): string {
       return "Enter a meal description first.";
     case "parse_failed_manual_required":
       return "AI parse failed or is unavailable. Retry Text or Photo.";
+    case "parse_failed":
+      return "Photo parse failed. Retry Photo or switch to Text.";
+    case "nutrition_photo_parse_failed":
+      return "Photo parse failed. Retry Photo or switch to Text.";
     case "photo_missing":
       return "Select a photo first.";
     case "unsupported_media_type":
@@ -585,14 +589,16 @@ export default function NutritionTodayClient() {
       body: formData,
     });
 
-    const parseJson = (await parseRes.json().catch(() => null)) as PhotoParseResponse | { error?: string } | null;
+    const parseJson = (await parseRes.json().catch(() => null)) as PhotoParseResponse | ApiErrorResponse | null;
 
     if (!parseRes.ok || !parseJson || ("error" in parseJson && parseJson.error)) {
       setSavingPhoto(false);
       setEntryMode("photo");
       const code = (parseJson && "error" in parseJson ? parseJson.error : "parse_failed") || "parse_failed";
-      if (code === "openai_unavailable") {
-        setFormError("AI not configured. Photo parsing is unavailable.");
+      const detail = parseJson && "detail" in parseJson && typeof parseJson.detail === "string" ? parseJson.detail : undefined;
+
+      if (code === "openai_unavailable" || code === "parse_failed" || code === "nutrition_photo_parse_failed") {
+        setFormError(mapPreviewParseDetail(detail));
       } else {
         setFormError(mapErrorCode(code));
       }

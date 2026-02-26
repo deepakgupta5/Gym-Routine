@@ -22,21 +22,36 @@ type OpenAIPhotoResponse = {
   overall_confidence?: number;
 };
 
-export async function parsePhotoMeal(imageBuffer: Buffer): Promise<MealParseResult> {
+type PhotoParseOptions = {
+  model?: "gpt-4o" | "gpt-4o-mini";
+  timeoutMs?: number;
+  maxTokens?: number;
+  imageDetail?: "low" | "high";
+};
+
+export async function parsePhotoMeal(
+  imageBuffer: Buffer,
+  options: PhotoParseOptions = {}
+): Promise<MealParseResult> {
+  const model = options.model ?? "gpt-4o";
+  const timeoutMs = options.timeoutMs ?? 4500;
+  const maxTokens = options.maxTokens ?? 900;
+  const imageDetail = options.imageDetail ?? "low";
+
   // imageBase64 lives only in this function scope — eligible for GC after callOpenAI returns
   const imageBase64 = imageBuffer.toString("base64");
 
   const systemPrompt = buildPhotoParseSystemPrompt(ALLOWED_PROTEINS);
 
   const rawJson = await callOpenAI({
-    model: "gpt-4o",
+    model,
     systemPrompt,
     userContent: [
       {
         type: "image_url",
         image_url: {
           url: `data:image/jpeg;base64,${imageBase64}`,
-          detail: "high",
+          detail: imageDetail,
         },
       },
       {
@@ -44,9 +59,9 @@ export async function parsePhotoMeal(imageBuffer: Buffer): Promise<MealParseResu
         text: "Analyse this meal photo and return the JSON with all food items and nutrients.",
       },
     ],
-    maxTokens: 2048,
+    maxTokens,
     responseFormat: "json_object",
-    timeoutMs: 2500,
+    timeoutMs,
   });
 
   // imageBase64 goes out of scope here — no longer referenced
@@ -87,6 +102,6 @@ export async function parsePhotoMeal(imageBuffer: Buffer): Promise<MealParseResu
   return {
     items,
     confidence: Math.min(1, Math.max(0, overallConfidence)),
-    model: "gpt-4o",
+    model,
   };
 }

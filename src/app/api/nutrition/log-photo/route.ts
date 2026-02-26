@@ -27,6 +27,122 @@ function hasMeaningfulNutrition(item: { calories: number; protein_g: number; car
   return item.calories > 0 || item.protein_g > 0 || item.carbs_g > 0 || item.fat_g > 0 || item.fiber_g > 0;
 }
 
+
+type PhotoParseFailureDetail =
+  | "ai_not_configured"
+  | "openai_timeout"
+  | "openai_auth_failed"
+  | "openai_rate_limited"
+  | "openai_model_unavailable"
+  | "openai_request_failed"
+  | "photo_parse_invalid_json"
+  | "unknown_photo_parse_failure";
+
+type PhotoParseCallResult = {
+  result: Awaited<ReturnType<typeof parsePhotoMeal>>;
+  parseDurationMs: number;
+  retriedAfterTimeout: boolean;
+  usedModelFallback: boolean;
+};
+
+function mapPhotoParseFailureDetail(err: unknown): PhotoParseFailureDetail {
+  if (err instanceof SyntaxError) return "photo_parse_invalid_json";
+
+  const message = err instanceof Error ? err.message : String(err ?? "");
+
+  if (message === "openai_key_missing") return "ai_not_configured";
+  if (message === "openai_timeout") return "openai_timeout";
+  if (message === "photo_parse_invalid_json") return "photo_parse_invalid_json";
+
+  if (message.startsWith("openai_request_failed:")) {
+    const statusToken = message.split(":", 3)[1] ?? "";
+    const status = Number(statusToken);
+
+    if (status === 401 || status === 403) return "openai_auth_failed";
+    if (status === 404) return "openai_model_unavailable";
+    if (status === 429) return "openai_rate_limited";
+    return "openai_request_failed";
+  }
+
+  return "unknown_photo_parse_failure";
+}
+
+async function parsePhotoMealWithRetry(imageBuffer: Buffer, userId: string): Promise<PhotoParseCallResult> {
+  const firstStartedAt = Date.now();
+  try {
+    const result = await parsePhotoMeal(imageBuffer, {
+      model: "gpt-4o",
+      timeoutMs: 4500,
+      maxTokens: 900,
+      imageDetail: "low",
+    });
+
+    return {
+      result,
+      parseDurationMs: Date.now() - firstStartedAt,
+      retriedAfterTimeout: false,
+      usedModelFallback: false,
+    };
+  } catch (firstErr) {
+    const firstDetail = mapPhotoParseFailureDetail(firstErr);
+    let lastErr: unknown = firstErr;
+
+    if (firstDetail === "openai_timeout") {
+      logInfo("nutrition_photo_parse_timeout_retry", {
+        user_id: userId,
+        timeout_ms: 4500,
+        retry_timeout_ms: 10000,
+      });
+
+      const retryStartedAt = Date.now();
+      try {
+        const result = await parsePhotoMeal(imageBuffer, {
+          model: "gpt-4o",
+          timeoutMs: 10000,
+          maxTokens: 900,
+          imageDetail: "low",
+        });
+
+        return {
+          result,
+          parseDurationMs: Date.now() - retryStartedAt,
+          retriedAfterTimeout: true,
+          usedModelFallback: false,
+        };
+      } catch (retryErr) {
+        lastErr = retryErr;
+      }
+    }
+
+    const lastDetail = mapPhotoParseFailureDetail(lastErr);
+    if (lastDetail === "openai_timeout" || lastDetail === "openai_model_unavailable") {
+      logInfo("nutrition_photo_parse_model_fallback", {
+        user_id: userId,
+        from_model: "gpt-4o",
+        to_model: "gpt-4o-mini",
+        reason: lastDetail,
+      });
+
+      const fallbackStartedAt = Date.now();
+      const result = await parsePhotoMeal(imageBuffer, {
+        model: "gpt-4o-mini",
+        timeoutMs: 10000,
+        maxTokens: 900,
+        imageDetail: "low",
+      });
+
+      return {
+        result,
+        parseDurationMs: Date.now() - fallbackStartedAt,
+        retriedAfterTimeout: firstDetail === "openai_timeout",
+        usedModelFallback: true,
+      };
+    }
+
+    throw lastErr;
+  }
+}
+
 export async function POST(req: Request) {
   requireConfig();
   const userId = CONFIG.SINGLE_USER_ID;
@@ -83,30 +199,47 @@ export async function POST(req: Request) {
 
   let result: Awaited<ReturnType<typeof parsePhotoMeal>>;
   let parseDurationMs: number | null = null;
+  let retriedAfterTimeout = false;
+  let usedModelFallback = false;
   try {
-    const startedAt = Date.now();
-    result = await parsePhotoMeal(imageBuffer);
-    parseDurationMs = Date.now() - startedAt;
+    const parsed = await parsePhotoMealWithRetry(imageBuffer, userId);
+    result = parsed.result;
+    parseDurationMs = parsed.parseDurationMs;
+    retriedAfterTimeout = parsed.retriedAfterTimeout;
+    usedModelFallback = parsed.usedModelFallback;
   } catch (err) {
-    // Log only event + user_id — never log image bytes or base64
-    logError("photo_parse_failed", err, { user_id: userId });
-    const message = err instanceof Error ? err.message : "";
-    if (message.startsWith("openai_request_failed") || message === "openai_key_missing") {
-      return NextResponse.json({ error: "openai_unavailable" }, { status: 503 });
+    const detail = mapPhotoParseFailureDetail(err);
+    logError("photo_parse_failed", err, { user_id: userId, detail });
+
+    if (detail === "ai_not_configured") {
+      return NextResponse.json({ error: "openai_unavailable", detail }, { status: 503 });
     }
-    if (message === "photo_parse_invalid_json") {
-      return NextResponse.json({ error: "parse_failed" }, { status: 422 });
+
+    if (
+      detail === "openai_auth_failed" ||
+      detail === "openai_rate_limited" ||
+      detail === "openai_model_unavailable" ||
+      detail === "openai_request_failed"
+    ) {
+      return NextResponse.json({ error: "openai_unavailable", detail }, { status: 503 });
     }
-    return NextResponse.json({ error: "nutrition_photo_parse_failed" }, { status: 500 });
+
+    return NextResponse.json({ error: "parse_failed", detail }, { status: 422 });
   }
 
   if (!result.items || result.items.length === 0 || !result.items.some(hasMeaningfulNutrition)) {
-    return NextResponse.json({ error: "parse_failed" }, { status: 422 });
+    return NextResponse.json({ error: "parse_failed", detail: "parse_no_meaningful_nutrition" }, { status: 422 });
   }
 
   const warnings: string[] = [];
   if (result.confidence < LOW_CONFIDENCE_THRESHOLD) {
     warnings.push("low_confidence_parse");
+  }
+  if (retriedAfterTimeout) {
+    warnings.push("parse_timeout_retried");
+  }
+  if (usedModelFallback) {
+    warnings.push("parse_model_fallback_used");
   }
   if (parseDurationMs != null && parseDurationMs > PARSE_SLO_MS) {
     warnings.push("parse_slo_missed");
