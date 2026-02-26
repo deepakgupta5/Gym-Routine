@@ -735,15 +735,18 @@ export default function NutritionTodayClient() {
           />
 
           {/* Meal history */}
-          <MealHistory
-            meals={data.meals}
-            mealDrafts={mealDrafts}
-            onDraftChange={setMealDrafts}
-            updatingMealId={updatingMealId}
-            deletingMealId={deletingMealId}
-            onUpdateMeal={updateMeal}
-            onDeleteMeal={deleteMeal}
-          />
+          <div className="mt-5">
+            <h2 className="mb-3 text-lg font-semibold text-gray-100">Meals</h2>
+            <MealHistory
+              meals={data.meals}
+              mealDrafts={mealDrafts}
+              onDraftChange={setMealDrafts}
+              updatingMealId={updatingMealId}
+              deletingMealId={deletingMealId}
+              onUpdateMeal={updateMeal}
+              onDeleteMeal={deleteMeal}
+            />
+          </div>
         </>
       )}
 

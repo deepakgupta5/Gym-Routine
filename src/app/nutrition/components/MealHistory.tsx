@@ -88,7 +88,7 @@ const MealHistory = memo(function MealHistory({
             <div className="grid gap-2 sm:grid-cols-2">
               <select
                 value={draft.meal_type}
-                onChange={(e) => onDraftChange(meal.meal_log_id, { ...draft, meal_type: e.target.value as MealType })}
+                onChange={(e) => onDraftChange((prev) => ({ ...prev, [meal.meal_log_id]: { ...draft, meal_type: e.target.value as MealType } }))}
                 className="rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
               >
                 <option value="breakfast">Breakfast</option>
@@ -98,7 +98,7 @@ const MealHistory = memo(function MealHistory({
               </select>
               <input
                 value={draft.notes}
-                onChange={(e) => onDraftChange(meal.meal_log_id, { ...draft, notes: e.target.value })}
+                onChange={(e) => onDraftChange((prev) => ({ ...prev, [meal.meal_log_id]: { ...draft, notes: e.target.value } }))}
                 placeholder="Meal notes"
                 className="rounded-md border border-gray-600 bg-gray-800 px-2 py-2 text-sm text-gray-100"
               />

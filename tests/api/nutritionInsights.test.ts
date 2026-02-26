@@ -45,7 +45,10 @@ vi.mock("@/lib/logger", () => ({
 import { GET } from "../../src/app/api/nutrition/insights/route";
 
 function makeReq(url: string): Parameters<typeof GET>[0] {
-  return { nextUrl: new URL(url) } as unknown as Parameters<typeof GET>[0];
+  return {
+    nextUrl: new URL(url),
+    headers: { get: (_: string) => null },
+  } as unknown as Parameters<typeof GET>[0];
 }
 
 describe("GET /api/nutrition/insights", () => {

@@ -4,6 +4,7 @@ import { CONFIG, requireConfig } from "@/lib/config";
 import { logError } from "@/lib/logger";
 import { callOpenAI } from "@/lib/ai/openai";
 import { buildMealPlanSystemPrompt } from "@/lib/ai/prompts";
+import { nutritionRateLimit } from "@/lib/auth/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,15 @@ type AIResponse = {
 export async function POST(req: Request) {
   requireConfig();
   const userId = CONFIG.SINGLE_USER_ID;
+
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  const rl = nutritionRateLimit(`plan-generate:${ip}`);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterSeconds: rl.retryAfterSeconds },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
+    );
+  }
 
   const body = await req.json().catch(() => null) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "invalid_body" }, { status: 400 });

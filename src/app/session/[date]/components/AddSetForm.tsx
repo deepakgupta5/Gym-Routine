@@ -29,6 +29,7 @@ export default function AddSetForm({
   onLogButtonRef,
 }: AddSetFormProps) {
   const [extrasOpen, setExtrasOpen] = useState(false);
+  const [moreIncrementsOpen, setMoreIncrementsOpen] = useState(false);
   const [touched, setTouched] = useState<{ load?: boolean; reps?: boolean }>({});
 
   const loadVal = Number(form.load);
@@ -65,19 +66,38 @@ export default function AddSetForm({
           {!loadInvalid && isPrefilled && form.load && (
             <div className="mt-0.5 text-xs text-blue-400/70">suggested</div>
           )}
-          <div className="mt-1 flex gap-1.5">
-            {[2.5, 5, 10].map((inc) => (
-              <button
-                key={inc}
-                type="button"
-                onClick={() =>
-                  onChange({ ...form, load: String((parseFloat(form.load) || 0) + inc) })
-                }
-                className="rounded-full border border-gray-600 bg-gray-800 px-2.5 py-1 text-xs text-gray-300 active:opacity-80"
-              >
-                +{inc}
-              </button>
-            ))}
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            {/* Primary increment — always visible */}
+            <button
+              type="button"
+              onClick={() => onChange({ ...form, load: String((parseFloat(form.load) || 0) + 5) })}
+              className="rounded-full border border-gray-600 bg-gray-800 px-2.5 py-1 text-xs text-gray-300 active:opacity-80"
+            >
+              +5
+            </button>
+            {/* Toggle for less-common increments */}
+            <button
+              type="button"
+              onClick={() => setMoreIncrementsOpen((p) => !p)}
+              className="rounded-full border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-500 active:opacity-80"
+              aria-label="More increment options"
+            >
+              {moreIncrementsOpen ? "−" : "⋯"}
+            </button>
+            {moreIncrementsOpen && (
+              <>
+                {[2.5, 10].map((inc) => (
+                  <button
+                    key={inc}
+                    type="button"
+                    onClick={() => onChange({ ...form, load: String((parseFloat(form.load) || 0) + inc) })}
+                    className="rounded-full border border-gray-700 bg-gray-900 px-2.5 py-1 text-xs text-gray-400 active:opacity-80"
+                  >
+                    +{inc}
+                  </button>
+                ))}
+              </>
+            )}
           </div>
         </label>
 

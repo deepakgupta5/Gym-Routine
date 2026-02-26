@@ -67,7 +67,7 @@ export default async function DashboardPage() {
       : { rows: [] };
     const block = blockRes.rows[0] ?? null;
 
-    // Body stats (last 60 days for chart)
+    // Body stats (full history for charts)
     const bodyRes = await client.query(
       `select
          date::text as date,
@@ -209,8 +209,7 @@ export default async function DashboardPage() {
             value,
           };
         })
-        .filter((p): p is { date: string; value: number } => p !== null)
-        .slice(-30);
+        .filter((p): p is { date: string; value: number } => p !== null);
 
     const bodyMetricCharts = [
       {
