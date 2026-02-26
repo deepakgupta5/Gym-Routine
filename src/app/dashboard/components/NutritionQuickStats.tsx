@@ -28,7 +28,7 @@ export default function NutritionQuickStats({ summary }: NutritionQuickStatsProp
     <section className="rounded-xl border border-emerald-800 bg-emerald-950/20 p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-emerald-300">Nutrition Quick Stats</h2>
-        <span className="rounded-full border border-emerald-700 bg-emerald-900/40 px-2 py-1 text-[11px] text-emerald-200">
+        <span className="rounded-full border border-emerald-700 bg-emerald-900/40 px-2 py-1 text-xs text-emerald-200">
           {summary.date}
         </span>
       </div>
@@ -54,7 +54,7 @@ export default function NutritionQuickStats({ summary }: NutritionQuickStatsProp
         </div>
         <div className="rounded-md border border-gray-700 bg-gray-900/50 px-3 py-2 text-xs text-gray-300">
           7d Adherence: <span className="font-semibold text-gray-100">{Math.round(summary.seven_day.avg_adherence_pct)}%</span>
-          <span className="ml-1 text-gray-500">({summary.seven_day.logged_days} logged)</span>
+          <span className="ml-1 text-gray-400">({summary.seven_day.logged_days} logged)</span>
         </div>
       </div>
 

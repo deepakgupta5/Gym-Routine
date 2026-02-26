@@ -709,7 +709,7 @@ export default function NutritionTodayClient() {
   return (
     <main className="mx-auto max-w-5xl p-5 md:p-6">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">Nutrition Day</h1>
+        <h1 className="text-2xl font-bold text-gray-100">Nutrition Day</h1>
         <input
           type="date"
           value={selectedDate}

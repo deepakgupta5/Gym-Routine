@@ -259,7 +259,7 @@ export default function NutritionPlanClient() {
         <section className="rounded-lg border border-gray-700 bg-gray-900 p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-300">Insights ({planDate})</h2>
-            {insightsLoading && <span className="text-[11px] text-gray-500">Loading...</span>}
+            {insightsLoading && <span className="text-xs text-gray-400">Loading...</span>}
           </div>
 
           {insightsError && (

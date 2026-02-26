@@ -33,7 +33,7 @@ export default function SparklineChart({ label, points }: SparklineChartProps) {
     return (
       <div className="rounded-lg border border-gray-700 bg-gray-900 p-3">
         <div className="text-sm font-medium text-gray-200">{label}</div>
-        <div className="mt-1 text-xs text-gray-500">Not enough data</div>
+        <div className="mt-1 text-xs text-gray-400">Not enough data</div>
       </div>
     );
   }
@@ -67,7 +67,7 @@ export default function SparklineChart({ label, points }: SparklineChartProps) {
     <div className="rounded-lg border border-gray-700 bg-gray-900 p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="text-sm font-medium text-gray-200">{label}</div>
-        <div className="text-[11px] text-gray-500">{points.length} sessions</div>
+        <div className="text-xs text-gray-400">{points.length} sessions</div>
       </div>
       <svg
         viewBox={`0 0 ${width} ${height}`}
@@ -84,7 +84,7 @@ export default function SparklineChart({ label, points }: SparklineChartProps) {
           strokeLinejoin="round"
         />
       </svg>
-      <div className="mt-1 flex items-center justify-between text-[11px] text-gray-500">
+      <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
         <span>{formatShortDate(startDate)}</span>
         <span>{formatSpan(startDate, endDate)}</span>
         <span>{formatShortDate(endDate)}</span>

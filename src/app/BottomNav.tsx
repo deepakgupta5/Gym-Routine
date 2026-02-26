@@ -72,7 +72,7 @@ export default function BottomNav() {
               href={tab.href}
               prefetch={false}
               className={`flex min-h-[44px] flex-col items-center justify-center gap-1 px-4 text-xs ${
-                active ? "text-blue-400" : "text-gray-500"
+                active ? "text-blue-400" : "text-gray-400"
               }`}
             >
               {tab.icon}
