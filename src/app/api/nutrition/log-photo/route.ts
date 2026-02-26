@@ -10,6 +10,7 @@ import { CONFIG, requireConfig } from "@/lib/config";
 import { logError, logInfo } from "@/lib/logger";
 import { parsePhotoMeal } from "@/lib/nutrition/photoParse";
 import { readParseP95Last7Days, recordParseMetric } from "@/lib/nutrition/parseMetrics";
+import { nutritionRateLimit } from "@/lib/auth/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -146,6 +147,15 @@ async function parsePhotoMealWithRetry(imageBuffer: Buffer, userId: string): Pro
 export async function POST(req: Request) {
   requireConfig();
   const userId = CONFIG.SINGLE_USER_ID;
+
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  const rl = nutritionRateLimit(`log-photo:${ip}`);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterSeconds: rl.retryAfterSeconds },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
+    );
+  }
 
   let formData: FormData;
   try {

@@ -69,7 +69,28 @@ export default async function DashboardPage() {
 
     // Body stats (last 60 days for chart)
     const bodyRes = await client.query(
-      `select date::text as date, weight_lb, bodyfat_pct, upper_pct, lower_pct
+      `select
+         date::text as date,
+         weight_lb,
+         bodyfat_pct,
+         upper_pct,
+         lower_pct,
+         skeletal_mass,
+         bodyfat_lb,
+         bmi,
+         lean_body_mass_lb,
+         bmr_kcal,
+         smi_kg_m2,
+         left_arm_lb,
+         right_arm_lb,
+         trunk_lb,
+         left_leg_lb,
+         right_leg_lb,
+         left_arm_ratio,
+         right_arm_ratio,
+         trunk_ratio,
+         left_leg_ratio,
+         right_leg_ratio
        from body_stats_daily
        where user_id = $1
        order by 1  asc`,
@@ -178,36 +199,62 @@ export default async function DashboardPage() {
       }
     }
 
-    // Body weight points for chart (last 30 days)
-    const weightPoints = bodyRes.rows
-      .filter((r: Record<string, unknown>) => r.weight_lb != null)
-      .slice(-30)
-      .map((r: Record<string, unknown>) => ({
-        date: String(r.date),
-        weight_lb: Number(r.weight_lb),
-      }));
+    const buildMetricPoints = (metric: string) =>
+      bodyRes.rows
+        .map((r: Record<string, unknown>) => {
+          const value = Number(r[metric]);
+          if (!Number.isFinite(value)) return null;
+          return {
+            date: String(r.date),
+            value,
+          };
+        })
+        .filter((p): p is { date: string; value: number } => p !== null)
+        .slice(-30);
 
-    // PR count this block (#19)
-    const prCountRes = blockId
-      ? await client.query<{ pr_count: number }>(
-          `select count(*)::int as pr_count
-           from (
-             select tsh.exercise_id, tsh.estimated_1rm,
-               max(tsh2.estimated_1rm) as prev_max
-             from top_set_history tsh
-             left join top_set_history tsh2
-               on tsh2.user_id = tsh.user_id
-               and tsh2.exercise_id = tsh.exercise_id
-               and tsh2.performed_at < tsh.performed_at
-             where tsh.user_id = $1
-               and tsh.block_id = $2
-             group by tsh.exercise_id, tsh.estimated_1rm, tsh.performed_at
-             having tsh.estimated_1rm > coalesce(max(tsh2.estimated_1rm), 0)
-           ) pr_sets`,
-          [userId, blockId]
-        )
-      : { rows: [{ pr_count: 0 }] };
-    const prCount = Number(prCountRes.rows[0]?.pr_count ?? 0);
+    const bodyMetricCharts = [
+      {
+        key: "weight",
+        title: "Body Weight",
+        unit: "lb",
+        decimals: 1,
+        countLabel: "weigh-ins",
+        trendClass: adaptive.weight_trend_class,
+        points: buildMetricPoints("weight_lb"),
+      },
+      {
+        key: "skeletal",
+        title: "Skeletal Mass",
+        unit: "",
+        decimals: 3,
+        countLabel: "measurements",
+        points: buildMetricPoints("skeletal_mass"),
+      },
+      {
+        key: "bmr",
+        title: "Basal Metabolic Rate",
+        unit: "kcal",
+        decimals: 0,
+        countLabel: "measurements",
+        points: buildMetricPoints("bmr_kcal"),
+      },
+      {
+        key: "bodyfat",
+        title: "Body Fat %",
+        unit: "%",
+        decimals: 1,
+        countLabel: "measurements",
+        points: buildMetricPoints("bodyfat_pct"),
+      },
+      {
+        key: "smi",
+        title: "SMI",
+        unit: "kg/m2",
+        decimals: 1,
+        countLabel: "measurements",
+        points: buildMetricPoints("smi_kg_m2"),
+      },
+    ];
 
     // Nutrition quick summary (today + 7-day)
     const today = todayUtcIso();
@@ -299,18 +346,6 @@ export default async function DashboardPage() {
           {/* This Week Summary */}
           <WeekSummary current={currentRollup} previous={previousRollup} />
 
-          {/* PR Count Badge (#19) */}
-          {prCount > 0 && (
-            <div className="rounded-lg border border-amber-700 bg-amber-950/30 p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-amber-600 bg-amber-950/60 px-2.5 py-1 text-xs font-semibold text-amber-300">
-                  {prCount} Personal Record{prCount !== 1 ? "s" : ""}
-                </span>
-                <span className="text-sm text-gray-300">Since start of current training block</span>
-              </div>
-            </div>
-          )}
-
           {/* Primary Lift Progress */}
           {sparklines.length > 0 ? (
             <div>
@@ -324,21 +359,33 @@ export default async function DashboardPage() {
               </div>
             </div>
           ) : (
-            <div className="rounded-lg border border-gray-700 bg-gray-900 p-3 text-sm text-gray-400">
-              No lift data yet. Log your first workout to see progress charts.
+            <div className="rounded-lg border border-dashed border-gray-700 bg-gray-900/50 p-6 text-center">
+              <p className="text-sm font-medium text-gray-300">No lift history yet</p>
+              <p className="mt-1 text-xs text-gray-500">
+                Log your first workout session to track estimated 1RM progress over time.
+              </p>
             </div>
           )}
 
-          {/* Body Weight Trend - only show with enough data */}
-          {weightPoints.length >= 3 ? (
-            <WeightChart points={weightPoints} trendClass={adaptive.weight_trend_class} />
-          ) : (
-            <div className="rounded-lg border border-gray-700 bg-gray-900 p-3 text-sm text-gray-400">
-              {weightPoints.length === 0
-                ? "No body weight data."
-                : `${weightPoints.length} data point${weightPoints.length !== 1 ? "s" : ""} - need 3+ for chart.`}
+          {/* Body stats trends */}
+          <div>
+            <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-gray-400">
+              Body Stats Trends
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {bodyMetricCharts.map((metric) => (
+                <WeightChart
+                  key={metric.key}
+                  title={metric.title}
+                  points={metric.points}
+                  unit={metric.unit}
+                  decimals={metric.decimals}
+                  countLabel={metric.countLabel}
+                  trendClass={metric.trendClass}
+                />
+              ))}
             </div>
-          )}
+          </div>
 
           {/* Unified nutrition summary */}
           <NutritionQuickStats summary={nutritionSummary} />

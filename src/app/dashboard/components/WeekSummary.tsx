@@ -56,8 +56,11 @@ function StatBox({
 export default function WeekSummary({ current, previous }: WeekSummaryProps) {
   if (!current) {
     return (
-      <div className="rounded-lg border border-gray-700 bg-gray-900 p-4 text-sm text-gray-400">
-        No workout data this week yet. Log a session to see your weekly stats here.
+      <div className="rounded-lg border border-dashed border-gray-700 bg-gray-900/50 p-6 text-center">
+        <p className="text-sm font-medium text-gray-300">No workout data this week yet</p>
+        <p className="mt-1 text-xs text-gray-500">
+          Log a session to start tracking sets, reps, tonnage, and cardio.
+        </p>
       </div>
     );
   }

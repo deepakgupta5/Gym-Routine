@@ -6,6 +6,22 @@ export type ParsedRow = {
   bodyfat_pct?: number | null;
   upper_pct?: number | null;
   lower_pct?: number | null;
+  skeletal_mass?: number | null;
+  bodyfat_lb?: number | null;
+  bmi?: number | null;
+  lean_body_mass_lb?: number | null;
+  bmr_kcal?: number | null;
+  smi_kg_m2?: number | null;
+  left_arm_lb?: number | null;
+  right_arm_lb?: number | null;
+  trunk_lb?: number | null;
+  left_leg_lb?: number | null;
+  right_leg_lb?: number | null;
+  left_arm_ratio?: number | null;
+  right_arm_ratio?: number | null;
+  trunk_ratio?: number | null;
+  left_leg_ratio?: number | null;
+  right_leg_ratio?: number | null;
 };
 
 export type ParseWarnings = {
@@ -65,6 +81,17 @@ function makeWarnings(): ParseWarnings {
   };
 }
 
+function toFiniteOrNull(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function toPercentFromUnknown(value: unknown): number | null {
+  const n = toFiniteOrNull(value);
+  if (n == null) return null;
+  return n <= 1 ? n * 100 : n;
+}
+
 export function parseBodyStatsXlsxWithReport(buffer: ArrayBuffer): ParseBodyStatsResult {
   const workbook = XLSX.read(buffer, { type: "array" });
   const allRows: ParsedRow[] = [];
@@ -82,30 +109,73 @@ export function parseBodyStatsXlsxWithReport(buffer: ArrayBuffer): ParseBodyStat
           mapped[normalizeHeader(key)] = value;
         }
 
-        const date = parseExcelDate(mapped["date"] ?? mapped["day"] ?? mapped["timestamp"]);
+        const date = parseExcelDate(mapped.date ?? mapped.day ?? mapped.timestamp);
         if (!date) {
           warnings.invalid_date_rows += 1;
           warnings.skipped_rows += 1;
           continue;
         }
 
-        const weight = Number(mapped["weightlb"] ?? mapped["weight"] ?? mapped["weightlbs"]);
-        if (!Number.isFinite(weight) || weight <= 0) {
+        const weight = toFiniteOrNull(mapped.weightlb ?? mapped.weight ?? mapped.weightlbs);
+        if (weight == null || weight <= 0) {
           warnings.invalid_weight_rows += 1;
           warnings.skipped_rows += 1;
           continue;
         }
 
-        const bodyfat = Number(mapped["bodyfatpct"] ?? mapped["bodyfat"]);
-        const upper = Number(mapped["upperpct"] ?? mapped["upper"]);
-        const lower = Number(mapped["lowerpct"] ?? mapped["lower"]);
+        const bodyfatPct = toPercentFromUnknown(mapped.bodyfatpct ?? mapped.bodyfat);
+        const upperDirect = toFiniteOrNull(mapped.upperpct ?? mapped.upper);
+        const lowerDirect = toFiniteOrNull(mapped.lowerpct ?? mapped.lower);
+
+        const leftArmLb = toFiniteOrNull(
+          mapped.leftarmlb ?? mapped.leftarmlbs ?? mapped.leftarmpounds ?? mapped.leftarm
+        );
+        const rightArmLb = toFiniteOrNull(
+          mapped.rightarmlb ?? mapped.rightarmlbs ?? mapped.rightarmpounds ?? mapped.rightarm
+        );
+        const trunkLb = toFiniteOrNull(mapped.trunklb ?? mapped.trunklbs ?? mapped.trunkpounds ?? mapped.trunk);
+        const leftLegLb = toFiniteOrNull(
+          mapped.leftleglb ?? mapped.leftleglbs ?? mapped.leftlegpounds ?? mapped.leftleg
+        );
+        const rightLegLb = toFiniteOrNull(
+          mapped.rightleglb ?? mapped.rightleglbs ?? mapped.rightlegpounds ?? mapped.rightleg
+        );
+
+        const upperDerived =
+          leftArmLb != null && rightArmLb != null && trunkLb != null
+            ? ((leftArmLb + rightArmLb + trunkLb) / weight) * 100
+            : null;
+        const lowerDerived =
+          leftLegLb != null && rightLegLb != null
+            ? ((leftLegLb + rightLegLb) / weight) * 100
+            : null;
 
         allRows.push({
           date,
           weight_lb: weight,
-          bodyfat_pct: Number.isFinite(bodyfat) ? bodyfat : null,
-          upper_pct: Number.isFinite(upper) ? upper : null,
-          lower_pct: Number.isFinite(lower) ? lower : null,
+          bodyfat_pct: bodyfatPct,
+          upper_pct: upperDirect ?? upperDerived,
+          lower_pct: lowerDirect ?? lowerDerived,
+          skeletal_mass: toFiniteOrNull(mapped.skeletalmass ?? mapped.skeletalmassindex),
+          bodyfat_lb: toFiniteOrNull(
+            mapped.bodyfatlb ?? mapped.bodyfatlbs ?? mapped.bodyfatpounds ?? mapped.bodyfatmasslb
+          ),
+          bmi: toFiniteOrNull(mapped.bmi),
+          lean_body_mass_lb: toFiniteOrNull(
+            mapped.leanbodymasslb ?? mapped.leanbodymasslbs ?? mapped.leanbodymass
+          ),
+          bmr_kcal: toFiniteOrNull(mapped.basalmetabolicrate ?? mapped.bmr ?? mapped.bmrkcal),
+          smi_kg_m2: toFiniteOrNull(mapped.smi ?? mapped.smikgm2),
+          left_arm_lb: leftArmLb,
+          right_arm_lb: rightArmLb,
+          trunk_lb: trunkLb,
+          left_leg_lb: leftLegLb,
+          right_leg_lb: rightLegLb,
+          left_arm_ratio: toFiniteOrNull(mapped.leftarmratio),
+          right_arm_ratio: toFiniteOrNull(mapped.rightarmratio),
+          trunk_ratio: toFiniteOrNull(mapped.trunkratio),
+          left_leg_ratio: toFiniteOrNull(mapped.leftlegratio),
+          right_leg_ratio: toFiniteOrNull(mapped.rightlegratio),
         });
       }
       continue;
@@ -119,68 +189,111 @@ export function parseBodyStatsXlsxWithReport(buffer: ArrayBuffer): ParseBodyStat
     }
 
     const byDate: Record<string, Record<string, unknown>> = {};
+    let pendingRatioMetric:
+      | "left_arm_ratio"
+      | "right_arm_ratio"
+      | "trunk_ratio"
+      | "left_leg_ratio"
+      | "right_leg_ratio"
+      | null = null;
 
     for (const row of raw) {
-      const label = row["__EMPTY"] ? String(row["__EMPTY"]).trim() : "";
-      const sub = row["__EMPTY_1"] ? String(row["__EMPTY_1"]).trim() : "";
+      const label = row.__EMPTY ? String(row.__EMPTY).trim() : "";
+      const sub = row.__EMPTY_1 ? String(row.__EMPTY_1).trim() : "";
+      const labelNorm = label.toLowerCase().replace(/\s+/g, " ");
+      const subNorm = sub.toLowerCase().replace(/\s+/g, " ");
 
       let metric: string | null = null;
-      if (label.toLowerCase() === "weight") metric = "weight";
-      else if (label.toLowerCase() === "body fat %") metric = "bodyfat_pct";
-      else if (label.toLowerCase() === "left arm") metric = "left_arm";
-      else if (label.toLowerCase() === "right arm") metric = "right_arm";
-      else if (label.toLowerCase() === "trunk") metric = "trunk";
-      else if (label.toLowerCase() === "left leg") metric = "left_leg";
-      else if (label.toLowerCase() === "right leg") metric = "right_leg";
-      else if (label.toLowerCase() === "body fat" && sub.toLowerCase() === "pounds") {
-        metric = null;
+
+      if (!labelNorm && !subNorm && pendingRatioMetric) {
+        metric = pendingRatioMetric;
+        pendingRatioMetric = null;
+      } else {
+        pendingRatioMetric = null;
+
+        if (labelNorm === "weight") metric = "weight_lb";
+        else if (labelNorm === "skeletal mass") metric = "skeletal_mass";
+        else if (labelNorm === "body fat" && subNorm === "pounds") metric = "bodyfat_lb";
+        else if (labelNorm === "bmi") metric = "bmi";
+        else if (labelNorm === "body fat %") metric = "bodyfat_pct";
+        else if (labelNorm === "lean body mass" && subNorm === "pounds") metric = "lean_body_mass_lb";
+        else if (labelNorm === "basal metabolic rate") metric = "bmr_kcal";
+        else if (labelNorm === "smi") metric = "smi_kg_m2";
+        else if (labelNorm === "left arm" && subNorm === "pounds") {
+          metric = "left_arm_lb";
+          pendingRatioMetric = "left_arm_ratio";
+        } else if (labelNorm === "right arm" && subNorm === "pounds") {
+          metric = "right_arm_lb";
+          pendingRatioMetric = "right_arm_ratio";
+        } else if (labelNorm === "trunk" && subNorm === "pounds") {
+          metric = "trunk_lb";
+          pendingRatioMetric = "trunk_ratio";
+        } else if (labelNorm === "left leg" && subNorm === "pounds") {
+          metric = "left_leg_lb";
+          pendingRatioMetric = "left_leg_ratio";
+        } else if (labelNorm === "right leg" && subNorm === "pounds") {
+          metric = "right_leg_lb";
+          pendingRatioMetric = "right_leg_ratio";
+        }
       }
 
       if (!metric) continue;
 
       for (const [header, date] of dateHeaders.entries()) {
-        const value = Number(row[header]);
-        if (!Number.isFinite(value)) continue;
+        const value = toFiniteOrNull(row[header]);
+        if (value == null) continue;
         if (!byDate[date]) byDate[date] = {};
         byDate[date][metric] = value;
       }
     }
 
     for (const [date, metrics] of Object.entries(byDate)) {
-      const weight = Number(metrics.weight);
-      let bodyfat = Number(metrics.bodyfat_pct);
-      if (Number.isFinite(bodyfat) && bodyfat <= 1) {
-        bodyfat *= 100;
-      }
-
-      const leftArm = Number(metrics.left_arm);
-      const rightArm = Number(metrics.right_arm);
-      const trunk = Number(metrics.trunk);
-      const leftLeg = Number(metrics.left_leg);
-      const rightLeg = Number(metrics.right_leg);
+      const weight = toFiniteOrNull(metrics.weight_lb);
+      const bodyfatPct = toPercentFromUnknown(metrics.bodyfat_pct);
+      const leftArmLb = toFiniteOrNull(metrics.left_arm_lb);
+      const rightArmLb = toFiniteOrNull(metrics.right_arm_lb);
+      const trunkLb = toFiniteOrNull(metrics.trunk_lb);
+      const leftLegLb = toFiniteOrNull(metrics.left_leg_lb);
+      const rightLegLb = toFiniteOrNull(metrics.right_leg_lb);
 
       let upperPct: number | null = null;
       let lowerPct: number | null = null;
 
-      if (!Number.isFinite(weight) || weight <= 0) {
+      if (weight == null || weight <= 0) {
         warnings.invalid_weight_rows += 1;
         warnings.skipped_rows += 1;
         continue;
       }
 
-      if (Number.isFinite(leftArm) && Number.isFinite(rightArm) && Number.isFinite(trunk)) {
-        upperPct = ((leftArm + rightArm + trunk) / weight) * 100;
+      if (leftArmLb != null && rightArmLb != null && trunkLb != null) {
+        upperPct = ((leftArmLb + rightArmLb + trunkLb) / weight) * 100;
       }
-      if (Number.isFinite(leftLeg) && Number.isFinite(rightLeg)) {
-        lowerPct = ((leftLeg + rightLeg) / weight) * 100;
+      if (leftLegLb != null && rightLegLb != null) {
+        lowerPct = ((leftLegLb + rightLegLb) / weight) * 100;
       }
 
       allRows.push({
         date,
         weight_lb: weight,
-        bodyfat_pct: Number.isFinite(bodyfat) ? bodyfat : null,
+        bodyfat_pct: bodyfatPct,
         upper_pct: upperPct,
         lower_pct: lowerPct,
+        skeletal_mass: toFiniteOrNull(metrics.skeletal_mass),
+        bodyfat_lb: toFiniteOrNull(metrics.bodyfat_lb),
+        bmi: toFiniteOrNull(metrics.bmi),
+        lean_body_mass_lb: toFiniteOrNull(metrics.lean_body_mass_lb),
+        bmr_kcal: toFiniteOrNull(metrics.bmr_kcal),
+        smi_kg_m2: toFiniteOrNull(metrics.smi_kg_m2),
+        left_arm_lb: leftArmLb,
+        right_arm_lb: rightArmLb,
+        trunk_lb: trunkLb,
+        left_leg_lb: leftLegLb,
+        right_leg_lb: rightLegLb,
+        left_arm_ratio: toFiniteOrNull(metrics.left_arm_ratio),
+        right_arm_ratio: toFiniteOrNull(metrics.right_arm_ratio),
+        trunk_ratio: toFiniteOrNull(metrics.trunk_ratio),
+        left_leg_ratio: toFiniteOrNull(metrics.left_leg_ratio),
+        right_leg_ratio: toFiniteOrNull(metrics.right_leg_ratio),
       });
     }
   }

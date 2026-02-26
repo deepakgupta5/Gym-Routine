@@ -91,27 +91,106 @@ export async function POST(req: Request) {
         r.bodyfat_pct,
         r.upper_pct,
         r.lower_pct,
+        r.skeletal_mass,
+        r.bodyfat_lb,
+        r.bmi,
+        r.lean_body_mass_lb,
+        r.bmr_kcal,
+        r.smi_kg_m2,
+        r.left_arm_lb,
+        r.right_arm_lb,
+        r.trunk_lb,
+        r.left_leg_lb,
+        r.right_leg_lb,
+        r.left_arm_ratio,
+        r.right_arm_ratio,
+        r.trunk_ratio,
+        r.left_leg_ratio,
+        r.right_leg_ratio,
         uploadId
       );
-      values.push(`($${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++})`);
+      values.push(
+        `($${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++})`
+      );
     }
 
     await client.query(
       `insert into body_stats_daily
-        (user_id, date, weight_lb, bodyfat_pct, upper_pct, lower_pct, source_upload_id)
+        (
+          user_id,
+          date,
+          weight_lb,
+          bodyfat_pct,
+          upper_pct,
+          lower_pct,
+          skeletal_mass,
+          bodyfat_lb,
+          bmi,
+          lean_body_mass_lb,
+          bmr_kcal,
+          smi_kg_m2,
+          left_arm_lb,
+          right_arm_lb,
+          trunk_lb,
+          left_leg_lb,
+          right_leg_lb,
+          left_arm_ratio,
+          right_arm_ratio,
+          trunk_ratio,
+          left_leg_ratio,
+          right_leg_ratio,
+          source_upload_id
+        )
        values ${values.join(",")}
        on conflict (user_id, date) do update set
          weight_lb = excluded.weight_lb,
          bodyfat_pct = excluded.bodyfat_pct,
          upper_pct = excluded.upper_pct,
          lower_pct = excluded.lower_pct,
+         skeletal_mass = excluded.skeletal_mass,
+         bodyfat_lb = excluded.bodyfat_lb,
+         bmi = excluded.bmi,
+         lean_body_mass_lb = excluded.lean_body_mass_lb,
+         bmr_kcal = excluded.bmr_kcal,
+         smi_kg_m2 = excluded.smi_kg_m2,
+         left_arm_lb = excluded.left_arm_lb,
+         right_arm_lb = excluded.right_arm_lb,
+         trunk_lb = excluded.trunk_lb,
+         left_leg_lb = excluded.left_leg_lb,
+         right_leg_lb = excluded.right_leg_lb,
+         left_arm_ratio = excluded.left_arm_ratio,
+         right_arm_ratio = excluded.right_arm_ratio,
+         trunk_ratio = excluded.trunk_ratio,
+         left_leg_ratio = excluded.left_leg_ratio,
+         right_leg_ratio = excluded.right_leg_ratio,
          source_upload_id = excluded.source_upload_id,
          updated_at = now()`,
       params
     );
 
     const historyRes = await client.query(
-      `select date::text as date, weight_lb, bodyfat_pct, upper_pct, lower_pct
+      `select
+         date::text as date,
+         weight_lb,
+         bodyfat_pct,
+         upper_pct,
+         lower_pct,
+         skeletal_mass,
+         bodyfat_lb,
+         bmi,
+         lean_body_mass_lb,
+         bmr_kcal,
+         smi_kg_m2,
+         left_arm_lb,
+         right_arm_lb,
+         trunk_lb,
+         left_leg_lb,
+         right_leg_lb,
+         left_arm_ratio,
+         right_arm_ratio,
+         trunk_ratio,
+         left_leg_ratio,
+         right_leg_ratio
        from body_stats_daily
        where user_id = $1`,
       [userId]

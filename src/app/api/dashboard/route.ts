@@ -48,7 +48,28 @@ export async function GET() {
     const block = blockRes.rows[0] ?? null;
 
     const bodyRes = await client.query(
-      `select date::text as date, weight_lb, bodyfat_pct, upper_pct, lower_pct
+      `select
+         date::text as date,
+         weight_lb,
+         bodyfat_pct,
+         upper_pct,
+         lower_pct,
+         skeletal_mass,
+         bodyfat_lb,
+         bmi,
+         lean_body_mass_lb,
+         bmr_kcal,
+         smi_kg_m2,
+         left_arm_lb,
+         right_arm_lb,
+         trunk_lb,
+         left_leg_lb,
+         right_leg_lb,
+         left_arm_ratio,
+         right_arm_ratio,
+         trunk_ratio,
+         left_leg_ratio,
+         right_leg_ratio
        from body_stats_daily
        where user_id = $1
        order by date asc`,

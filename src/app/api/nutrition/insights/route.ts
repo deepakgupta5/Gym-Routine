@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import { logError } from "@/lib/logger";
+import { nutritionRateLimit } from "@/lib/auth/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,15 @@ function generateCandidates(rollup: RollupData, goals: GoalsData): InsightCandid
 export async function GET(req: NextRequest) {
   requireConfig();
   const userId = CONFIG.SINGLE_USER_ID;
+
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  const rl = nutritionRateLimit(`insights:${ip}`);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterSeconds: rl.retryAfterSeconds },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
+    );
+  }
 
   const dateParam = req.nextUrl.searchParams.get("date");
   const date = dateParam ?? todayUtc();

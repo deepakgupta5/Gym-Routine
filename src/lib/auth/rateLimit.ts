@@ -34,3 +34,35 @@ export function consumeRateLimit(key: string, now = Date.now()) {
     remaining: 0,
   };
 }
+
+// ── Nutrition rate limiter ──────────────────────────────────────────────────
+// 30 requests per minute per IP – more lenient than auth since this is the
+// primary meal-logging workflow (/api/nutrition/log-preview, log-photo, insights).
+const NUTRITION_WINDOW_MS = 60 * 1000;
+const NUTRITION_MAX_REQUESTS = 30;
+
+const nutritionBuckets = new Map<string, Bucket>();
+
+export function nutritionRateLimit(key: string, now = Date.now()) {
+  const bucket = nutritionBuckets.get(key) ?? { attempts: [] };
+  bucket.attempts = prune(bucket.attempts, now).filter((ts) => now - ts < NUTRITION_WINDOW_MS);
+  bucket.attempts.push(now);
+  nutritionBuckets.set(key, bucket);
+
+  if (bucket.attempts.length <= NUTRITION_MAX_REQUESTS) {
+    return {
+      allowed: true,
+      retryAfterSeconds: 0,
+      remaining: Math.max(0, NUTRITION_MAX_REQUESTS - bucket.attempts.length),
+    };
+  }
+
+  const oldest = bucket.attempts[0];
+  const retryAfterSeconds = Math.max(1, Math.ceil((oldest + NUTRITION_WINDOW_MS - now) / 1000));
+
+  return {
+    allowed: false,
+    retryAfterSeconds,
+    remaining: 0,
+  };
+}

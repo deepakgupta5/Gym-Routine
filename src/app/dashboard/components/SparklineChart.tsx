@@ -14,20 +14,6 @@ function formatShortDate(value: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function formatSpan(start: string, end: string): string {
-  const startMs = new Date(start).getTime();
-  const endMs = new Date(end).getTime();
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return "time span";
-
-  const days = Math.max(1, Math.floor((endMs - startMs) / 86_400_000) + 1);
-  const weeks = Math.floor(days / 7);
-  const remDays = days % 7;
-
-  if (weeks > 0 && remDays > 0) return `${weeks}w ${remDays}d span`;
-  if (weeks > 0) return `${weeks}w span`;
-  return `${days}d span`;
-}
-
 export default function SparklineChart({ label, points }: SparklineChartProps) {
   if (points.length < 2) {
     return (
@@ -58,8 +44,14 @@ export default function SparklineChart({ label, points }: SparklineChartProps) {
   const latest = values[values.length - 1];
   const first = values[0];
   const trendUp = latest > first;
+  const midIndex = Math.floor((points.length - 1) / 2);
   const startDate = points[0]?.performed_at ?? "";
+  const midDate = points[midIndex]?.performed_at ?? "";
   const endDate = points[points.length - 1]?.performed_at ?? "";
+  const startX = padding;
+  const midX = padding + (midIndex / (values.length - 1)) * (width - 2 * padding);
+  const endX = width - padding;
+  const axisY = height - padding;
   const trendFlat = latest === first;
   const strokeColor = trendFlat ? "#9ca3af" : trendUp ? "#22c55e" : "#ef4444";
 
@@ -75,6 +67,10 @@ export default function SparklineChart({ label, points }: SparklineChartProps) {
         style={{ maxHeight: height }}
         preserveAspectRatio="none"
       >
+        <line x1={startX} y1={axisY} x2={endX} y2={axisY} stroke="#334155" strokeWidth="1" />
+        <line x1={startX} y1={axisY} x2={startX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
+        <line x1={midX} y1={axisY} x2={midX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
+        <line x1={endX} y1={axisY} x2={endX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
         <polyline
           points={polylinePoints}
           fill="none"
@@ -85,9 +81,9 @@ export default function SparklineChart({ label, points }: SparklineChartProps) {
         />
       </svg>
       <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
-        <span>{formatShortDate(startDate)}</span>
-        <span>{formatSpan(startDate, endDate)}</span>
-        <span>{formatShortDate(endDate)}</span>
+        <span>Start: {formatShortDate(startDate)}</span>
+        <span>Mid: {formatShortDate(midDate)}</span>
+        <span>Current: {formatShortDate(endDate)}</span>
       </div>
       <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
         <span>Est 1RM: {Math.round(latest)} lb</span>

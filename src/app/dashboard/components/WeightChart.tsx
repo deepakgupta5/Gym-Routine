@@ -1,11 +1,15 @@
-type WeightPoint = {
+type MetricPoint = {
   date: string;
-  weight_lb: number;
+  value: number;
 };
 
 type WeightChartProps = {
-  points: WeightPoint[];
-  trendClass: string;
+  title: string;
+  points: MetricPoint[];
+  unit: string;
+  decimals?: number;
+  countLabel?: string;
+  trendClass?: string;
 };
 
 function formatShortDate(value: string): string {
@@ -14,25 +18,23 @@ function formatShortDate(value: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function formatSpan(start: string, end: string): string {
-  const startMs = new Date(start).getTime();
-  const endMs = new Date(end).getTime();
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return "time span";
-
-  const days = Math.max(1, Math.floor((endMs - startMs) / 86_400_000) + 1);
-  const weeks = Math.floor(days / 7);
-  const remDays = days % 7;
-
-  if (weeks > 0 && remDays > 0) return `${weeks}w ${remDays}d span`;
-  if (weeks > 0) return `${weeks}w span`;
-  return `${days}d span`;
+function formatValue(value: number, decimals: number, unit: string): string {
+  const n = value.toFixed(decimals);
+  return unit ? `${n} ${unit}` : n;
 }
 
-export default function WeightChart({ points, trendClass }: WeightChartProps) {
+export default function WeightChart({
+  title,
+  points,
+  unit,
+  decimals = 1,
+  countLabel = "entries",
+  trendClass,
+}: WeightChartProps) {
   if (points.length < 2) {
     return (
       <div className="rounded-lg border border-gray-700 bg-gray-900 p-3">
-        <div className="text-sm font-medium text-gray-200">Body Weight</div>
+        <div className="text-sm font-medium text-gray-200">{title}</div>
         <div className="mt-1 text-xs text-gray-400">Not enough data</div>
       </div>
     );
@@ -42,7 +44,7 @@ export default function WeightChart({ points, trendClass }: WeightChartProps) {
   const height = 60;
   const padding = 6;
 
-  const values = points.map((p) => p.weight_lb);
+  const values = points.map((p) => p.value);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
@@ -55,18 +57,36 @@ export default function WeightChart({ points, trendClass }: WeightChartProps) {
     })
     .join(" ");
 
-  const strokeColor =
-    trendClass === "down" ? "#22c55e" : trendClass === "up" ? "#f59e0b" : "#9ca3af";
-
   const latest = values[values.length - 1];
+  const first = values[0];
+  const trendFlat = latest === first;
+  const trendUp = latest > first;
+
+  const strokeColor =
+    trendClass === "down"
+      ? "#22c55e"
+      : trendClass === "up"
+        ? "#f59e0b"
+        : trendFlat
+          ? "#9ca3af"
+          : trendUp
+            ? "#22c55e"
+            : "#ef4444";
+
+  const midIndex = Math.floor((points.length - 1) / 2);
   const startDate = points[0]?.date ?? "";
+  const midDate = points[midIndex]?.date ?? "";
   const endDate = points[points.length - 1]?.date ?? "";
+  const startX = padding;
+  const midX = padding + (midIndex / (values.length - 1)) * (width - 2 * padding);
+  const endX = width - padding;
+  const axisY = height - padding;
 
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-900 p-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-sm font-medium text-gray-200">Body Weight</div>
-        <div className="text-xs text-gray-400">{points.length} weigh-ins</div>
+        <div className="text-sm font-medium text-gray-200">{title}</div>
+        <div className="text-xs text-gray-400">{points.length} {countLabel}</div>
       </div>
       <svg
         viewBox={`0 0 ${width} ${height}`}
@@ -74,6 +94,10 @@ export default function WeightChart({ points, trendClass }: WeightChartProps) {
         style={{ maxHeight: height }}
         preserveAspectRatio="none"
       >
+        <line x1={startX} y1={axisY} x2={endX} y2={axisY} stroke="#334155" strokeWidth="1" />
+        <line x1={startX} y1={axisY} x2={startX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
+        <line x1={midX} y1={axisY} x2={midX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
+        <line x1={endX} y1={axisY} x2={endX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
         <polyline
           points={polylinePoints}
           fill="none"
@@ -84,14 +108,14 @@ export default function WeightChart({ points, trendClass }: WeightChartProps) {
         />
       </svg>
       <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
-        <span>{formatShortDate(startDate)}</span>
-        <span>{formatSpan(startDate, endDate)}</span>
-        <span>{formatShortDate(endDate)}</span>
+        <span>Start: {formatShortDate(startDate)}</span>
+        <span>Mid: {formatShortDate(midDate)}</span>
+        <span>Current: {formatShortDate(endDate)}</span>
       </div>
       <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
-        <span>Current: {latest.toFixed(1)} lb</span>
+        <span>Current: {formatValue(latest, decimals, unit)}</span>
         <span>
-          Range: {min.toFixed(1)}&ndash;{max.toFixed(1)} lb
+          Range: {formatValue(min, decimals, unit)}&ndash;{formatValue(max, decimals, unit)}
         </span>
       </div>
     </div>

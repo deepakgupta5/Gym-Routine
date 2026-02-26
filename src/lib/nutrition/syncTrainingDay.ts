@@ -135,6 +135,7 @@ export async function syncTrainingDay(
 
   const targetCalories = clamp(roundTo25(baseCalories + trendAdjustment), 1200, 4200);
 
+  const m = DEFAULT_MACRO_TARGETS;
   await client.query(
     `INSERT INTO nutrition_goals_daily
        (user_id, goal_date, is_training_day,
@@ -143,21 +144,25 @@ export async function syncTrainingDay(
         target_iron_mg, target_vitamin_d_mcg, target_water_ml)
      VALUES
        ($1, $2, $3,
-        $4, 160, 70,
-        30, 45, 2300,
-        8, 15, 3000)
+        $4, $5, $6,
+        $7, $8, $9,
+        $10, $11, $12)
      ON CONFLICT (user_id, goal_date)
      DO UPDATE SET
-       is_training_day  = EXCLUDED.is_training_day,
-       target_calories  = EXCLUDED.target_calories,
-       target_protein_g = EXCLUDED.target_protein_g,
-       target_fat_g     = EXCLUDED.target_fat_g,
-       target_fiber_g   = EXCLUDED.target_fiber_g,
-       target_sugar_g_max = EXCLUDED.target_sugar_g_max,
+       is_training_day      = EXCLUDED.is_training_day,
+       target_calories      = EXCLUDED.target_calories,
+       target_protein_g     = EXCLUDED.target_protein_g,
+       target_fat_g         = EXCLUDED.target_fat_g,
+       target_fiber_g       = EXCLUDED.target_fiber_g,
+       target_sugar_g_max   = EXCLUDED.target_sugar_g_max,
        target_sodium_mg_max = EXCLUDED.target_sodium_mg_max,
-       target_iron_mg = EXCLUDED.target_iron_mg,
+       target_iron_mg       = EXCLUDED.target_iron_mg,
        target_vitamin_d_mcg = EXCLUDED.target_vitamin_d_mcg,
-       target_water_ml = EXCLUDED.target_water_ml`,
-    [userId, date, isTrainingDay, targetCalories]
+       target_water_ml      = EXCLUDED.target_water_ml`,
+    [
+      userId, date, isTrainingDay, targetCalories,
+      m.protein_g, m.fat_g, m.fiber_g, m.sugar_g_max,
+      m.sodium_mg_max, m.iron_mg, m.vitamin_d_mcg, m.water_ml,
+    ]
   );
 }

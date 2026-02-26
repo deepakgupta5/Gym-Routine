@@ -5,6 +5,7 @@ import { logError, logInfo } from "@/lib/logger";
 import { callOpenAI } from "@/lib/ai/openai";
 import { buildMealParseSystemPrompt, buildMealParseUserPrompt } from "@/lib/ai/prompts";
 import { readParseP95Last7Days, recordParseMetric } from "@/lib/nutrition/parseMetrics";
+import { nutritionRateLimit } from "@/lib/auth/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -202,6 +203,15 @@ async function callOpenAIWithTimeoutRetry(params: {
 export async function POST(req: Request) {
   requireConfig();
   const userId = CONFIG.SINGLE_USER_ID;
+
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  const rl = nutritionRateLimit(`log-preview:${ip}`);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterSeconds: rl.retryAfterSeconds },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
+    );
+  }
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "invalid_body" }, { status: 400 });

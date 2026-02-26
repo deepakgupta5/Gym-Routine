@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { haptic } from "@/lib/haptics";
 import { initAudio, playTimerComplete } from "@/lib/timerAudio";
@@ -134,7 +134,7 @@ export function useSessionLoggerController({
     return () => window.clearInterval(intervalId);
   }, [activeTimer]);
 
-  async function addSet(ex: ExerciseView) {
+  const addSet = useCallback(async function addSet(ex: ExerciseView) {
     void initAudio();
     setError(null);
     const form = entryForms[ex.exercise_id];
@@ -189,9 +189,9 @@ export function useSessionLoggerController({
 
     haptic("light");
     router.refresh();
-  }
+  }, [entryForms, logsByExercise, session.plan_session_id, router]);
 
-  function beginEdit(log: SetLogView) {
+  const beginEdit = useCallback(function beginEdit(log: SetLogView) {
     setEditingId(log.id);
     setConfirmingDeleteId(null);
     setError(null);
@@ -205,9 +205,9 @@ export function useSessionLoggerController({
         notes: log.notes || "",
       },
     }));
-  }
+  }, []);
 
-  async function saveEdit(log: SetLogView) {
+  const saveEdit = useCallback(async function saveEdit(log: SetLogView) {
     setError(null);
     const form = editForms[log.id];
     const load = Number(form?.load);
@@ -243,9 +243,9 @@ export function useSessionLoggerController({
     setConfirmingDeleteId(null);
     haptic("light");
     router.refresh();
-  }
+  }, [editForms, router]);
 
-  async function confirmDelete(log: SetLogView) {
+  const confirmDelete = useCallback(async function confirmDelete(log: SetLogView) {
     setError(null);
 
     const key = `delete-${log.id}`;
@@ -271,9 +271,9 @@ export function useSessionLoggerController({
     }
 
     router.refresh();
-  }
+  }, [editingId, confirmingDeleteId, router]);
 
-  function repeatSet(log: SetLogView) {
+  const repeatSet = useCallback(function repeatSet(log: SetLogView) {
     setEntryForms((prev) => ({
       ...prev,
       [log.exercise_id]: {
@@ -290,9 +290,9 @@ export function useSessionLoggerController({
     }
 
     haptic("light");
-  }
+  }, []);
 
-  async function saveSessionMinutes() {
+  const saveSessionMinutes = useCallback(async function saveSessionMinutes() {
     setError(null);
 
     const cardio = Number(sessionMinutes.cardio);
@@ -325,9 +325,9 @@ export function useSessionLoggerController({
     setSessionMinutes({ cardio: String(cardio) });
     router.refresh();
     return true;
-  }
+  }, [sessionMinutes.cardio, session.plan_session_id, router]);
 
-  async function skipDay() {
+  const skipDay = useCallback(async function skipDay() {
     setError(null);
     const key = "skip-day";
     setPendingKey(key);
@@ -356,9 +356,9 @@ export function useSessionLoggerController({
     const dmy = `${d}-${m}-${y}`;
     window.location.replace(`/session/${dmy}?skipped=1`);
     return true;
-  }
+  }, [session.date]);
 
-  function extendTimer() {
+  const extendTimer = useCallback(function extendTimer() {
     setActiveTimer((prev) => {
       if (!prev) return prev;
       return {
@@ -367,9 +367,9 @@ export function useSessionLoggerController({
         totalSeconds: prev.totalSeconds + 30,
       };
     });
-  }
+  }, []);
 
-  function getExerciseTimer(exerciseId: number): TimerView | null {
+  const getExerciseTimer = useCallback(function getExerciseTimer(exerciseId: number): TimerView | null {
     if (!activeTimer || activeTimer.exerciseId !== exerciseId) {
       return null;
     }
@@ -383,7 +383,7 @@ export function useSessionLoggerController({
       remainingSeconds: remaining,
       totalSeconds: activeTimer.totalSeconds,
     };
-  }
+  }, [activeTimer, nowMs]);
 
   return {
     error,
@@ -409,11 +409,11 @@ export function useSessionLoggerController({
     skipDay,
     extendTimer,
     getExerciseTimer,
-    requestDelete: (log: SetLogView) => setConfirmingDeleteId(log.id),
-    cancelDelete: () => setConfirmingDeleteId(null),
-    skipTimer: () => setActiveTimer(null),
-    logButtonRef: (exerciseId: number, el: HTMLButtonElement | null) => {
+    requestDelete: useCallback((log: SetLogView) => setConfirmingDeleteId(log.id), []),
+    cancelDelete: useCallback(() => setConfirmingDeleteId(null), []),
+    skipTimer: useCallback(() => setActiveTimer(null), []),
+    logButtonRef: useCallback((exerciseId: number, el: HTMLButtonElement | null) => {
       logButtonRefs.current[exerciseId] = el;
-    },
+    }, []),
   };
 }
