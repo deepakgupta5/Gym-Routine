@@ -25,6 +25,18 @@ type WeightPoint = {
   weight_lb: number;
 };
 
+/** Default daily macro targets. Edit here to update all sync operations globally. */
+export const DEFAULT_MACRO_TARGETS = {
+  protein_g: 160,
+  fat_g: 70,
+  fiber_g: 30,
+  sugar_g_max: 45,
+  sodium_mg_max: 2300,
+  iron_mg: 8,
+  vitamin_d_mcg: 15,
+  water_ml: 3000,
+} as const;
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }

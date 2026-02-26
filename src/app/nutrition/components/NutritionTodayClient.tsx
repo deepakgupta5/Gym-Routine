@@ -868,7 +868,7 @@ export default function NutritionTodayClient() {
                       {aiPreviewItems.map((item, idx) => (
                         <div key={`${item.item_name}-${idx}`} className="rounded-md border border-gray-700 bg-gray-800 p-2">
                           <div className="mb-2 flex items-center justify-between gap-2">
-                            <span className="text-xs text-gray-400">Item {idx + 1} ({item.source})</span>
+                            <span className="text-xs font-medium text-gray-300">Item {idx + 1}: {item.item_name || "Unnamed item"} ({item.source})</span>
                             <button
                               type="button"
                               onClick={() => removePreviewItem(idx)}
@@ -879,37 +879,82 @@ export default function NutritionTodayClient() {
                           </div>
 
                           <div className="grid gap-2 sm:grid-cols-3">
-                            <input
-                              value={item.item_name}
-                              onChange={(e) => updatePreviewItem(idx, "item_name", e.target.value)}
-                              placeholder="Item"
-                              className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100"
-                            />
-                            <input
-                              value={item.quantity}
-                              onChange={(e) => updatePreviewItem(idx, "quantity", e.target.value)}
-                              placeholder="Qty"
-                              type="number"
-                              className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100"
-                            />
-                            <input
-                              value={item.unit}
-                              onChange={(e) => updatePreviewItem(idx, "unit", e.target.value)}
-                              placeholder="Unit"
-                              className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100"
-                            />
-                            <input value={item.calories} onChange={(e) => updatePreviewItem(idx, "calories", e.target.value)} placeholder="Calories" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
-                            <input value={item.protein_g} onChange={(e) => updatePreviewItem(idx, "protein_g", e.target.value)} placeholder="Protein g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
-                            <input value={item.carbs_g} onChange={(e) => updatePreviewItem(idx, "carbs_g", e.target.value)} placeholder="Carbs g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
-                            <input value={item.fat_g} onChange={(e) => updatePreviewItem(idx, "fat_g", e.target.value)} placeholder="Fat g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
-                            <input value={item.fiber_g} onChange={(e) => updatePreviewItem(idx, "fiber_g", e.target.value)} placeholder="Fiber g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
-                            <input value={item.sugar_g} onChange={(e) => updatePreviewItem(idx, "sugar_g", e.target.value)} placeholder="Sugar g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
-                            <input value={item.sodium_mg} onChange={(e) => updatePreviewItem(idx, "sodium_mg", e.target.value)} placeholder="Sodium mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
-                            <input value={item.iron_mg} onChange={(e) => updatePreviewItem(idx, "iron_mg", e.target.value)} placeholder="Iron mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
-                            <input value={item.calcium_mg} onChange={(e) => updatePreviewItem(idx, "calcium_mg", e.target.value)} placeholder="Calcium mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
-                            <input value={item.vitamin_d_mcg} onChange={(e) => updatePreviewItem(idx, "vitamin_d_mcg", e.target.value)} placeholder="Vitamin D mcg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
-                            <input value={item.vitamin_c_mg} onChange={(e) => updatePreviewItem(idx, "vitamin_c_mg", e.target.value)} placeholder="Vitamin C mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
-                            <input value={item.potassium_mg} onChange={(e) => updatePreviewItem(idx, "potassium_mg", e.target.value)} placeholder="Potassium mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Item Name</span>
+                              <input
+                                value={item.item_name}
+                                onChange={(e) => updatePreviewItem(idx, "item_name", e.target.value)}
+                                placeholder="Item"
+                                className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100"
+                              />
+                            </label>
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Quantity</span>
+                              <input
+                                value={item.quantity}
+                                onChange={(e) => updatePreviewItem(idx, "quantity", e.target.value)}
+                                placeholder="Qty"
+                                type="number"
+                                className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100"
+                              />
+                            </label>
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Unit</span>
+                              <input
+                                value={item.unit}
+                                onChange={(e) => updatePreviewItem(idx, "unit", e.target.value)}
+                                placeholder="Unit"
+                                className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100"
+                              />
+                            </label>
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Calories</span>
+                              <input value={item.calories} onChange={(e) => updatePreviewItem(idx, "calories", e.target.value)} placeholder="Calories" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            </label>
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Protein (g)</span>
+                              <input value={item.protein_g} onChange={(e) => updatePreviewItem(idx, "protein_g", e.target.value)} placeholder="Protein g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            </label>
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Carbs (g)</span>
+                              <input value={item.carbs_g} onChange={(e) => updatePreviewItem(idx, "carbs_g", e.target.value)} placeholder="Carbs g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            </label>
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Fat (g)</span>
+                              <input value={item.fat_g} onChange={(e) => updatePreviewItem(idx, "fat_g", e.target.value)} placeholder="Fat g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            </label>
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Fiber (g)</span>
+                              <input value={item.fiber_g} onChange={(e) => updatePreviewItem(idx, "fiber_g", e.target.value)} placeholder="Fiber g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            </label>
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Sugar (g)</span>
+                              <input value={item.sugar_g} onChange={(e) => updatePreviewItem(idx, "sugar_g", e.target.value)} placeholder="Sugar g" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            </label>
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Sodium (mg)</span>
+                              <input value={item.sodium_mg} onChange={(e) => updatePreviewItem(idx, "sodium_mg", e.target.value)} placeholder="Sodium mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            </label>
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Iron (mg)</span>
+                              <input value={item.iron_mg} onChange={(e) => updatePreviewItem(idx, "iron_mg", e.target.value)} placeholder="Iron mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            </label>
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Calcium (mg)</span>
+                              <input value={item.calcium_mg} onChange={(e) => updatePreviewItem(idx, "calcium_mg", e.target.value)} placeholder="Calcium mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            </label>
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Vitamin D (mcg)</span>
+                              <input value={item.vitamin_d_mcg} onChange={(e) => updatePreviewItem(idx, "vitamin_d_mcg", e.target.value)} placeholder="Vitamin D mcg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            </label>
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Vitamin C (mg)</span>
+                              <input value={item.vitamin_c_mg} onChange={(e) => updatePreviewItem(idx, "vitamin_c_mg", e.target.value)} placeholder="Vitamin C mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            </label>
+                            <label className="grid gap-1 text-xs text-gray-400">
+                              <span>Potassium (mg)</span>
+                              <input value={item.potassium_mg} onChange={(e) => updatePreviewItem(idx, "potassium_mg", e.target.value)} placeholder="Potassium mg" type="number" className="rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100" />
+                            </label>
                           </div>
                         </div>
                       ))}

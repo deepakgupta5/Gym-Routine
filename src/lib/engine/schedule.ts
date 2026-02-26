@@ -1,4 +1,5 @@
 import { SessionType } from "@/lib/engine/types";
+import { parseIsoDate, toDateString, addDays as addDaysToDate, isSunday } from "@/lib/dates";
 
 /**
  * DESIGN NOTE: session_type (Mon/Tue/Wed/Thu/Fri/Sat) represents the
@@ -29,22 +30,9 @@ export type ShiftResult = {
   dropped: string[];
 };
 
-function toDate(d: string) {
-  return new Date(d + "T00:00:00Z");
-}
-
-function toDateString(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
-
-function addDays(date: string, days: number) {
-  const d = toDate(date);
-  d.setUTCDate(d.getUTCDate() + days);
-  return toDateString(d);
-}
-
-function isSunday(date: string) {
-  return toDate(date).getUTCDay() === 0;
+/** Add `days` to an ISO date string, returning an ISO date string. */
+function addDays(date: string, days: number): string {
+  return toDateString(addDaysToDate(parseIsoDate(date), days));
 }
 
 function isLowerStrength(sessionType: SessionType) {

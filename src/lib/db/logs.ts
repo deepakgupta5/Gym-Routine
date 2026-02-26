@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { computeRollupFromSets, getWeekRangeUtc, type SetLogRow } from "@/lib/db/rollups";
+import { toDateString, getWeekStartFromTimestamp } from "@/lib/dates";
 
 export async function recomputeSessionPerformed(
   client: PoolClient,
@@ -33,10 +34,6 @@ export async function recomputeSessionPerformed(
 
   const res = await client.query<{ performed_at: string | null }>(sql, [sessionId]);
   return res.rows[0]?.performed_at ?? null;
-}
-
-function toDateString(d: Date) {
-  return d.toISOString().slice(0, 10);
 }
 
 export async function recomputeWeeklyRollup(
@@ -126,14 +123,8 @@ export async function recomputeWeeklyRollup(
   );
 }
 
-export function getWeekStartFromTimestamp(ts: string): string {
-  const d = new Date(ts);
-  const day = d.getUTCDay();
-  const diff = (day === 0 ? -6 : 1) - day;
-  d.setUTCDate(d.getUTCDate() + diff);
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString().slice(0, 10);
-}
+// getWeekStartFromTimestamp is re-exported from @/lib/dates via the import above.
+export { getWeekStartFromTimestamp };
 
 export function computePerformedAtFromSets(
   sessionType: string,

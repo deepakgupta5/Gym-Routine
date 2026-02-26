@@ -52,18 +52,5 @@ export function computeRollupFromSets(rows: SetLogRow[]): RollupResult {
   };
 }
 
-export function getWeekStartDateUtc(date: Date): string {
-  const d = new Date(date);
-  const day = d.getUTCDay();
-  const diff = (day === 0 ? -6 : 1) - day;
-  d.setUTCDate(d.getUTCDate() + diff);
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString().slice(0, 10);
-}
-
-export function getWeekRangeUtc(weekStart: string) {
-  const start = new Date(weekStart + "T00:00:00Z");
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 7);
-  return { start, end };
-}
+// Date helpers consolidated in @/lib/dates — re-export for backward compat.
+export { getWeekStartDateUtc, getWeekRangeUtc } from "@/lib/dates";
