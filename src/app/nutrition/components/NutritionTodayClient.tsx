@@ -823,12 +823,27 @@ export default function NutritionTodayClient() {
               <button
                 type="button"
                 onClick={() => {
-                  setEntryMode("photo");
                   clearFormMessages();
+
+                  if (entryMode !== "photo") {
+                    setEntryMode("photo");
+                    window.setTimeout(() => {
+                      uploadInputRef.current?.click();
+                    }, 0);
+                    return;
+                  }
+
+                  if (photoFile) {
+                    void saveFromPhoto();
+                    return;
+                  }
+
+                  uploadInputRef.current?.click();
                 }}
-                className={`rounded-md border px-3 py-2 text-sm ${entryMode === "photo" ? "border-blue-700 bg-blue-600 text-white" : "border-gray-600 bg-gray-800 text-gray-100"}`}
+                disabled={savingPhoto}
+                className={`rounded-md border px-3 py-2 text-sm ${entryMode === "photo" ? "border-blue-700 bg-blue-600 text-white" : "border-gray-600 bg-gray-800 text-gray-100"} disabled:opacity-50`}
               >
-                Photo
+                {savingPhoto ? "Saving..." : "Photo"}
               </button>
             </div>
 
