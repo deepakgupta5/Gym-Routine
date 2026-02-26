@@ -168,11 +168,12 @@ async function callOpenAIWithTimeoutRetry(params: {
       }
     }
 
-    if (isModelUnavailableError(lastErr)) {
+    if (isModelUnavailableError(lastErr) || isTimeoutError(lastErr)) {
       logInfo("nutrition_log_preview_model_fallback", {
         user_id: params.userId,
         from_model: "gpt-4o-mini",
         to_model: "gpt-4o",
+        reason: isModelUnavailableError(lastErr) ? "model_unavailable" : "timeout",
       });
 
       const fallbackStartedAt = Date.now();
@@ -224,11 +225,11 @@ export async function POST(req: Request) {
     const { rawJson, parseDurationMs, retriedAfterTimeout, modelUsed, usedModelFallback } = await callOpenAIWithTimeoutRetry({
       systemPrompt,
       userContent: userPrompt,
-      maxTokens: 2048,
+      maxTokens: 900,
       responseFormat: "json_object",
       timeoutMs: 2500,
       retryTimeoutMs: 6000,
-      modelFallbackTimeoutMs: 7000,
+      modelFallbackTimeoutMs: 10000,
       userId,
     });
 
