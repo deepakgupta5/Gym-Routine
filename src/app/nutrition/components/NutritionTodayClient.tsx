@@ -682,18 +682,6 @@ export default function NutritionTodayClient() {
 
       {data && summary && (
         <>
-          {/* Macro summary grid */}
-          <div className="grid gap-3 sm:grid-cols-4">
-            {summary.map((item) => (
-              <div key={item.label} className="rounded-lg border border-gray-700 bg-gray-800 p-3">
-                <div className="text-xs text-gray-400">{item.label}</div>
-                <div className="text-sm text-gray-100">
-                  {item.current}{item.suffix} / {item.target}{item.suffix}
-                </div>
-              </div>
-            ))}
-          </div>
-
           {/* Log Meal form */}
           <MealLogForm
             mealType={mealType}
@@ -739,6 +727,18 @@ export default function NutritionTodayClient() {
               onUpdateMeal={updateMeal}
               onDeleteMeal={deleteMeal}
             />
+          </div>
+
+          {/* Macro summary grid */}
+          <div className="grid gap-3 sm:grid-cols-4">
+            {summary.map((item) => (
+              <div key={item.label} className="rounded-lg border border-gray-700 bg-gray-800 p-3">
+                <div className="text-xs text-gray-400">{item.label}</div>
+                <div className="text-sm text-gray-100">
+                  {item.current}{item.suffix} / {item.target}{item.suffix}
+                </div>
+              </div>
+            ))}
           </div>
         </>
       )}

@@ -43,15 +43,20 @@ export default function WeightChart({
   const width = 280;
   const height = 60;
   const padding = 6;
+  const yLabelWidth = 36;
+  const plotStartX = yLabelWidth + padding;
+  const plotEndX = width - padding;
+  const plotWidth = plotEndX - plotStartX;
 
   const values = points.map((p) => p.value);
   const min = Math.min(...values);
   const max = Math.max(...values);
+  const mid = min + (max - min) / 2;
   const range = max - min || 1;
 
   const polylinePoints = values
     .map((v, i) => {
-      const x = padding + (i / (values.length - 1)) * (width - 2 * padding);
+      const x = plotStartX + (i / (values.length - 1)) * plotWidth;
       const y = height - padding - ((v - min) / range) * (height - 2 * padding);
       return `${x},${y}`;
     })
@@ -77,10 +82,11 @@ export default function WeightChart({
   const startDate = points[0]?.date ?? "";
   const midDate = points[midIndex]?.date ?? "";
   const endDate = points[points.length - 1]?.date ?? "";
-  const startX = padding;
-  const midX = padding + (midIndex / (values.length - 1)) * (width - 2 * padding);
-  const endX = width - padding;
+  const startX = plotStartX;
+  const midX = plotStartX + (midIndex / (values.length - 1)) * plotWidth;
+  const endX = plotEndX;
   const axisY = height - padding;
+  const yAxisLabel = unit ? `${title} (${unit})` : title;
 
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-900 p-3">
@@ -94,7 +100,13 @@ export default function WeightChart({
         style={{ maxHeight: height }}
         preserveAspectRatio="none"
       >
+        <line x1={startX} y1={padding} x2={endX} y2={padding} stroke="#1f2937" strokeWidth="1" />
+        <line x1={startX} y1={(padding + axisY) / 2} x2={endX} y2={(padding + axisY) / 2} stroke="#1f2937" strokeWidth="1" />
         <line x1={startX} y1={axisY} x2={endX} y2={axisY} stroke="#334155" strokeWidth="1" />
+        <line x1={startX} y1={padding} x2={startX} y2={axisY} stroke="#334155" strokeWidth="1" />
+        <text x={1} y={padding + 2} fill="#94a3b8" fontSize="8">{max.toFixed(decimals)}</text>
+        <text x={1} y={(padding + axisY) / 2 + 2} fill="#64748b" fontSize="8">{mid.toFixed(decimals)}</text>
+        <text x={1} y={axisY} fill="#94a3b8" fontSize="8">{min.toFixed(decimals)}</text>
         <line x1={startX} y1={axisY} x2={startX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
         <line x1={midX} y1={axisY} x2={midX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
         <line x1={endX} y1={axisY} x2={endX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
@@ -107,6 +119,10 @@ export default function WeightChart({
           strokeLinejoin="round"
         />
       </svg>
+      <div className="mt-1 flex items-center justify-between text-[11px] text-gray-500">
+        <span>X-axis: Date</span>
+        <span>Y-axis: {yAxisLabel}</span>
+      </div>
       <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
         <span>Start: {formatShortDate(startDate)}</span>
         <span>Mid: {formatShortDate(midDate)}</span>
