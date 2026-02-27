@@ -202,7 +202,9 @@ export default async function DashboardPage() {
     const buildMetricPoints = (metric: string) =>
       bodyRes.rows
         .map((r: Record<string, unknown>) => {
-          const value = Number(r[metric]);
+          const rawValue = r[metric];
+          if (rawValue == null || rawValue === "") return null;
+          const value = Number(rawValue);
           if (!Number.isFinite(value)) return null;
           return {
             date: String(r.date),

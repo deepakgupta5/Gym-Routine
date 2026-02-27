@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import MealLogForm from "./MealLogForm";
@@ -658,12 +657,6 @@ export default function NutritionTodayClient() {
           }}
           className="rounded-md border border-gray-600 bg-gray-800 px-2 py-1 text-sm text-gray-100"
         />
-      </div>
-
-      <div className="mb-4 grid gap-2 sm:grid-cols-1">
-        <Link href="/nutrition/plan" className="rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-center text-sm text-gray-200">
-          Meal Plan
-        </Link>
       </div>
 
       {pageError && (

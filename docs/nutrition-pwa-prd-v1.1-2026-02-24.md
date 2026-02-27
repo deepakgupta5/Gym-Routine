@@ -1,288 +1,221 @@
-# Nutrition + Gym Integrated PWA PRD (Updated)
+# Nutrition + Gym Integrated PWA PRD (Shipped, Implementation-Locked)
 
 Version: 1.1  
-Date: 2026-02-25  
+Updated: 2026-02-26  
 Type: Single integrated PWA  
 Source of truth: Current repository implementation + applied migrations
 
+## 0) Document Precedence Lock
+For implementation and compliance scoring in this repository:
+1. This v1.1 document is the canonical shipped behavior contract.
+2. `docs/nutrition-pwa-execution-backlog-v1.0.md` remains historical planning/reference.
+3. `docs/nutrition-pwa-prd-v1.2-architecture-addendum.md` sections marked exploratory are non-release-gating unless explicitly adopted by a separate decision record.
 
-## 0) Document Precedence Lock (2026-02-25)
-For compliance scoring in this repo:
-1. Canonical release-gating UI and behavior contract is this v1.1 document.
-2. v1.0 backlog remains a detailed implementation reference; when wording conflicts with v1.1 shipped summary, v1.1 prevails.
-3. v1.2 addendum Sections 2-10 are exploratory and non-release-gating unless a separate local-first adoption record is added.
-4. Canonical contradiction resolutions for current release:
-   - Bottom nav first tab label is `Gym`.
-   - Nutrition Day mode tabs are `Text | Photo` (no standalone Manual tab).
-   - v1.2-only day-page clarification modal, shortcuts, Favorites/Recents, and Recipe mode are not required for release acceptance.
+Canonical resolved choices for shipped behavior:
+- Bottom nav first tab label is `Gym`.
+- Nutrition Day entry modes are `Text` and `Photo`.
+- Nutrition Day has no standalone `Manual` mode tab.
+- Nutrition Day logger meal-type selector exposes `Breakfast | Lunch | Snack | Dinner` in UI.
 
 ## 1) Product Objective
-One daily-use system combining gym execution and nutrition adherence with low-friction logging, focused on fat loss, waist reduction, and muscle retention.
+One daily-use system combining gym execution and nutrition adherence with low-friction logging, centered on repeatable workout execution and meal adherence visibility.
 
-## 2) Current Delivery Status
-
-### Sprint status matrix
-- Planning lock: DONE
+## 2) Release State (Current Repo)
+### Sprint status
 - Sprint 0 (gym stability hardening): DONE
-- Sprint 1 (schema + RLS + profile/goals/sync): DONE
+- Sprint 1 (nutrition schema + RLS + profile/goals/sync): DONE
 - Sprint 2 (nutrition log + rollup + read APIs): DONE
-- Sprint 3 (nav + nutrition today/history UI): DONE
-- Sprint 4 (insights + plan + trends + unified dashboard): DONE
-- Sprint 5 (tests + CI + smoke + security verification): DONE
-- Dedicated lint cleanup sprint: DONE (`npm run lint` clean)
+- Sprint 3 (navigation + nutrition day/history UI): DONE
+- Sprint 4 (insights + plan + trends + dashboard merge): DONE
+- Sprint 5 (tests/CI/security verification baseline): DONE
 
-### Current release gates (local repo)
-- `npm run lint`: PASS
-- `npm test`: PASS
+### Current quality gates (local run on 2026-02-26)
+- `npm run lint`: FAIL
+  - error: `react-hooks/set-state-in-effect` in `src/app/nutrition/components/NutritionTodayClient.tsx`
+  - warning: unused variable in `tests/api/nutritionInsights.test.ts`
+- `npm test`: PASS (23 files, 75 tests)
 - `npm run build`: PASS
 
-### 2026-02-25 Implementation Update
-- Nutrition Day mode switcher is `Text | Photo`; Text keeps the existing AI parse + review-save flow (label-only change from `Text + AI`).
-- Nutrition Day no longer exposes a standalone Manual mode card in UI.
-- Nutrition Day free-text meal input is shown above the `Text | Photo` mode controls.
-- Nutrition Day meal-type selector now exposes only `Breakfast | Lunch | Snack | Dinner` (no `Auto meal type` option in UI).
-- Nutrition Day add-meal card no longer shows shortcut action chips (`Same as yesterday`, `Add 1 tbsp olive oil`, `Half portion`).
-- Nutrition Day add-meal card no longer shows an optional notes input.
-- AI-unavailable messaging is explicit for Text and Photo parse paths, with no forced mode switch.
-- Water tracking card and `POST /api/nutrition/water` endpoint were removed from shipped UI/API scope.
-- Dashboard PR badge wording is explicit: `Personal Record(s)` with scope text `Since start of current training block`.
-- Dashboard sparkline/weight charts include explicit span indicators in days/weeks.
-- Session logger uses neutral logged-set labeling (`Set #N`) with no TOP/BACKOFF default tagging in the current UI.
-- `Export Workout CSV` remains an in-app download action from `More` without routing users to a dead-end export screen.
-
 ## 3) Navigation + IA (Shipped)
-Bottom tabs are now:
+Bottom tabs:
 - Gym (`/today`, includes `/session/[date]`)
 - Nutrition (`/nutrition/today`)
 - Dashboard (`/dashboard`)
 - More (`/more`)
 
-### Route map
+Primary routes:
 - `/today`: gym entry
 - `/session/{date}`: session logger
-- `/nutrition/today`: nutrition day view + create/edit/delete meal logs
-- `/nutrition/history`: range-based nutrition history
-- `/nutrition/plan`: AI meal plan generation
-- `/nutrition/trends`: 7-day/30-day adherence visuals
+- `/nutrition/today`: nutrition day view + add/edit/delete meal logs
+- `/nutrition/history`: nutrition history
+- `/nutrition/trends`: nutrition trend view
+- `/nutrition/plan`: meal plan generation
 - `/dashboard`: unified gym + nutrition summary
-- `/more`: workout history, upload, export CSV, settings
+- `/more`: links hub for history/upload/export/settings
 
-## 4) Database/Migration Contract (Locked)
-Apply order:
-1. `supabase/migrations/0011_nutrition_foundation.sql`
-2. `supabase/migrations/0012_nutrition_rls.sql`
+## 4) Shipped Nutrition Day UX Contract
+Implemented in:
+- `src/app/nutrition/components/NutritionTodayClient.tsx`
+- `src/app/nutrition/components/MealLogForm.tsx`
+- `src/app/nutrition/components/MealHistory.tsx`
 
-### Includes in 0011
-- 8 nutrition tables:
-  - `nutrition_profile`
-  - `nutrition_goals_daily`
-  - `meal_logs`
-  - `meal_items`
-  - `daily_nutrition_rollups`
-  - `nutrition_insights`
-  - `nutrition_plans`
-  - `nutrition_plan_meals`
-- Immutable helper:
-  - `public.utc_date(ts timestamptz)`
-- Unique insight index:
-  - `uq_insights_user_type_day` on `(user_id, insight_type, public.utc_date(generated_at))`
+### 4.1 Add meal card
+- Meal type dropdown shows: `Breakfast`, `Lunch`, `Snack`, `Dinner`.
+- Free-text meal description input appears above mode buttons.
+- Mode buttons are `Text` and `Photo`.
+- `Text` triggers parse-preview flow immediately.
+- `Photo` opens photo selection flow; selected photo can be parsed and reviewed.
+- No standalone manual mode toggle.
+- No add-meal notes input field in the add card.
+- No shortcut chips in add card (`same as yesterday`, `add 1 tbsp olive oil`, `half portion` are not shown).
 
-### Includes in 0012
-- RLS enabled and policies created for all 8 nutrition tables
-- Child table ownership checks via parent `EXISTS` subqueries (`meal_items`, `nutrition_plan_meals`)
+### 4.2 Parse-review-save behavior
+- Text parse uses preview-first flow.
+- Photo parse also returns preview items for review.
+- Parsed items are shown in `Review Parsed Items` with editable labeled nutrient fields and per-item remove action.
+- User can add/remove/edit items, then save via `Save Reviewed Meal`.
 
-### Privacy hard ban (enforced)
-- No nutrition schema columns containing `photo`, `image`, `blob`, `base64`
-- Photo parse endpoint does not persist image payloads
+### 4.3 Meal history behavior
+- Existing meals render with source and summary values.
+- Each meal supports `Update Meal` and `Delete Meal`.
 
-## 5) Configuration Contract
-File: `src/lib/config.ts`
-- Added: `OPENAI_API_KEY`
-- Behavior: optional by default; only required when `requireConfig({ openai: true })` is used
-- Without key, Text/Photo parse endpoints return graceful AI-unavailable errors
+### 4.4 Insights behavior
+- Insights panel shows deficiency/coaching/supplement cards from `/api/nutrition/insights`.
+- Water-specific coaching card is not part of current shipped insights generation logic.
 
-## 6) Endpoint Contracts (Implemented)
+## 5) Shipped API Contract
+### 5.1 `POST /api/nutrition/log-preview`
+Purpose: parse text to editable preview before final save.
 
-## 6.1 `POST /api/nutrition/log`
-Purpose: create meal log from AI parse, reviewed parse payload, or manual payload; recompute rollup.
+Returns on success:
+- `items`, `ai_model`, `ai_confidence`, `parse_duration_ms`, `parse_p95_7d_ms`, `warnings`.
 
-Companion parse-preview endpoint for review-first UX:
-- `POST /api/nutrition/log-preview` returns parsed editable items before save.
+Failure behavior:
+- Returns `422 parse_failed_manual_required` with detail code for parse/config/upstream issues.
+- Detail values include: `ai_not_configured`, `openai_timeout`, `openai_auth_failed`, `openai_rate_limited`, `openai_model_unavailable`, `openai_request_failed`, `openai_empty_response`, `openai_response_invalid_json`, `parse_empty_items`, `parse_no_meaningful_nutrition`.
 
-Request (JSON):
-- `meal_date: string (YYYY-MM-DD)`
-- `meal_type: "breakfast"|"lunch"|"dinner"|"snack"|"auto"`
-- `save_mode: "ai_parse"|"manual"|"ai_reviewed"`
-- `raw_input?: string` (required for `ai_parse`)
-- `items?: MealItemInput[]` (required for `manual` and `ai_reviewed`; optional supplement for `ai_parse`)
-- `notes?: string`
+### 5.2 `POST /api/nutrition/log`
+Purpose: persist meal logs and items; recompute rollups.
 
-Success `200`:
-- `{ ok: true, meal_log_id, input_mode, ai_model, ai_confidence, items_saved, rollup }`
+Accepted `save_mode`:
+- `ai_parse`
+- `ai_reviewed`
+- `manual`
 
-Errors:
-- `400`: `invalid_body|invalid_date|invalid_meal_type|missing_raw_input|invalid_item_fields`
-- `422`: `parse_failed_manual_required`
-- `500`: `nutrition_log_save_failed`
+Accepted `meal_type` request values:
+- `breakfast|lunch|dinner|snack|auto`
+- `auto` resolves server-side using client timezone offset if provided.
 
-## 6.2 `POST /api/nutrition/log-photo`
-Purpose: parse photo only (no DB writes); return structured items for review.
+Behavior:
+- Forbidden protein guard enforced on raw input and item names.
+- Recomputes daily rollup after save.
+- Writes parse metrics when applicable.
 
-Request: multipart form-data
-- `photo: File` (jpeg/png/webp/gif; <=20MB)
-- `meal_date?: YYYY-MM-DD`
-- `meal_type?: breakfast|lunch|dinner|snack|auto`
+### 5.3 `POST /api/nutrition/log-photo`
+Purpose: transient photo parse to structured items (no photo persistence).
 
-Success `200`:
-- `{ ok: true, input_mode: "photo", ai_model, ai_confidence, items, warnings: [] }`
+Behavior:
+- Validates file type/size.
+- Parses with retry/fallback model logic.
+- Returns structured items for review; no image data persisted.
+- Returns detailed parse failure information.
 
-Errors:
-- `400`: `invalid_body|photo_missing|invalid_date|invalid_meal_type`
-- `413`: `photo_too_large`
-- `415`: `unsupported_media_type`
-- `422`: `image_unreadable|parse_failed`
-- `503`: `openai_unavailable`
-- `500`: `nutrition_photo_parse_failed`
-
-## 6.3 `PUT /api/nutrition/log/:id`
-Purpose: replace meal items/metadata; recompute rollup.
-
-Request (JSON):
-- `meal_type?: breakfast|lunch|dinner|snack`
-- `notes?: string|null`
-- `items: MealItemInput[]` (required)
-
-Success `200`:
-- `{ ok: true, meal_log_id, items_saved, rollup }`
-
-Errors:
-- `400`: `invalid_body|invalid_item_fields`
-- `404`: `meal_log_not_found`
-- `500`: `nutrition_log_update_failed`
-
-## 6.4 `DELETE /api/nutrition/log/:id`
-Purpose: delete meal log + cascading items; recompute rollup.
-
-Success `200`:
-- `{ ok: true, deleted_meal_log_id, rollup }`
-
-Errors:
-- `404`: `meal_log_not_found`
-- `500`: `nutrition_log_delete_failed`
-
-## 6.5 `GET /api/nutrition/today?date=YYYY-MM-DD`
-Purpose: return goals, totals, deltas, meals for one day.
-
-Success `200`:
-- `{ date, goals, totals, deltas, meals }`
+### 5.4 `GET /api/nutrition/today`
+Purpose: return goals/totals/deltas/meals for one date.
 
 Notes:
-- Includes water fields for day tracking:
-  - `goals.target_water_ml`
-  - `totals.water_ml`
-  - `deltas.water_remaining_ml`
-- Sparse data guaranteed (defaults returned; never null shape)
-- Auto-syncs training/rest goal for the date
+- Response currently includes legacy water fields in shape (`target_water_ml`, `water_ml`, `water_remaining_ml`) for compatibility.
+- Nutrition Day UI does not expose a dedicated water logging card/control.
 
-Errors:
-- `400`: `invalid_date`
-- `500`: `nutrition_today_failed`
+### 5.5 `GET /api/nutrition/week`, `GET /api/nutrition/history`
+- Week and history nutrition read endpoints are implemented.
 
-## 6.6 `GET /api/nutrition/week?weekStart=YYYY-MM-DD`
-Purpose: 7-day summary (must start Monday if provided).
+### 5.6 `GET /api/nutrition/insights`
+- Rule-driven insight generation from daily rollups.
 
-Success `200`:
-- `{ week_start, days: [7 rows] }`
+### 5.7 `POST /api/nutrition/plan/generate`
+- Meal plan generation endpoint is implemented with allowed/forbidden protein constraints.
 
-Errors:
-- `400`: `invalid_weekStart`
-- `500`: `nutrition_week_failed`
+### 5.8 `GET/PUT /api/nutrition/profile`
+- Supports TDEE override flow used by Settings.
+- Override updates future goals from today forward.
 
-## 6.7 `GET /api/nutrition/history?from&to&page&pageSize`
-Purpose: paginated day-level historical summaries.
+### 5.9 Removed endpoint
+- `POST /api/nutrition/water` is removed from shipped scope.
 
-Success `200`:
-- `{ from, to, page, page_size, total_days, days }`
+## 6) Dashboard Contract (Shipped)
+Implemented in:
+- `src/app/dashboard/page.tsx`
+- `src/app/dashboard/components/SparklineChart.tsx`
+- `src/app/dashboard/components/WeightChart.tsx`
+- `src/app/dashboard/components/NutritionQuickStats.tsx`
 
-Errors:
-- `400`: `invalid_date_range`
-- `500`: `nutrition_history_failed`
+### 6.1 Current section behavior
+- Week summary card grid is present.
+- Primary lift sparkline cards are present.
+- Body stats trend cards are present.
+- Nutrition quick stats card is present at the bottom of dashboard content.
 
-## 6.8 `GET /api/nutrition/insights?date=YYYY-MM-DD`
-Purpose: rule-based deficiency/coaching/supplement insights with daily upsert.
+### 6.2 Personal records badge
+- Previous PR badge/card is removed from current dashboard UI.
 
-Success `200`:
-- `{ date, insights }`
+### 6.3 Chart labeling and span markers
+- Primary-lift sparkline cards show axis markers/labels: `Start`, `Mid`, `Current`.
+- Body-metric cards show axis markers/labels: `Start`, `Mid`, `Current`.
 
-Errors:
-- `400`: `invalid_date`
-- `500`: `nutrition_insights_failed`
+### 6.4 Body metrics shown on dashboard
+- Body Weight
+- Skeletal Mass
+- Basal Metabolic Rate
+- Body Fat %
+- SMI
 
-## 6.9 `POST /api/nutrition/plan/generate`
-Purpose: generate/save daily plan under protein constraints.
+### 6.5 Body history window
+- Dashboard body metric charts use full available history from `body_stats_daily` (no 30-point chart cap in current code).
 
-Request (JSON):
-- `plan_date: YYYY-MM-DD`
-- `day_type: training|rest|auto`
-- `target_calories: number`
-- `target_protein_g: number`
-- `constraints.allowed_proteins?: string[]`
-- `constraints.forbidden_proteins?: string[]`
+## 7) Gym Session UI Contract (Shipped)
+Implemented in:
+- `src/app/session/[date]/useSessionLoggerController.ts`
+- `src/app/session/[date]/components/SetLogRow.tsx`
 
-Success `200`:
-- `{ ok: true, plan_id, plan_date, ai_model, total_calories, total_protein_g, meals }`
+Behavior:
+- Logged set rows show neutral labels `Set #N`.
+- Logged row UI does not display TOP/BACKOFF pills.
+- New set default type in current session flow maps to `straight` or `accessory` by exercise role.
 
-Errors:
-- `400`: `invalid_body|invalid_constraints`
-- `422`: `plan_generation_failed|forbidden_protein_in_plan`
-- `503`: `openai_unavailable`
-- `500`: `nutrition_plan_generate_failed`
+## 8) Settings Contract (Shipped)
+Implemented in `src/app/settings/page.tsx`.
 
-## 6.10 Removed Endpoint (`POST /api/nutrition/water`)
-Status:
-- Removed from shipped scope on 2026-02-25.
-- Nutrition Day no longer exposes a standalone Water card or Water save action.
+- Displays calculated/effective/override TDEE.
+- Allows Save Override and Clear Override.
+- Shows training/rest calorie targets derived from effective TDEE.
+- Explicitly states override affects future goals only.
 
-## 7) Shipped UI Scope
-- Nutrition Today: logging (Text + Photo tabs), edit/delete, insight panel
-- Nutrition Today logger layout: free-text meal input above mode controls, no add-meal notes field, no shortcut action chips
-- Nutrition Today meal-type selector in logger: `Breakfast | Lunch | Snack | Dinner` (UI excludes `Auto`)
-- Nutrition History: range filtering + empty states
-- Meal Plan page: constraints input + forbidden protein surfaced in UX
-- Trends page: 7-day + 30-day visuals and adherence summaries
-- Dashboard merge: `NutritionQuickStats` integrated into gym dashboard
-- Dashboard PR badge copy is explicit (`Personal Record(s)` + block scope text)
-- Dashboard charts show explicit day/week span indicators
-- Session logger logged-set labels are neutral (`Set #N`) instead of TOP/BACKOFF defaults
-- Dashboard cleanup shipped:
-  - top "Next Workout" card removed
-  - upload/export action block removed from dashboard
-  - export moved under More page as in-app CSV download action
-  - bottom tab label now "Gym"
+## 9) Body Stats Capture + Migration Contract
+### 9.1 Applied/required migration chain in repo
+- `0011_nutrition_foundation.sql`
+- `0012_nutrition_rls.sql`
+- `0013_fix_utc_date_search_path.sql`
+- `0014_supabase_lints_cleanup.sql`
+- `0015_nutrition_parse_metrics.sql`
+- `0016_body_stats_extended_metrics.sql`
+- `0017_supabase_lints_parse_metrics_and_fk_indexes.sql`
 
-## 8) Security + Privacy Verification
-Current checks documented in:
-- `docs/sprint5-security-verification-2026-02-24.md`
-- `docs/release-signoff-2026-02-24.md`
+### 9.2 Parse metrics table
+- Canonical table name: `public.nutrition_parse_metrics`.
+- Rolling p95 helper reads from this table.
 
-Verified:
-- RLS enabled on all nutrition tables
-- Photo non-persistence constraints enforced
-- OPENAI missing-key fallback works (Text/Photo parse fail safely with explicit unavailable messaging)
+### 9.3 Extended body-stats fields captured by upload pipeline
+- `skeletal_mass`, `bodyfat_lb`, `bmi`, `lean_body_mass_lb`, `bmr_kcal`, `smi_kg_m2`
+- Segment mass columns: `left_arm_lb`, `right_arm_lb`, `trunk_lb`, `left_leg_lb`, `right_leg_lb`
+- Segment ratio columns: `left_arm_ratio`, `right_arm_ratio`, `trunk_ratio`, `left_leg_ratio`, `right_leg_ratio`
 
-## 9) CI/Smoke Contract
-- CI workflow: `.github/workflows/ci.yml`
-  - `npm run test:ci`
-  - `npm run build`
-- Smoke script: `scripts/smoke-render.mjs`
-  - includes nutrition create/read/update/delete checks
-  - includes dashboard/nutrition summary checks
+## 10) Security + Privacy Contract
+- RLS enabled on nutrition tables and parse metrics table.
+- Photo/image payloads are not persisted by nutrition photo parse route.
+- OpenAI key remains server-side only.
 
-## 10) Remaining Work (Post-v1)
-- Multi-user auth migration (replace single-user runtime assumption)
-- Optional barcode and wearable integrations
-- Additional deterministic tests around edge-case nutrition parsing behaviors
-- Ongoing UX polish and analytics instrumentation
+## 11) Known Non-Gating Notes
+- v1.2 exploratory local-first items remain non-release-gating unless explicitly adopted.
+- Existing Next.js warning: middleware convention deprecation (`middleware` -> `proxy`) is informational from build output.
 
-## 11) Decision Update
-Previous release note marked lint non-blocking due backlog. That backlog is now cleared in current repo state (lint passes). Team can treat lint as blocking gate for next release cycle.
