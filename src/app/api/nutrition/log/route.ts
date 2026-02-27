@@ -226,9 +226,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "parse_failed_manual_required" }, { status: 422 });
     }
   } else if (saveMode === "ai_reviewed") {
-    if (!rawInput) {
-      return NextResponse.json({ error: "missing_raw_input" }, { status: 400 });
-    }
     if (userItems.length === 0) {
       return NextResponse.json({ error: "invalid_item_fields" }, { status: 400 });
     }
@@ -241,6 +238,10 @@ export async function POST(req: Request) {
 
     const inputModeHint = body.input_mode_hint === "photo" ? "photo" : "text";
     inputMode = inputModeHint;
+
+    if (inputModeHint === "text" && !rawInput) {
+      return NextResponse.json({ error: "missing_raw_input" }, { status: 400 });
+    }
 
     aiModel =
       typeof body.ai_model === "string"

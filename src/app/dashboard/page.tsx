@@ -199,13 +199,14 @@ export default async function DashboardPage() {
       }
     }
 
-    const buildMetricPoints = (metric: string) =>
+    const buildMetricPoints = (metric: string, options?: { min?: number }) =>
       bodyRes.rows
         .map((r: Record<string, unknown>) => {
           const rawValue = r[metric];
           if (rawValue == null || rawValue === "") return null;
           const value = Number(rawValue);
           if (!Number.isFinite(value)) return null;
+          if (options?.min != null && value < options.min) return null;
           return {
             date: String(r.date),
             value,
@@ -221,7 +222,7 @@ export default async function DashboardPage() {
         decimals: 1,
         countLabel: "weigh-ins",
         trendClass: adaptive.weight_trend_class,
-        points: buildMetricPoints("weight_lb"),
+        points: buildMetricPoints("weight_lb", { min: 0.0001 }),
       },
       {
         key: "skeletal",
@@ -229,7 +230,7 @@ export default async function DashboardPage() {
         unit: "",
         decimals: 3,
         countLabel: "measurements",
-        points: buildMetricPoints("skeletal_mass"),
+        points: buildMetricPoints("skeletal_mass", { min: 0.0001 }),
       },
       {
         key: "bmr",
@@ -237,7 +238,7 @@ export default async function DashboardPage() {
         unit: "kcal",
         decimals: 0,
         countLabel: "measurements",
-        points: buildMetricPoints("bmr_kcal"),
+        points: buildMetricPoints("bmr_kcal", { min: 0.0001 }),
       },
       {
         key: "bodyfat",
@@ -245,7 +246,7 @@ export default async function DashboardPage() {
         unit: "%",
         decimals: 1,
         countLabel: "measurements",
-        points: buildMetricPoints("bodyfat_pct"),
+        points: buildMetricPoints("bodyfat_pct", { min: 0.0001 }),
       },
       {
         key: "smi",
@@ -253,7 +254,7 @@ export default async function DashboardPage() {
         unit: "kg/m2",
         decimals: 1,
         countLabel: "measurements",
-        points: buildMetricPoints("smi_kg_m2"),
+        points: buildMetricPoints("smi_kg_m2", { min: 0.0001 }),
       },
     ];
 

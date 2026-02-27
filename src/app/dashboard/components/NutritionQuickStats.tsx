@@ -65,9 +65,6 @@ export default function NutritionQuickStats({ summary }: NutritionQuickStatsProp
         <Link href="/nutrition/trends" className="rounded-md border border-emerald-700 bg-emerald-900/40 px-2 py-1 text-emerald-100">
           Open Nutrition Trends
         </Link>
-        <Link href="/nutrition/plan" className="rounded-md border border-emerald-700 bg-emerald-900/40 px-2 py-1 text-emerald-100">
-          Generate Meal Plan
-        </Link>
       </div>
     </section>
   );
