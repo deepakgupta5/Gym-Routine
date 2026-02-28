@@ -9,7 +9,7 @@ type WeightChartProps = {
   unit: string;
   decimals?: number;
   countLabel?: string;
-  trendClass?: string;
+  positiveDirection?: "up" | "down";
 };
 
 function formatShortDate(value: string): string {
@@ -29,7 +29,7 @@ export default function WeightChart({
   unit,
   decimals = 1,
   countLabel = "entries",
-  trendClass,
+  positiveDirection = "up",
 }: WeightChartProps) {
   if (points.length < 2) {
     return (
@@ -64,19 +64,11 @@ export default function WeightChart({
 
   const latest = values[values.length - 1];
   const first = values[0];
-  const trendFlat = latest === first;
-  const trendUp = latest > first;
-
-  const strokeColor =
-    trendClass === "down"
-      ? "#22c55e"
-      : trendClass === "up"
-        ? "#f59e0b"
-        : trendFlat
-          ? "#9ca3af"
-          : trendUp
-            ? "#22c55e"
-            : "#ef4444";
+  const delta = latest - first;
+  const isPositiveTrend =
+    positiveDirection === "down" ? delta <= 0 : delta >= 0;
+  const trendLineColor = isPositiveTrend ? "#22c55e" : "#ef4444";
+  const seriesColor = "#60a5fa";
 
   const midIndex = Math.floor((points.length - 1) / 2);
   const startDate = points[0]?.date ?? "";
@@ -87,6 +79,8 @@ export default function WeightChart({
   const endX = plotEndX;
   const axisY = height - padding;
   const yAxisLabel = unit ? `${title} (${unit})` : title;
+  const firstY = height - padding - ((first - min) / range) * (height - 2 * padding);
+  const latestY = height - padding - ((latest - min) / range) * (height - 2 * padding);
 
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-900 p-3">
@@ -110,10 +104,19 @@ export default function WeightChart({
         <line x1={startX} y1={axisY} x2={startX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
         <line x1={midX} y1={axisY} x2={midX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
         <line x1={endX} y1={axisY} x2={endX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
+        <line
+          x1={startX}
+          y1={firstY}
+          x2={endX}
+          y2={latestY}
+          stroke={trendLineColor}
+          strokeWidth="1.5"
+          strokeDasharray="3 3"
+        />
         <polyline
           points={polylinePoints}
           fill="none"
-          stroke={strokeColor}
+          stroke={seriesColor}
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"

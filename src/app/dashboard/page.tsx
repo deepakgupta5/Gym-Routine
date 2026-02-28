@@ -221,7 +221,7 @@ export default async function DashboardPage() {
         unit: "lb",
         decimals: 1,
         countLabel: "weigh-ins",
-        trendClass: adaptive.weight_trend_class,
+        positiveDirection: "down" as const,
         points: buildMetricPoints("weight_lb", { min: 0.0001 }),
       },
       {
@@ -230,6 +230,7 @@ export default async function DashboardPage() {
         unit: "",
         decimals: 3,
         countLabel: "measurements",
+        positiveDirection: "up" as const,
         points: buildMetricPoints("skeletal_mass", { min: 0.0001 }),
       },
       {
@@ -238,6 +239,7 @@ export default async function DashboardPage() {
         unit: "kcal",
         decimals: 0,
         countLabel: "measurements",
+        positiveDirection: "up" as const,
         points: buildMetricPoints("bmr_kcal", { min: 0.0001 }),
       },
       {
@@ -246,6 +248,7 @@ export default async function DashboardPage() {
         unit: "%",
         decimals: 1,
         countLabel: "measurements",
+        positiveDirection: "down" as const,
         points: buildMetricPoints("bodyfat_pct", { min: 0.0001 }),
       },
       {
@@ -254,6 +257,7 @@ export default async function DashboardPage() {
         unit: "kg/m2",
         decimals: 1,
         countLabel: "measurements",
+        positiveDirection: "up" as const,
         points: buildMetricPoints("smi_kg_m2", { min: 0.0001 }),
       },
     ];
@@ -383,7 +387,7 @@ export default async function DashboardPage() {
                   unit={metric.unit}
                   decimals={metric.decimals}
                   countLabel={metric.countLabel}
-                  trendClass={metric.trendClass}
+                  positiveDirection={metric.positiveDirection}
                 />
               ))}
             </div>

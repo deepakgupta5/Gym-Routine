@@ -48,7 +48,10 @@ export default function SparklineChart({ label, points }: SparklineChartProps) {
 
   const latest = values[values.length - 1];
   const first = values[0];
-  const trendUp = latest > first;
+  const delta = latest - first;
+  const isPositiveTrend = delta >= 0;
+  const trendLineColor = isPositiveTrend ? "#22c55e" : "#ef4444";
+  const seriesColor = "#60a5fa";
   const midIndex = Math.floor((points.length - 1) / 2);
   const startDate = points[0]?.performed_at ?? "";
   const midDate = points[midIndex]?.performed_at ?? "";
@@ -58,7 +61,8 @@ export default function SparklineChart({ label, points }: SparklineChartProps) {
   const endX = plotEndX;
   const axisY = height - padding;
   const trendFlat = latest === first;
-  const strokeColor = trendFlat ? "#9ca3af" : trendUp ? "#22c55e" : "#ef4444";
+  const firstY = height - padding - ((first - min) / range) * (height - 2 * padding);
+  const latestY = height - padding - ((latest - min) / range) * (height - 2 * padding);
 
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-900 p-3">
@@ -82,10 +86,19 @@ export default function SparklineChart({ label, points }: SparklineChartProps) {
         <line x1={startX} y1={axisY} x2={startX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
         <line x1={midX} y1={axisY} x2={midX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
         <line x1={endX} y1={axisY} x2={endX} y2={axisY - 5} stroke="#64748b" strokeWidth="1" />
+        <line
+          x1={startX}
+          y1={firstY}
+          x2={endX}
+          y2={latestY}
+          stroke={trendLineColor}
+          strokeWidth="1.5"
+          strokeDasharray="3 3"
+        />
         <polyline
           points={polylinePoints}
           fill="none"
-          stroke={strokeColor}
+          stroke={seriesColor}
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -103,7 +116,7 @@ export default function SparklineChart({ label, points }: SparklineChartProps) {
       <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
         <span>Est 1RM: {Math.round(latest)} lb</span>
         <span>
-          {trendFlat ? "\u2192" : trendUp ? "\u2191" : "\u2193"}{" "}
+          {trendFlat ? "\u2192" : isPositiveTrend ? "\u2191" : "\u2193"}{" "}
           {Math.abs(Math.round(latest - first))} lb
         </span>
       </div>

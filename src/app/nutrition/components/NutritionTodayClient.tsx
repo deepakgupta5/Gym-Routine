@@ -493,6 +493,12 @@ export default function NutritionTodayClient() {
             : Math.max(0, Number(value) || 0);
           const currentQuantity = Number(item.quantity);
 
+          // Do not scale nutrients when quantity is transiently empty/zero.
+          // Mobile number inputs often emit "" before the next typed digit.
+          if (!(nextQuantity > 0)) {
+            return { ...item, is_user_edited: true };
+          }
+
           if (Number.isFinite(currentQuantity) && currentQuantity > 0 && nextQuantity !== currentQuantity) {
             const ratio = nextQuantity / currentQuantity;
             const scaled = { ...item, quantity: nextQuantity, is_user_edited: true } as PreviewItem;
