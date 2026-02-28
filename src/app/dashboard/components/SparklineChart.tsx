@@ -92,8 +92,8 @@ export default function SparklineChart({ label, points }: SparklineChartProps) {
         />
       </svg>
       <div className="mt-1 flex items-center justify-between text-[11px] text-gray-500">
-        <span>X-axis: Date</span>
         <span>Y-axis: Est 1RM (lb)</span>
+        <span>X-axis: Date</span>
       </div>
       <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
         <span>Start: {formatShortDate(startDate)}</span>

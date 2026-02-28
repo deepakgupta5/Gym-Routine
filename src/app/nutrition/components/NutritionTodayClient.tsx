@@ -136,6 +136,34 @@ type ReviewMeta = {
   warnings: string[];
 };
 
+const SCALABLE_NUTRIENT_FIELDS: Array<
+  | "calories"
+  | "protein_g"
+  | "carbs_g"
+  | "fat_g"
+  | "fiber_g"
+  | "sugar_g"
+  | "sodium_mg"
+  | "iron_mg"
+  | "calcium_mg"
+  | "vitamin_d_mcg"
+  | "vitamin_c_mg"
+  | "potassium_mg"
+> = [
+  "calories",
+  "protein_g",
+  "carbs_g",
+  "fat_g",
+  "fiber_g",
+  "sugar_g",
+  "sodium_mg",
+  "iron_mg",
+  "calcium_mg",
+  "vitamin_d_mcg",
+  "vitamin_c_mg",
+  "potassium_mg",
+];
+
 // ── Pure helpers (no state deps — defined outside component) ────────────────
 
 function isoToday(): string {
@@ -458,6 +486,25 @@ export default function NutritionTodayClient() {
     setAiPreviewItems((prev) =>
       prev.map((item, idx) => {
         if (idx !== index) return item;
+
+        if (key === "quantity") {
+          const nextQuantity = typeof value === "number"
+            ? Math.max(0, value)
+            : Math.max(0, Number(value) || 0);
+          const currentQuantity = Number(item.quantity);
+
+          if (Number.isFinite(currentQuantity) && currentQuantity > 0 && nextQuantity !== currentQuantity) {
+            const ratio = nextQuantity / currentQuantity;
+            const scaled = { ...item, quantity: nextQuantity, is_user_edited: true } as PreviewItem;
+            for (const field of SCALABLE_NUTRIENT_FIELDS) {
+              scaled[field] = roundTwo(Math.max(0, Number(item[field]) * ratio));
+            }
+            return scaled;
+          }
+
+          return { ...item, quantity: nextQuantity, is_user_edited: true };
+        }
+
         return {
           ...item,
           [key]: typeof value === "string" && key !== "item_name" && key !== "unit"
