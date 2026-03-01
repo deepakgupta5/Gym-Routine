@@ -111,13 +111,21 @@ export async function regenerateFutureGoals(
 }
 
 function zeroGoals(date: string): DailyGoals {
+  const targetCalories = 2050;
+  const targetProteinG = 160;
+  const targetFatG = 70;
+  const targetCarbsG = Math.max(
+    0,
+    Math.round((targetCalories - (targetProteinG * 4 + targetFatG * 9)) / 4)
+  );
+
   return {
     goal_date:            date,
     is_training_day:      false,
-    target_calories:      2050,
-    target_protein_g:     160,
-    target_carbs_g:       0,
-    target_fat_g:         70,
+    target_calories:      targetCalories,
+    target_protein_g:     targetProteinG,
+    target_carbs_g:       targetCarbsG,
+    target_fat_g:         targetFatG,
     target_fiber_g:       30,
     target_sugar_g_max:   45,
     target_sodium_mg_max: 2300,
