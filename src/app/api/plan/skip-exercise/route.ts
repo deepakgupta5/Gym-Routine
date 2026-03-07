@@ -65,7 +65,7 @@ export async function POST(req: Request) {
       [userId]
     );
 
-    if (profileRes.rowCount === 0) {
+    if ((profileRes.rowCount ?? 0) === 0) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "profile_not_found" }, { status: 404 });
     }
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
       [userId, blockId, body.session_id]
     );
 
-    if (sessionRes.rowCount === 0) {
+    if ((sessionRes.rowCount ?? 0) === 0) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "session_not_found" }, { status: 404 });
     }
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
       [session.plan_session_id, body.exercise_id]
     );
 
-    if (targetRes.rowCount === 0) {
+    if ((targetRes.rowCount ?? 0) === 0) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "exercise_not_in_session" }, { status: 404 });
     }
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
       [userId, session.plan_session_id, body.exercise_id]
     );
 
-    if (logsRes.rowCount > 0) {
+    if ((logsRes.rowCount ?? 0) > 0) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "exercise_already_started" }, { status: 409 });
     }
@@ -141,7 +141,7 @@ export async function POST(req: Request) {
       [userId, blockId, session.date]
     );
 
-    if (upcomingSessionsRes.rowCount === 0) {
+    if ((upcomingSessionsRes.rowCount ?? 0) === 0) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "no_upcoming_sessions" }, { status: 400 });
     }
