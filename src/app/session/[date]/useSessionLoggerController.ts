@@ -358,6 +358,45 @@ export function useSessionLoggerController({
     return true;
   }, [session.date]);
 
+  const skipExercise = useCallback(async function skipExercise(ex: ExerciseView) {
+    setError(null);
+
+    if ((logsByExercise.get(ex.exercise_id) || []).length > 0) {
+      setError(`Cannot skip ${ex.name} after logging sets.`);
+      return false;
+    }
+
+    const key = `skip-exercise-${ex.exercise_id}`;
+    setPendingKey(key);
+
+    const res = await fetch("/api/plan/skip-exercise", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: session.plan_session_id,
+        exercise_id: ex.exercise_id,
+      }),
+    });
+
+    setPendingKey(null);
+
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (body?.error === "exercise_already_started") {
+        setError(`Cannot skip ${ex.name} after logging sets.`);
+      } else if (body?.error === "exercise_not_in_session") {
+        setError(`Could not find ${ex.name} in this session.`);
+      } else {
+        setError(`Failed to skip ${ex.name}.`);
+      }
+      return false;
+    }
+
+    haptic("medium");
+    router.refresh();
+    return true;
+  }, [logsByExercise, router, session.plan_session_id]);
+
   const extendTimer = useCallback(function extendTimer() {
     setActiveTimer((prev) => {
       if (!prev) return prev;
@@ -407,6 +446,7 @@ export function useSessionLoggerController({
     repeatSet,
     saveSessionMinutes,
     skipDay,
+    skipExercise,
     extendTimer,
     getExerciseTimer,
     requestDelete: useCallback((log: SetLogView) => setConfirmingDeleteId(log.id), []),

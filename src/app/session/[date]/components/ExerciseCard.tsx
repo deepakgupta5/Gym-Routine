@@ -27,6 +27,9 @@ type ExerciseCardProps = {
   prMax: number | null;
   onFormChange: (next: EntryForm) => void;
   onAddSet: () => void;
+  onSkipExercise: () => void;
+  isSkippingExercise: boolean;
+  canSkipExercise: boolean;
   onBeginEdit: (log: SetLogView) => void;
   onEditFormChange: (logId: string, next: EditForm) => void;
   onSaveEdit: (log: SetLogView) => void;
@@ -92,6 +95,9 @@ export default function ExerciseCard({
   prMax,
   onFormChange,
   onAddSet,
+  onSkipExercise,
+  isSkippingExercise,
+  canSkipExercise,
   onBeginEdit,
   onEditFormChange,
   onSaveEdit,
@@ -170,14 +176,31 @@ export default function ExerciseCard({
       {detailOpen && <ExerciseDetailDrawer exercise={exercise} onClose={() => setDetailOpen(false)} />}
 
       {!complete && (
-        <AddSetForm
-          form={form}
-          isPending={pendingKey === `add-${exercise.exercise_id}`}
-          isPrefilled={isPrefilled}
-          onChange={onFormChange}
-          onSubmit={onAddSet}
-          onLogButtonRef={onLogButtonRef}
-        />
+        <div className="grid gap-2">
+          <AddSetForm
+            form={form}
+            isPending={pendingKey === `add-${exercise.exercise_id}`}
+            isPrefilled={isPrefilled}
+            onChange={onFormChange}
+            onSubmit={onAddSet}
+            onLogButtonRef={onLogButtonRef}
+          />
+          {canSkipExercise ? (
+            <button
+              type="button"
+              onClick={() => {
+                const ok = window.confirm(
+                  `Skip ${exercise.name}? This will push it forward to upcoming workouts.`
+                );
+                if (ok) onSkipExercise();
+              }}
+              disabled={isSkippingExercise}
+              className="min-h-[44px] rounded-lg border border-amber-700 bg-amber-900/30 px-4 py-2 text-sm font-medium text-amber-200 hover:bg-amber-800/40 disabled:opacity-60"
+            >
+              {isSkippingExercise ? "Skipping..." : "Skip Exercise"}
+            </button>
+          ) : null}
+        </div>
       )}
 
       {complete && (
