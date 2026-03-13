@@ -39,6 +39,11 @@ type ExerciseRow = {
   next_target_load: string | number | null;
 };
 
+type SessionExerciseRow = {
+  plan_session_id: string;
+  exercise_id: number;
+};
+
 function isPositiveInteger(value: unknown) {
   return Number.isInteger(value) && Number(value) > 0;
 }
@@ -147,6 +152,21 @@ export async function POST(req: Request) {
     }
 
     const upcomingSessionIds = upcomingSessionsRes.rows.map((r) => r.plan_session_id);
+
+    const sessionExercisesRes = await client.query<SessionExerciseRow>(
+      `select plan_session_id, exercise_id
+       from plan_exercises
+       where plan_session_id = any($1::uuid[])`,
+      [upcomingSessionIds]
+    );
+
+    const exerciseIdsBySession = new Map<string, Set<number>>();
+    for (const row of sessionExercisesRes.rows) {
+      const set = exerciseIdsBySession.get(row.plan_session_id) ?? new Set<number>();
+      set.add(Number(row.exercise_id));
+      exerciseIdsBySession.set(row.plan_session_id, set);
+    }
+
     const roleRowsRes = await client.query<ExerciseRow>(
       `select pe.plan_exercise_id,
               pe.plan_session_id,
@@ -202,9 +222,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "exercise_chain_not_found" }, { status: 409 });
     }
 
-    for (let i = 1; i < chain.length; i++) {
-      const src = chain[i - 1];
-      const dst = chain[i];
+    const initial = chain[0];
+    let carry = initial;
+    const replacements: Array<{ dstId: string; src: ExerciseRow }> = [];
+
+    for (const s of upcomingSessionsRes.rows) {
+      if (s.plan_session_id === session.plan_session_id) continue;
+      const roleRows = rowsBySession.get(s.plan_session_id) ?? [];
+      if (slotIndex >= roleRows.length) continue;
+
+      const dst = roleRows[slotIndex];
+      const sessionExerciseIds = exerciseIdsBySession.get(s.plan_session_id) ?? new Set<number>();
+      const duplicateInSession =
+        sessionExerciseIds.has(carry.exercise_id) && carry.exercise_id !== dst.exercise_id;
+
+      // If this session already has the carried exercise, try the next session.
+      if (duplicateInSession) continue;
+
+      replacements.push({ dstId: dst.plan_exercise_id, src: carry });
+
+      sessionExerciseIds.delete(dst.exercise_id);
+      sessionExerciseIds.add(carry.exercise_id);
+      exerciseIdsBySession.set(s.plan_session_id, sessionExerciseIds);
+
+      carry = dst;
+    }
+
+    for (const replacement of replacements) {
+      const src = replacement.src;
       await client.query(
         `update plan_exercises
          set exercise_id = $2,
@@ -225,7 +270,7 @@ export async function POST(req: Request) {
              next_target_load = $17
          where plan_exercise_id = $1`,
         [
-          dst.plan_exercise_id,
+          replacement.dstId,
           src.exercise_id,
           src.targeted_primary_muscle,
           src.targeted_secondary_muscle,
@@ -249,14 +294,14 @@ export async function POST(req: Request) {
     await client.query(
       `delete from plan_exercises
        where plan_exercise_id = $1`,
-      [chain[0].plan_exercise_id]
+      [initial.plan_exercise_id]
     );
 
     await client.query("COMMIT");
 
     return NextResponse.json({
       ok: true,
-      shifted: Math.max(0, chain.length - 1),
+      shifted: replacements.length,
       dropped: 1,
       role: target.role,
       slot_index: slotIndex,
