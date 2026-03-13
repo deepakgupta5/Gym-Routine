@@ -84,6 +84,13 @@ describe("POST /api/plan/skip-exercise", () => {
       .mockResolvedValueOnce({
         rowCount: 2,
         rows: [
+          { plan_session_id: "session-1", exercise_id: 11 },
+          { plan_session_id: "session-2", exercise_id: 22 },
+        ],
+      }) // session exercise ids for duplicate checks
+      .mockResolvedValueOnce({
+        rowCount: 2,
+        rows: [
           {
             plan_exercise_id: "pe-1",
             plan_session_id: "session-1",
