@@ -60,47 +60,26 @@ export default async function HistoryPage() {
     }
 
     const res = await client.query<SessionRow>(
-  `with ranked_logs as (
-     select
-       sl.*,
-       row_number() over (
-         partition by sl.session_id, sl.exercise_id, coalesce(sl.set_type::text,'accessory'), sl.set_index
-         order by sl.performed_at desc, sl.id desc
-       ) as rn
-     from set_logs sl
-     where sl.user_id = $1
-   ),
-   latest_logs as (
-     select session_id, exercise_id, set_index, reps, load::numeric as load
-     from ranked_logs
-     where rn = 1
-   ),
-   effective_logs as (
-     select ll.*
-     from latest_logs ll
-     join plan_exercises pe
-       on pe.plan_session_id = ll.session_id
-      and pe.exercise_id = ll.exercise_id
-     where ll.set_index <= pe.prescribed_sets
-   )
-   select
-     ps.date::text as date,
-     ps.session_type,
-     ps.is_deload,
-     ps.performed_at::text as performed_at,
-     (select count(*)::int from plan_exercises pe where pe.plan_session_id = ps.plan_session_id) as exercise_count,
-     count(el.*)::int as total_sets,
-     coalesce(sum(el.reps), 0)::int as total_reps,
-     coalesce(sum(el.load * el.reps), 0)::float as total_tonnage
-   from plan_sessions ps
-   left join effective_logs el on el.session_id = ps.plan_session_id
-   where ps.user_id = $1
-     and ps.block_id = $2
-     and ps.performed_at is not null
-   group by ps.plan_session_id, ps.date, ps.session_type, ps.is_deload, ps.performed_at
-   order by ps.date desc`,
-  [userId, blockId]
-);
+      `select
+         ps.date::text as date,
+         ps.session_type,
+         ps.is_deload,
+         ps.performed_at::text as performed_at,
+         count(distinct sl.exercise_id)::int as exercise_count,
+         count(sl.*)::int as total_sets,
+         coalesce(sum(sl.reps), 0)::int as total_reps,
+         coalesce(sum(sl.load::numeric * sl.reps), 0)::float as total_tonnage
+       from plan_sessions ps
+       left join set_logs sl
+         on sl.session_id = ps.plan_session_id
+        and sl.user_id = $1
+       where ps.user_id = $1
+         and ps.block_id = $2
+         and ps.performed_at is not null
+       group by ps.plan_session_id, ps.date, ps.session_type, ps.is_deload, ps.performed_at
+       order by ps.date desc`,
+      [userId, blockId]
+    );
 
     const sessions = res.rows;
 
