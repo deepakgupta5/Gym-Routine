@@ -19,7 +19,6 @@ export async function recomputeSessionPerformed(
             select min(sl.performed_at)
             from set_logs sl
             where sl.session_id = ps.plan_session_id
-              and sl.set_type = 'top'
           )
         end as new_performed_at
       from plan_sessions ps
