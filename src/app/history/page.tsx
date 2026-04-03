@@ -11,6 +11,8 @@ type SessionRow = {
   session_type: string;
   is_deload: boolean;
   performed_at: string;
+  block_id: string;
+  week_in_block: number | null;
   exercise_count: number;
   total_sets: number;
   total_reps: number;  
@@ -43,28 +45,14 @@ export default async function HistoryPage() {
   const client = await pool.connect();
 
   try {
-    // Get active block
-    const profileRes = await client.query(
-      "select block_id from user_profile where user_id = $1",
-      [userId]
-    );
-    const blockId = profileRes.rows[0]?.block_id;
-
-    if (!blockId) {
-      return (
-        <main className="mx-auto max-w-5xl p-5 md:p-6">
-          <h1 className="text-2xl font-semibold text-gray-100">History</h1>
-          <p className="mt-2 text-sm text-gray-400">No active block found.</p>
-        </main>
-      );
-    }
-
     const res = await client.query<SessionRow>(
       `select
          ps.date::text as date,
          ps.session_type,
          ps.is_deload,
          ps.performed_at::text as performed_at,
+         ps.block_id,
+         ps.week_in_block,
          count(distinct sl.exercise_id)::int as exercise_count,
          count(sl.*)::int as total_sets,
          coalesce(sum(sl.reps), 0)::int as total_reps,
@@ -74,11 +62,17 @@ export default async function HistoryPage() {
          on sl.session_id = ps.plan_session_id
         and sl.user_id = $1
        where ps.user_id = $1
-         and ps.block_id = $2
          and ps.performed_at is not null
-       group by ps.plan_session_id, ps.date, ps.session_type, ps.is_deload, ps.performed_at
-       order by ps.date desc`,
-      [userId, blockId]
+       group by
+         ps.plan_session_id,
+         ps.date,
+         ps.session_type,
+         ps.is_deload,
+         ps.performed_at,
+         ps.block_id,
+         ps.week_in_block
+       order by ps.performed_at desc, ps.date desc`,
+      [userId]
     );
 
     const sessions = res.rows;
@@ -130,6 +124,9 @@ export default async function HistoryPage() {
                       </div>
                       <div className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-gray-400">
                         <span>{s.session_type} session</span>
+                        {s.week_in_block !== null && (
+                          <span>Week {s.week_in_block}</span>
+                        )}
                         {s.is_deload && (
                           <span className="rounded-full border border-amber-700 bg-amber-950/60 px-2 py-0.5 text-xs text-amber-300">
                             Deload

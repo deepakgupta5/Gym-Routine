@@ -115,8 +115,10 @@ export default function ExerciseCard({
   const setCount = logs.length;
   const complete = setCount >= exercise.prescribed_sets;
   const isPrefilled = logs.length === 0 && form.load !== "";
-  const last =
-    exercise.prev_reps !== null && exercise.prev_load !== null
+  const mostRecentPriorSet = recentTopSets[0] ?? null;
+  const last = mostRecentPriorSet
+    ? `${mostRecentPriorSet.load} x ${mostRecentPriorSet.reps}`
+    : exercise.prev_reps !== null && exercise.prev_load !== null
       ? `${formatLoad(exercise.prev_load)} x ${exercise.prev_reps}`
       : "—";
   const nextTarget =

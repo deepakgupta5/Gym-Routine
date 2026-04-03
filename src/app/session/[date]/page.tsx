@@ -332,11 +332,19 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     const exerciseIds = exercises.map((e) => e.exercise_id);
     const topSetHistoryRes = exerciseIds.length > 0
       ? await client.query<{ exercise_id: number; load: string; reps: number }>(
-          `select exercise_id, load::text as load, reps
-           from top_set_history
-           where user_id = $1 and exercise_id = any($2::int[])
-           order by exercise_id, performed_at desc`,
-          [CONFIG.SINGLE_USER_ID, exerciseIds]
+          `select tsh.exercise_id, tsh.load::text as load, tsh.reps
+           from top_set_history tsh
+           join set_logs sl on sl.id = tsh.source_set_log_id
+           join plan_sessions ps on ps.plan_session_id = sl.session_id
+           where tsh.user_id = $1
+             and tsh.exercise_id = any($2::int[])
+             and ps.user_id = $1
+             and (
+               ps.date < $4::date
+               or (ps.date = $4::date and sl.session_id <> $3)
+             )
+           order by tsh.exercise_id, tsh.performed_at desc`,
+          [CONFIG.SINGLE_USER_ID, exerciseIds, session.plan_session_id, session.date]
         )
       : { rows: [] };
 
@@ -353,11 +361,19 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
     // PR max (max estimated 1RM per exercise)
     const prMaxRes = exerciseIds.length > 0
       ? await client.query<{ exercise_id: number; max_1rm: number }>(
-          `select exercise_id, max(estimated_1rm)::float as max_1rm
-           from top_set_history
-           where user_id = $1 and exercise_id = any($2::int[])
-           group by exercise_id`,
-          [CONFIG.SINGLE_USER_ID, exerciseIds]
+          `select tsh.exercise_id, max(tsh.estimated_1rm)::float as max_1rm
+           from top_set_history tsh
+           join set_logs sl on sl.id = tsh.source_set_log_id
+           join plan_sessions ps on ps.plan_session_id = sl.session_id
+           where tsh.user_id = $1
+             and tsh.exercise_id = any($2::int[])
+             and ps.user_id = $1
+             and (
+               ps.date < $4::date
+               or (ps.date = $4::date and sl.session_id <> $3)
+             )
+           group by tsh.exercise_id`,
+          [CONFIG.SINGLE_USER_ID, exerciseIds, session.plan_session_id, session.date]
         )
       : { rows: [] };
 
