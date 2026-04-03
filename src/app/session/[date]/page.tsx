@@ -3,6 +3,7 @@ import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
+import { ensureWorkoutPlanForDate } from "@/lib/scheduler/integration";
 import SessionLogger from "./SessionLogger";
 import BackForwardRefresh from "./components/BackForwardRefresh";
 import SkipConfirmationBanner from "./components/SkipConfirmationBanner";
@@ -158,6 +159,8 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const pool = await getDb();
   const client = await pool.connect();
   try {
+    await ensureWorkoutPlanForDate(client, CONFIG.SINGLE_USER_ID, parsed.iso);
+
     const profileRes = await client.query<{ block_id: string | null }>(
       `select block_id
        from user_profile
@@ -286,6 +289,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
        left join exercises alt1 on alt1.exercise_id = e.alt_1_exercise_id
        left join exercises alt2 on alt2.exercise_id = e.alt_2_exercise_id
        where pe.plan_session_id = $1
+         and pe.skipped_at is null
        order by case pe.role when 'primary' then 1 when 'secondary' then 2 else 3 end,
                 pe.exercise_id asc`,
       [session.plan_session_id]

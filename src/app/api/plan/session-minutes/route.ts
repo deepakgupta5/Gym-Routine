@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import { recomputeWeeklyRollup } from "@/lib/db/logs";
+import { syncCompletedWorkoutAndState } from "@/lib/scheduler/integration";
 import { getMondayUtc, toDateString } from "@/lib/engine/utils";
 import { logError } from "@/lib/logger";
 
@@ -57,6 +58,8 @@ where user_id = $2
       const weekStart = toDateString(getMondayUtc(new Date(`${session.date}T00:00:00Z`)));
       await recomputeWeeklyRollup(client, userId, weekStart);
     }
+
+    await syncCompletedWorkoutAndState(client, userId, body.session_id);
 
     await client.query("COMMIT");
 

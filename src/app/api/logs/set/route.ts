@@ -6,6 +6,7 @@ import {
   recomputeSessionPerformed,
   recomputeWeeklyRollup,
 } from "@/lib/db/logs";
+import { syncCompletedWorkoutAndState } from "@/lib/scheduler/integration";
 import { updateCurrentBlockWeek } from "@/lib/db/blockState";
 import { estimate1RM, computeNextTopSetLoad, LoadSemantic } from "@/lib/engine/progression";
 import { logError } from "@/lib/logger";
@@ -464,6 +465,10 @@ export async function POST(req: Request) {
 
     if (blockId) {
       await updateCurrentBlockWeek(client, userId, blockId);
+    }
+
+    for (const sessionId of impactedSessions) {
+      await syncCompletedWorkoutAndState(client, userId, sessionId);
     }
 
     await client.query("COMMIT");

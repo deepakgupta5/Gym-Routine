@@ -6,6 +6,7 @@ import {
   recomputeSessionPerformed,
   recomputeWeeklyRollup,
 } from "@/lib/db/logs";
+import { syncCompletedWorkoutAndState } from "@/lib/scheduler/integration";
 import { updateCurrentBlockWeek } from "@/lib/db/blockState";
 import { estimate1RM, computeNextTopSetLoad, LoadSemantic } from "@/lib/engine/progression";
 import { logError } from "@/lib/logger";
@@ -299,6 +300,10 @@ export async function PUT(
       await updateCurrentBlockWeek(client, userId, blockId);
     }
 
+    for (const sessionId of impactedSessions) {
+      await syncCompletedWorkoutAndState(client, userId, sessionId);
+    }
+
     await client.query("COMMIT");
 
     return NextResponse.json({ ok: true, updated: row.id });
@@ -370,6 +375,10 @@ export async function DELETE(
     const blockId = profileRes.rows[0]?.block_id ?? null;
     if (blockId) {
       await updateCurrentBlockWeek(client, userId, blockId);
+    }
+
+    if (existing.session_id) {
+      await syncCompletedWorkoutAndState(client, userId, existing.session_id);
     }
 
     await client.query("COMMIT");

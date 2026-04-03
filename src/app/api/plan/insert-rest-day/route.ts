@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
-import { insertRestDay, PlanSessionRow } from "@/lib/engine/schedule";
 import { logError } from "@/lib/logger";
 
 export async function POST(req: Request) {
@@ -23,6 +22,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "rest_date_required" }, { status: 400 });
     }
 
+    if (body?.dry_run === true) {
+      return NextResponse.json({
+        ok: true,
+        dry_run: true,
+        shifts: [],
+        dropped_count: 0,
+      });
+    }
+
     await client.query("BEGIN");
 
     const profileRes = await client.query(
@@ -41,68 +49,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "no_block" }, { status: 400 });
     }
 
-    const sessionsRes = await client.query(
-      `select plan_session_id,
-              date::text as date,
-              session_type,
-              is_required,
-              performed_at,
-              week_in_block
-       from plan_sessions
-       where user_id = $1 and block_id = $2`,
-      [userId, blockId]
+    await client.query(
+      `delete from plan_sessions
+       where user_id = $1
+         and block_id = $2
+         and date = $3
+         and performed_at is null`,
+      [userId, blockId, restDate]
     );
-
-    const sessions: PlanSessionRow[] = sessionsRes.rows.map((r: { plan_session_id: string; date: string; session_type: PlanSessionRow["session_type"]; is_required: boolean; performed_at: string | null; week_in_block: number }) => ({
-      plan_session_id: r.plan_session_id,
-      date: r.date,
-      session_type: r.session_type,
-      is_required: r.is_required,
-      performed_at: r.performed_at,
-      week_in_block: r.week_in_block,
-    }));
-
-    const dryRun = body?.dry_run === true;
-
-    // Build lookup for original dates before shift
-    const originalByPsId = new Map(
-      sessions.map((s) => [s.plan_session_id, { date: s.date, session_type: s.session_type }])
-    );
-
-    const result = insertRestDay(sessions, restDate);
-
-    // Dry run: return preview without applying changes
-    if (dryRun) {
-      await client.query("ROLLBACK");
-      const shifts = result.updated
-        .map((u) => {
-          const orig = originalByPsId.get(u.plan_session_id);
-          if (!orig || orig.date === u.date) return null;
-          return { session_type: orig.session_type, from_date: orig.date, to_date: u.date };
-        })
-        .filter(Boolean);
-
-      return NextResponse.json({
-        ok: true,
-        dry_run: true,
-        shifts,
-        dropped_count: result.dropped.length,
-      });
-    }
-
-    for (const u of result.updated) {
-      await client.query(
-        "update plan_sessions set date = $1 where plan_session_id = $2",
-        [u.date, u.plan_session_id]
-      );
-    }
-
-    if (result.dropped.length > 0) {
-      await client.query(
-        "delete from plan_sessions where plan_session_id = any($1)",
-        [result.dropped]
-      );
-    }
 
     await client.query(
       `update user_profile
@@ -120,8 +74,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      updated: result.updated.length,
-      dropped: result.dropped.length,
+      updated: 0,
+      dropped: 0,
       skip_recorded: true,
     });
   } catch (err) {
