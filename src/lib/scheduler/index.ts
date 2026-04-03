@@ -105,8 +105,7 @@ export function chooseSessionEmphasis(
     return "pull";
   }
 
-  for (const emphasis of ["push", "pull", "squat", "hinge"] as const) {
-    if (emphasis === lastEmphasis) continue;
+  for (const emphasis of getFallbackEmphasisOrder(lastEmphasis)) {
     if (!emphasisIsReady(emphasis, currentDate, exerciseLibrary, schedulerState)) continue;
     if ((emphasis === "squat" || emphasis === "hinge") && recentLegDayTooClose(currentDate, schedulerState.recentLegDominantDays)) {
       continue;
@@ -316,7 +315,7 @@ export function chooseAccessories(
     chosenIds.add(picked.id);
   }
 
-  if (chosen.length < 2) {
+  if (chosen.length < targetCount) {
     let fallbackCandidates = exerciseLibrary.filter((exercise) =>
       exercise.roleTags.includes("accessory") &&
       !exercise.roleTags.includes("core") &&
@@ -326,7 +325,7 @@ export function chooseAccessories(
     fallbackCandidates = filterByHardBlock(fallbackCandidates, currentDate, schedulerState);
     fallbackCandidates = filterByRecentExactRepeat(fallbackCandidates, currentDate, schedulerState);
 
-    while (chosen.length < 2) {
+    while (chosen.length < targetCount) {
       const picked = pickLeastRecentlyUsed(fallbackCandidates, schedulerState.lastPerformedAtByExercise);
       if (!picked) break;
       chosen.push(picked);
@@ -339,10 +338,10 @@ export function chooseAccessories(
 }
 
 export function shouldAddCardio(
-  _currentDate: string,
+  currentDate: string,
   legDominant: boolean,
   selectedExercises: PlannedWorkoutExercise[],
-  _completedWorkouts: CompletedWorkout[],
+  completedWorkouts: CompletedWorkout[],
   schedulerState: SchedulerState
 ): boolean {
   if (legDominant) return false;
@@ -351,6 +350,11 @@ export function shouldAddCardio(
   const workoutMinutes = getWorkoutMinutes(selectedExercises, 0);
   if (schedulerState.cardioSessionsLast7Days < 3) {
     return workoutMinutes + CARDIO_PRIORITY_MINUTES <= MAX_MINUTES;
+  }
+
+  const lastCardioWorkout = getLastCardioWorkout(completedWorkouts);
+  if (lastCardioWorkout && hoursBetween(lastCardioWorkout.completedAt, currentDate) < HOURS_48) {
+    return false;
   }
 
   return workoutMinutes + CARDIO_OPTIONAL_MINUTES <= MAX_MINUTES;
@@ -518,6 +522,19 @@ function getLastEmphasis(
   return sorted[sorted.length - 1]?.emphasis || null;
 }
 
+function getFallbackEmphasisOrder(lastEmphasis: SessionEmphasis | null): SessionEmphasis[] {
+  const cycle: SessionEmphasis[] = ["push", "pull", "squat", "hinge"];
+  if (!lastEmphasis || !cycle.includes(lastEmphasis)) {
+    return cycle;
+  }
+
+  const startIndex = cycle.indexOf(lastEmphasis);
+  return [
+    ...cycle.slice(startIndex + 1),
+    ...cycle.slice(0, startIndex + 1),
+  ];
+}
+
 function getTotalUnmet(
   unmetWorkByMuscle: Partial<Record<Muscle, number>>,
   muscles: Muscle[]
@@ -578,6 +595,14 @@ function getMixedPrimaryPriorityOrder(
     .map((item) => item.emphasis);
 
   return [...preferred, ...deferred];
+}
+
+function getLastCardioWorkout(completedWorkouts: CompletedWorkout[]) {
+  const cardioWorkouts = completedWorkouts
+    .filter((workout) => workout.cardioCompleted)
+    .sort((a, b) => compareIso(a.completedAt, b.completedAt));
+
+  return cardioWorkouts[cardioWorkouts.length - 1] || null;
 }
 
 function filterSecondaryOverlap(candidates: Exercise[], primary: Exercise | null) {

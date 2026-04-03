@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CompletedWorkout,
   Exercise,
   PlannedWorkoutExercise,
   SchedulerState,
@@ -256,6 +257,40 @@ describe("scheduler", () => {
     expect(emphasis).not.toBe("hinge");
   });
 
+  it("rotates into lower-body emphases instead of alternating push and pull forever", () => {
+    const emphasis = chooseSessionEmphasis(
+      "2026-04-03T12:00:00Z",
+      exerciseLibrary,
+      [
+        {
+          completedAt: "2026-04-01T12:00:00Z",
+          emphasis: "push",
+          legDominant: false,
+          completedExerciseIds: ["bench"],
+          skippedExerciseIds: [],
+          cardioCompleted: false,
+        },
+        {
+          completedAt: "2026-04-02T12:00:00Z",
+          emphasis: "pull",
+          legDominant: false,
+          completedExerciseIds: ["row"],
+          skippedExerciseIds: [],
+          cardioCompleted: false,
+        },
+      ],
+      baseState({
+        recentEmphasisHistory: ["push", "pull"],
+        lastTrainedAtByMuscle: {
+          chest: "2026-04-01T12:00:00Z",
+          upper_back: "2026-04-02T12:00:00Z",
+        },
+      })
+    );
+
+    expect(emphasis).toBe("squat");
+  });
+
   it("adds cardio while below target, allows it in range, and blocks it at five sessions", () => {
     const selectedExercises: PlannedWorkoutExercise[] = [
       { exerciseId: "press", role: "primary", estimatedMinutes: 15 },
@@ -265,8 +300,56 @@ describe("scheduler", () => {
     ];
 
     expect(shouldAddCardio("2026-04-03T12:00:00Z", false, selectedExercises, [], baseState({ cardioSessionsLast7Days: 2 }))).toBe(true);
-    expect(shouldAddCardio("2026-04-03T12:00:00Z", false, selectedExercises, [], baseState({ cardioSessionsLast7Days: 4 }))).toBe(true);
+    expect(
+      shouldAddCardio(
+        "2026-04-03T12:00:00Z",
+        false,
+        selectedExercises,
+        [
+          {
+            completedAt: "2026-04-01T08:00:00Z",
+            emphasis: "push",
+            legDominant: false,
+            completedExerciseIds: ["bench"],
+            skippedExerciseIds: [],
+            cardioCompleted: true,
+          },
+        ],
+        baseState({ cardioSessionsLast7Days: 4 })
+      )
+    ).toBe(true);
     expect(shouldAddCardio("2026-04-03T12:00:00Z", false, selectedExercises, [], baseState({ cardioSessionsLast7Days: 5 }))).toBe(false);
+  });
+
+  it("skips cardio on non-leg days when a cardio session happened in the last 48 hours and target is already met", () => {
+    const selectedExercises: PlannedWorkoutExercise[] = [
+      { exerciseId: "press", role: "primary", estimatedMinutes: 15 },
+      { exerciseId: "row", role: "secondary", estimatedMinutes: 12 },
+      { exerciseId: "pushdown", role: "accessory", estimatedMinutes: 8 },
+      { exerciseId: "facepull", role: "accessory", estimatedMinutes: 8 },
+      { exerciseId: "curl", role: "accessory", estimatedMinutes: 8 },
+    ];
+
+    const completedWorkouts: CompletedWorkout[] = [
+      {
+        completedAt: "2026-04-02T12:00:00Z",
+        emphasis: "push",
+        legDominant: false,
+        completedExerciseIds: ["bench"],
+        skippedExerciseIds: [],
+        cardioCompleted: true,
+      },
+    ];
+
+    expect(
+      shouldAddCardio(
+        "2026-04-03T12:00:00Z",
+        false,
+        selectedExercises,
+        completedWorkouts,
+        baseState({ cardioSessionsLast7Days: 3 })
+      )
+    ).toBe(false);
   });
 
   it("never adds cardio on leg-dominant days", () => {
@@ -280,6 +363,19 @@ describe("scheduler", () => {
 
     expect(workout.legDominant).toBe(true);
     expect(workout.addCardio).toBe(false);
+  });
+
+  it("fills upper-body days with three accessories when enough valid options exist", () => {
+    const workout = buildWorkout(
+      "2026-04-03T12:00:00Z",
+      "push",
+      exerciseLibrary,
+      [],
+      baseState()
+    );
+
+    const accessoryCount = workout.exercises.filter((exercise) => exercise.role === "accessory").length;
+    expect(accessoryCount).toBe(3);
   });
 
   it("keeps generated workouts under 60 minutes", () => {
