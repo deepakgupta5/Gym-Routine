@@ -293,7 +293,37 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
        order by case pe.role when 'primary' then 1 when 'secondary' then 2 else 3 end,
                 pe.exercise_id asc`,
       [session.plan_session_id]
-    );
+    ).catch((error) => {
+      if (!isMissingSkippedAtColumn(error)) throw error;
+      return client.query<ExerciseRow>(
+        `select pe.plan_exercise_id,
+                pe.exercise_id,
+                pe.role,
+                pe.targeted_primary_muscle,
+                pe.targeted_secondary_muscle,
+                pe.prescribed_sets,
+                pe.prescribed_reps_min,
+                pe.prescribed_reps_max,
+                pe.prescribed_load::text as prescribed_load,
+                pe.rest_seconds,
+                pe.tempo,
+                pe.prev_load,
+                pe.prev_reps,
+                pe.next_target_load,
+                e.name,
+                e.movement_pattern,
+                alt1.name as alt_1_name,
+                alt2.name as alt_2_name
+         from plan_exercises pe
+         join exercises e on e.exercise_id = pe.exercise_id
+         left join exercises alt1 on alt1.exercise_id = e.alt_1_exercise_id
+         left join exercises alt2 on alt2.exercise_id = e.alt_2_exercise_id
+         where pe.plan_session_id = $1
+         order by case pe.role when 'primary' then 1 when 'secondary' then 2 else 3 end,
+                  pe.exercise_id asc`,
+        [session.plan_session_id]
+      );
+    });
 
     const exercises = exercisesRes.rows.map((row) => ({
       plan_exercise_id: row.plan_exercise_id,
@@ -402,4 +432,10 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   } finally {
     client.release();
   }
+}
+
+function isMissingSkippedAtColumn(error: unknown): error is { code?: string; message?: string } {
+  if (!error || typeof error !== "object") return false;
+  const pgError = error as { code?: string; message?: string };
+  return pgError.code === "42703" && String(pgError.message || "").includes("skipped_at");
 }

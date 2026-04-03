@@ -83,7 +83,6 @@ const PRIMARY_SETS = 3;
 const SECONDARY_SETS = 3;
 const ACCESSORY_SETS = 2;
 const TEMPO = "3-1-1-0";
-const LEGACY_SESSION_TYPES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 const EXERCISE_META: Record<number, ExerciseSchedulerMeta> = {
   1: { emphasisTags: ["squat"], roleTags: ["primary", "secondary"], primaryMuscles: ["quads", "glutes"], secondaryMuscles: ["hamstrings", "core"], isHeavyCompound: true, legDominant: true },
@@ -131,16 +130,9 @@ export async function ensureWorkoutPlanForDate(
   if ((existingRes.rowCount ?? 0) > 0) {
     const sessionId = existingRes.rows[0]?.plan_session_id ?? null;
     if (!sessionId) return null;
+    const activeExerciseCount = await countActivePlanExercises(client, sessionId);
 
-    const exerciseCountRes = await client.query<{ count: string }>(
-      `select count(*)::text as count
-       from plan_exercises
-       where plan_session_id = $1
-         and skipped_at is null`,
-      [sessionId]
-    );
-
-    if (Number(exerciseCountRes.rows[0]?.count ?? 0) > 0) {
+    if (activeExerciseCount > 0) {
       return sessionId;
     }
 
@@ -206,26 +198,13 @@ export async function syncCompletedWorkoutAndState(
   const exerciseLibrary = buildSchedulerExerciseLibrary(exerciseRows);
   const exerciseMap = new Map(exerciseLibrary.map((exercise) => [exercise.id, exercise]));
 
-  const sessionExerciseCountsRes = await client.query<SessionExerciseCountRow>(
-    `select pe.exercise_id,
-            pe.prescribed_sets,
-            pe.skipped_at::text as skipped_at,
-            coalesce(count(sl.id), 0)::int as completed_sets
-     from plan_exercises pe
-     left join set_logs sl
-       on sl.session_id = pe.plan_session_id
-      and sl.exercise_id = pe.exercise_id
-      and sl.user_id = $2
-     where pe.plan_session_id = $1
-     group by pe.exercise_id, pe.prescribed_sets, pe.skipped_at`,
-    [sessionId, userId]
-  );
+  const sessionExerciseCounts = await loadSessionExerciseCounts(client, sessionId, userId);
 
-  const activeExercises = sessionExerciseCountsRes.rows.filter((row) => !row.skipped_at);
-  const skippedExerciseIds = sessionExerciseCountsRes.rows
+  const activeExercises = sessionExerciseCounts.filter((row) => !row.skipped_at);
+  const skippedExerciseIds = sessionExerciseCounts
     .filter((row) => Boolean(row.skipped_at))
     .map((row) => String(row.exercise_id));
-  const completedExerciseIds = sessionExerciseCountsRes.rows
+  const completedExerciseIds = sessionExerciseCounts
     .filter((row) => row.completed_sets > 0)
     .map((row) => String(row.exercise_id));
 
@@ -235,11 +214,7 @@ export async function syncCompletedWorkoutAndState(
   const cardioComplete = Boolean(session.cardio_saved_at);
 
   if (!resistanceComplete || !cardioComplete) {
-    await client.query(
-      `delete from completed_workouts
-       where user_id = $1 and session_id = $2`,
-      [userId, sessionId]
-    );
+    await deleteCompletedWorkoutIfTableExists(client, userId, sessionId);
     await refreshSchedulerState(client, userId);
     return;
   }
@@ -257,30 +232,15 @@ export async function syncCompletedWorkoutAndState(
   );
   const completedAt = completedAtRes.rows[0]?.performed_at || `${session.date}T00:00:00Z`;
 
-  await client.query(
-    `insert into completed_workouts
-      (user_id, session_id, completed_at, emphasis, leg_dominant, completed_exercise_ids, skipped_exercise_ids, cardio_completed)
-     values
-      ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8)
-     on conflict (session_id)
-     do update set
-       completed_at = excluded.completed_at,
-       emphasis = excluded.emphasis,
-       leg_dominant = excluded.leg_dominant,
-       completed_exercise_ids = excluded.completed_exercise_ids,
-       skipped_exercise_ids = excluded.skipped_exercise_ids,
-       cardio_completed = excluded.cardio_completed`,
-    [
-      userId,
-      sessionId,
-      completedAt,
-      emphasis,
-      legDominant,
-      JSON.stringify(completedExerciseIds),
-      JSON.stringify(skippedExerciseIds),
-      true,
-    ]
-  );
+  await upsertCompletedWorkoutIfTableExists(client, {
+    userId,
+    sessionId,
+    completedAt,
+    emphasis,
+    legDominant,
+    completedExerciseIds,
+    skippedExerciseIds,
+  });
 
   await refreshSchedulerState(client, userId);
 }
@@ -435,7 +395,26 @@ async function insertPlannedWorkout(
       input.planned.cardioMinutes,
       cardioSavedAt,
     ]
-  );
+  ).catch(async (error) => {
+    if (!isMissingSessionTypeEnumValue(error)) throw error;
+
+    return client.query<{ plan_session_id: string }>(
+      `insert into plan_sessions
+        (user_id, block_id, week_in_block, date, session_type, is_required, is_deload, cardio_minutes, cardio_saved_at)
+       values
+        ($1, $2, $3, $4, $5, true, false, $6, $7)
+       returning plan_session_id`,
+      [
+        input.userId,
+        input.blockId,
+        input.currentBlockWeek,
+        input.isoDate,
+        legacySessionTypeForEmphasis(input.planned.emphasis),
+        input.planned.cardioMinutes,
+        cardioSavedAt,
+      ]
+    );
+  });
 
   const sessionId = sessionRes.rows[0]?.plan_session_id;
   if (!sessionId) {
@@ -500,7 +479,12 @@ async function loadCompletedWorkoutsForScheduler(client: PoolClient, userId: str
      where user_id = $1
      order by completed_at asc`,
     [userId]
-  );
+  ).catch((error) => {
+    if (isMissingRelation(error, "completed_workouts")) {
+      return { rows: [] } as { rows: CompletedWorkoutRow[] };
+    }
+    throw error;
+  });
 
   const workouts: CompletedWorkout[] = storedRes.rows.map((row) => ({
     completedAt: row.completed_at,
@@ -524,7 +508,20 @@ async function loadCompletedWorkoutsForScheduler(client: PoolClient, userId: str
        and cw.session_id is null
      order by ps.performed_at asc`,
     [userId]
-  );
+  ).catch(async (error) => {
+    if (!isMissingRelation(error, "completed_workouts")) throw error;
+    return client.query<LegacySessionRow>(
+      `select ps.plan_session_id as session_id,
+              ps.performed_at::text as completed_at,
+              ps.session_type,
+              (ps.cardio_saved_at is not null) as cardio_completed
+       from plan_sessions ps
+       where ps.user_id = $1
+         and ps.performed_at is not null
+       order by ps.performed_at asc`,
+      [userId]
+    );
+  });
 
   const legacySessionIds = legacyRes.rows.map((row) => row.session_id);
   const logsBySession = new Map<string, string[]>();
@@ -543,17 +540,21 @@ async function loadCompletedWorkoutsForScheduler(client: PoolClient, userId: str
       logsBySession.set(row.session_id, existing);
     }
 
-    const skippedRes = await client.query<{ plan_session_id: string; exercise_id: number }>(
-      `select plan_session_id, exercise_id
-       from plan_exercises
-       where plan_session_id = any($1::uuid[])
-         and skipped_at is not null`,
-      [legacySessionIds]
-    );
-    for (const row of skippedRes.rows) {
-      const existing = skippedBySession.get(row.plan_session_id) || [];
-      existing.push(String(row.exercise_id));
-      skippedBySession.set(row.plan_session_id, existing);
+    try {
+      const skippedRes = await client.query<{ plan_session_id: string; exercise_id: number }>(
+        `select plan_session_id, exercise_id
+         from plan_exercises
+         where plan_session_id = any($1::uuid[])
+           and skipped_at is not null`,
+        [legacySessionIds]
+      );
+      for (const row of skippedRes.rows) {
+        const existing = skippedBySession.get(row.plan_session_id) || [];
+        existing.push(String(row.exercise_id));
+        skippedBySession.set(row.plan_session_id, existing);
+      }
+    } catch (error) {
+      if (!isMissingColumn(error, "skipped_at")) throw error;
     }
   }
 
@@ -571,6 +572,127 @@ async function loadCompletedWorkoutsForScheduler(client: PoolClient, userId: str
   }
 
   return workouts;
+}
+
+async function countActivePlanExercises(client: PoolClient, sessionId: string) {
+  try {
+    const res = await client.query<{ count: string }>(
+      `select count(*)::text as count
+       from plan_exercises
+       where plan_session_id = $1
+         and skipped_at is null`,
+      [sessionId]
+    );
+    return Number(res.rows[0]?.count ?? 0);
+  } catch (error) {
+    if (!isMissingColumn(error, "skipped_at")) throw error;
+    const fallbackRes = await client.query<{ count: string }>(
+      `select count(*)::text as count
+       from plan_exercises
+       where plan_session_id = $1`,
+      [sessionId]
+    );
+    return Number(fallbackRes.rows[0]?.count ?? 0);
+  }
+}
+
+async function loadSessionExerciseCounts(
+  client: PoolClient,
+  sessionId: string,
+  userId: string
+) {
+  try {
+    const res = await client.query<SessionExerciseCountRow>(
+      `select pe.exercise_id,
+              pe.prescribed_sets,
+              pe.skipped_at::text as skipped_at,
+              coalesce(count(sl.id), 0)::int as completed_sets
+       from plan_exercises pe
+       left join set_logs sl
+         on sl.session_id = pe.plan_session_id
+        and sl.exercise_id = pe.exercise_id
+        and sl.user_id = $2
+       where pe.plan_session_id = $1
+       group by pe.exercise_id, pe.prescribed_sets, pe.skipped_at`,
+      [sessionId, userId]
+    );
+    return res.rows;
+  } catch (error) {
+    if (!isMissingColumn(error, "skipped_at")) throw error;
+    const fallbackRes = await client.query<SessionExerciseCountRow>(
+      `select pe.exercise_id,
+              pe.prescribed_sets,
+              null::text as skipped_at,
+              coalesce(count(sl.id), 0)::int as completed_sets
+       from plan_exercises pe
+       left join set_logs sl
+         on sl.session_id = pe.plan_session_id
+        and sl.exercise_id = pe.exercise_id
+        and sl.user_id = $2
+       where pe.plan_session_id = $1
+       group by pe.exercise_id, pe.prescribed_sets`,
+      [sessionId, userId]
+    );
+    return fallbackRes.rows;
+  }
+}
+
+async function deleteCompletedWorkoutIfTableExists(
+  client: PoolClient,
+  userId: string,
+  sessionId: string
+) {
+  try {
+    await client.query(
+      `delete from completed_workouts
+       where user_id = $1 and session_id = $2`,
+      [userId, sessionId]
+    );
+  } catch (error) {
+    if (!isMissingRelation(error, "completed_workouts")) throw error;
+  }
+}
+
+async function upsertCompletedWorkoutIfTableExists(
+  client: PoolClient,
+  input: {
+    userId: string;
+    sessionId: string;
+    completedAt: string;
+    emphasis: SessionEmphasis;
+    legDominant: boolean;
+    completedExerciseIds: string[];
+    skippedExerciseIds: string[];
+  }
+) {
+  try {
+    await client.query(
+      `insert into completed_workouts
+        (user_id, session_id, completed_at, emphasis, leg_dominant, completed_exercise_ids, skipped_exercise_ids, cardio_completed)
+       values
+        ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8)
+       on conflict (session_id)
+       do update set
+         completed_at = excluded.completed_at,
+         emphasis = excluded.emphasis,
+         leg_dominant = excluded.leg_dominant,
+         completed_exercise_ids = excluded.completed_exercise_ids,
+         skipped_exercise_ids = excluded.skipped_exercise_ids,
+         cardio_completed = excluded.cardio_completed`,
+      [
+        input.userId,
+        input.sessionId,
+        input.completedAt,
+        input.emphasis,
+        input.legDominant,
+        JSON.stringify(input.completedExerciseIds),
+        JSON.stringify(input.skippedExerciseIds),
+        true,
+      ]
+    );
+  } catch (error) {
+    if (!isMissingRelation(error, "completed_workouts")) throw error;
+  }
 }
 
 async function ensureSchedulerProfile(client: PoolClient, userId: string) {
@@ -743,8 +865,39 @@ function normalizeSessionType(value: string): SessionEmphasis | null {
   return null;
 }
 
+function legacySessionTypeForEmphasis(emphasis: SessionEmphasis) {
+  switch (emphasis) {
+    case "push":
+      return "Mon";
+    case "pull":
+      return "Wed";
+    case "squat":
+      return "Tue";
+    case "hinge":
+      return "Thu";
+    case "mixed":
+      return "Fri";
+  }
+}
+
 function isSessionEmphasis(value: unknown): value is SessionEmphasis {
   return value === "push" || value === "pull" || value === "squat" || value === "hinge" || value === "mixed";
+}
+
+function isPgError(error: unknown): error is { code?: string; message?: string } {
+  return Boolean(error) && typeof error === "object";
+}
+
+function isMissingRelation(error: unknown, relation: string) {
+  return isPgError(error) && error.code === "42P01" && String(error.message || "").includes(relation);
+}
+
+function isMissingColumn(error: unknown, column: string) {
+  return isPgError(error) && error.code === "42703" && String(error.message || "").includes(column);
+}
+
+function isMissingSessionTypeEnumValue(error: unknown) {
+  return isPgError(error) && error.code === "22P02" && String(error.message || "").includes("session_type_enum");
 }
 
 function toStringArray(value: unknown) {

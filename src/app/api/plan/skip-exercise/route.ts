@@ -87,7 +87,16 @@ export async function POST(req: Request) {
          and exercise_id = $2
          and skipped_at is null`,
       [session.plan_session_id, exerciseId]
-    );
+    ).catch((error) => {
+      if (!isMissingSkippedAtColumn(error)) throw error;
+      return client.query<{ plan_exercise_id: string }>(
+        `select plan_exercise_id
+         from plan_exercises
+         where plan_session_id = $1
+           and exercise_id = $2`,
+        [session.plan_session_id, exerciseId]
+      );
+    });
 
     if ((targetRes.rowCount ?? 0) === 0) {
       await client.query("ROLLBACK");
@@ -114,7 +123,14 @@ export async function POST(req: Request) {
        set skipped_at = now()
        where plan_exercise_id = $1`,
       [targetRes.rows[0]?.plan_exercise_id]
-    );
+    ).catch((error) => {
+      if (!isMissingSkippedAtColumn(error)) throw error;
+      return client.query(
+        `delete from plan_exercises
+         where plan_exercise_id = $1`,
+        [targetRes.rows[0]?.plan_exercise_id]
+      );
+    });
 
     await incrementUnmetWorkForSkippedExercise(client, userId, exerciseId);
     await syncCompletedWorkoutAndState(client, userId, session.plan_session_id);
@@ -137,4 +153,10 @@ export async function POST(req: Request) {
   } finally {
     client.release();
   }
+}
+
+function isMissingSkippedAtColumn(error: unknown): error is { code?: string; message?: string } {
+  if (!error || typeof error !== "object") return false;
+  const pgError = error as { code?: string; message?: string };
+  return pgError.code === "42703" && String(pgError.message || "").includes("skipped_at");
 }
