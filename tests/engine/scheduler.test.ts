@@ -378,6 +378,22 @@ describe("scheduler", () => {
     expect(accessoryCount).toBe(3);
   });
 
+  it("keeps push days clearly upper-body when enough upper accessories exist", () => {
+    const workout = buildWorkout(
+      "2026-04-03T12:00:00Z",
+      "push",
+      exerciseLibrary,
+      [],
+      baseState()
+    );
+
+    const selectedIds = workout.exercises.map((exercise) => exercise.exerciseId);
+    expect(selectedIds).not.toContain("legext");
+    expect(selectedIds).not.toContain("legcurl");
+    expect(selectedIds).not.toContain("legpress");
+    expect(selectedIds).not.toContain("hipthrust");
+  });
+
   it("keeps generated workouts under 60 minutes", () => {
     const workout = generateNextWorkout({
       exerciseLibrary,

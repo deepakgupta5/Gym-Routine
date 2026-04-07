@@ -22,8 +22,8 @@ const MAX_MINUTES = 60;
 const THREE_DAYS_IN_HOURS = 72;
 
 const ACCESSORY_PRIORITY_BY_EMPHASIS: Record<SessionEmphasis, Muscle[]> = {
-  push: ["upper_back", "lats", "quads", "hamstrings", "glutes", "biceps", "core", "shoulders", "triceps"],
-  pull: ["chest", "shoulders", "quads", "glutes", "hamstrings", "triceps", "core", "biceps"],
+  push: ["upper_back", "lats", "biceps", "shoulders", "triceps", "core", "quads", "hamstrings", "glutes"],
+  pull: ["chest", "shoulders", "triceps", "biceps", "core", "quads", "glutes", "hamstrings"],
   squat: ["chest", "upper_back", "lats", "shoulders", "hamstrings", "glutes", "core", "biceps", "triceps"],
   hinge: ["chest", "upper_back", "lats", "shoulders", "quads", "core", "biceps", "triceps"],
   mixed: ["quads", "hamstrings", "glutes", "chest", "upper_back", "lats", "shoulders", "biceps", "triceps", "core"],
