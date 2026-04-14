@@ -10,7 +10,7 @@ import {
   SessionEmphasis,
   generateNextWorkout,
 } from "@/lib/scheduler";
-import type { ExerciseRole } from "@/lib/scheduler/types";
+import type { ExerciseRole, ExerciseSlotType } from "@/lib/scheduler/types";
 
 type ExerciseRow = {
   exercise_id: number;
@@ -21,6 +21,17 @@ type ExerciseRow = {
   equipment_type: string;
   alt_1_exercise_id: number | null;
   alt_2_exercise_id: number | null;
+  alt_3_exercise_id: number | null;
+  // Scheduler metadata (added in migration 0019)
+  category: string | null;
+  fatigue_score: number | null;
+  complexity_score: number | null;
+  leg_dominant: boolean | null;
+  suitable_slots: string[] | null;
+  emphasis_tags: string[] | null;
+  primary_muscle_groups: unknown; // jsonb string[]
+  secondary_muscle_groups: unknown; // jsonb string[]
+  is_enabled: boolean | null;
 };
 
 type ProfileRow = {
@@ -84,7 +95,9 @@ const SECONDARY_SETS = 3;
 const ACCESSORY_SETS = 2;
 const TEMPO = "3-1-1-0";
 
-const EXERCISE_META: Record<number, ExerciseSchedulerMeta> = {
+// EXERCISE_META removed — metadata now comes from DB columns (migration 0019).
+// Kept as minimal fallback for exercises created before the migration.
+const EXERCISE_META_FALLBACK: Record<number, ExerciseSchedulerMeta> = {
   1: { emphasisTags: ["squat"], roleTags: ["primary", "secondary"], primaryMuscles: ["quads", "glutes"], secondaryMuscles: ["hamstrings", "core"], isHeavyCompound: true, legDominant: true },
   2: { emphasisTags: ["squat"], roleTags: ["primary", "secondary"], primaryMuscles: ["quads"], secondaryMuscles: ["glutes", "core"], isHeavyCompound: true, legDominant: true },
   3: { emphasisTags: ["squat"], roleTags: ["secondary", "accessory"], primaryMuscles: ["quads", "glutes"], secondaryMuscles: ["hamstrings", "core"], isHeavyCompound: false, legDominant: true },
@@ -277,32 +290,49 @@ export async function incrementUnmetWorkForSkippedExercise(
 }
 
 export function parseSchedulerState(input: unknown): SchedulerState {
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    return {
-      lastTrainedAtByMuscle: {},
-      lastHeavyCompoundAtByMuscle: {},
-      lastPerformedAtByExercise: {},
-      recentEmphasisHistory: [],
-      recentLegDominantDays: [],
-      unmetWorkByMuscle: {},
-      cardioSessionsLast7Days: 0,
-    };
-  }
+  const empty: SchedulerState = {
+    lastTrainedAtByMuscle: {},
+    lastHeavyCompoundAtByMuscle: {},
+    hardReadyAtByMuscle: {},
+    softReadyAtByMuscle: {},
+    fatigueLoadByMuscle: {},
+    lastPerformedAtByExercise: {},
+    recentExerciseIds: [],
+    recentMovementPatternHistory: [],
+    recentEmphasisHistory: [],
+    recentLegDominantDays: [],
+    unmetWorkByMuscle: {},
+    unmetWorkByMovementFamily: {},
+    cardioSessionsLast7Days: 0,
+  };
 
-  const value = input as Partial<SchedulerState>;
+  if (!input || typeof input !== "object" || Array.isArray(input)) return empty;
+
+  const v = input as Partial<SchedulerState>;
   return {
-    lastTrainedAtByMuscle: value.lastTrainedAtByMuscle || {},
-    lastHeavyCompoundAtByMuscle: value.lastHeavyCompoundAtByMuscle || {},
-    lastPerformedAtByExercise: value.lastPerformedAtByExercise || {},
-    recentEmphasisHistory: Array.isArray(value.recentEmphasisHistory)
-      ? value.recentEmphasisHistory.filter(isSessionEmphasis)
+    lastTrainedAtByMuscle:       v.lastTrainedAtByMuscle       ?? {},
+    lastHeavyCompoundAtByMuscle: v.lastHeavyCompoundAtByMuscle ?? {},
+    hardReadyAtByMuscle:         v.hardReadyAtByMuscle         ?? {},
+    softReadyAtByMuscle:         v.softReadyAtByMuscle         ?? {},
+    fatigueLoadByMuscle:         v.fatigueLoadByMuscle         ?? {},
+    lastPerformedAtByExercise:   v.lastPerformedAtByExercise   ?? {},
+    recentExerciseIds:           Array.isArray(v.recentExerciseIds)
+      ? v.recentExerciseIds.filter((s): s is string => typeof s === "string")
       : [],
-    recentLegDominantDays: Array.isArray(value.recentLegDominantDays)
-      ? value.recentLegDominantDays.filter((item): item is string => typeof item === "string")
+    recentMovementPatternHistory: Array.isArray(v.recentMovementPatternHistory)
+      ? v.recentMovementPatternHistory.filter((s): s is string => typeof s === "string")
       : [],
-    unmetWorkByMuscle: value.unmetWorkByMuscle || {},
-    cardioSessionsLast7Days:
-      typeof value.cardioSessionsLast7Days === "number" ? value.cardioSessionsLast7Days : 0,
+    recentEmphasisHistory: Array.isArray(v.recentEmphasisHistory)
+      ? v.recentEmphasisHistory.filter(isSessionEmphasis)
+      : [],
+    recentLegDominantDays: Array.isArray(v.recentLegDominantDays)
+      ? v.recentLegDominantDays.filter((s): s is string => typeof s === "string")
+      : [],
+    unmetWorkByMuscle:         v.unmetWorkByMuscle         ?? {},
+    unmetWorkByMovementFamily: v.unmetWorkByMovementFamily ?? {},
+    cardioSessionsLast7Days:   typeof v.cardioSessionsLast7Days === "number"
+      ? v.cardioSessionsLast7Days
+      : 0,
   };
 }
 
@@ -314,10 +344,16 @@ async function refreshSchedulerState(client: PoolClient, userId: string) {
   const nextState: SchedulerState = {
     lastTrainedAtByMuscle: {},
     lastHeavyCompoundAtByMuscle: {},
+    hardReadyAtByMuscle: {},
+    softReadyAtByMuscle: {},
+    fatigueLoadByMuscle: {},
     lastPerformedAtByExercise: {},
+    recentExerciseIds: [],
+    recentMovementPatternHistory: [],
     recentEmphasisHistory: [],
     recentLegDominantDays: [],
-    unmetWorkByMuscle: existing.unmetWorkByMuscle || {},
+    unmetWorkByMuscle: existing.unmetWorkByMuscle ?? {},
+    unmetWorkByMovementFamily: existing.unmetWorkByMovementFamily ?? {},
     cardioSessionsLast7Days: 0,
   };
 
@@ -765,39 +801,115 @@ async function loadExerciseRows(client: PoolClient) {
             default_targeted_secondary_muscle,
             equipment_type,
             alt_1_exercise_id,
-            alt_2_exercise_id
+            alt_2_exercise_id,
+            coalesce(alt_3_exercise_id, null) as alt_3_exercise_id,
+            coalesce(category, null) as category,
+            coalesce(fatigue_score, 3) as fatigue_score,
+            coalesce(complexity_score, 3) as complexity_score,
+            coalesce(leg_dominant, false) as leg_dominant,
+            coalesce(suitable_slots, ARRAY['primary','secondary','accessory']) as suitable_slots,
+            coalesce(emphasis_tags, ARRAY[]::text[]) as emphasis_tags,
+            coalesce(primary_muscle_groups, '[]'::jsonb) as primary_muscle_groups,
+            coalesce(secondary_muscle_groups, '[]'::jsonb) as secondary_muscle_groups,
+            coalesce(is_enabled, true) as is_enabled
      from exercises
      order by exercise_id asc`
-  );
+  ).catch(async (err) => {
+    // If migration 0019 columns don't exist yet, fall back to basic columns
+    if (isPgError(err) && err.code === "42703") {
+      return client.query<ExerciseRow>(
+        `select exercise_id, name, movement_pattern,
+                default_targeted_primary_muscle, default_targeted_secondary_muscle,
+                equipment_type, alt_1_exercise_id, alt_2_exercise_id,
+                null as alt_3_exercise_id, null as category,
+                3 as fatigue_score, 3 as complexity_score,
+                false as leg_dominant,
+                ARRAY['primary','secondary','accessory'] as suitable_slots,
+                ARRAY[]::text[] as emphasis_tags,
+                '[]'::jsonb as primary_muscle_groups,
+                '[]'::jsonb as secondary_muscle_groups,
+                true as is_enabled
+         from exercises
+         order by exercise_id asc`
+      );
+    }
+    throw err;
+  });
   return res.rows;
+}
+
+function toMuscleArray(raw: unknown): Muscle[] {
+  if (Array.isArray(raw)) return raw.filter((v): v is Muscle => typeof v === "string");
+  if (typeof raw === "string") {
+    try { return toMuscleArray(JSON.parse(raw)); } catch { return []; }
+  }
+  return [];
+}
+
+function toStringArray(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.filter((v): v is string => typeof v === "string");
+  if (typeof raw === "string") {
+    try { return toStringArray(JSON.parse(raw)); } catch { return []; }
+  }
+  return [];
 }
 
 function buildSchedulerExerciseLibrary(rows: ExerciseRow[]): Exercise[] {
   const exercises: Exercise[] = [];
 
   for (const row of rows) {
-    const meta = EXERCISE_META[row.exercise_id];
-    if (!meta) continue;
+    // Try to use DB metadata first; fall back to hardcoded map for old exercises
+    const dbPrimary   = toMuscleArray(row.primary_muscle_groups);
+    const dbSecondary = toMuscleArray(row.secondary_muscle_groups);
+    const dbEmphasis  = toStringArray(row.emphasis_tags).filter(isSessionEmphasis);
+    const dbSlots     = (row.suitable_slots ?? []).filter(
+      (s): s is ExerciseSlotType => s === "primary" || s === "secondary" || s === "accessory"
+    );
+    const hasMeta = dbPrimary.length > 0 || dbEmphasis.length > 0;
+    const fallback = EXERCISE_META_FALLBACK[row.exercise_id];
+    if (!hasMeta && !fallback) continue; // skip unknown exercises
 
-    const alternatives = [row.alt_1_exercise_id, row.alt_2_exercise_id]
-      .filter((value): value is number => Number.isInteger(value))
-      .map((value) => String(value));
+    const primaryMuscles   = hasMeta ? dbPrimary   : (fallback?.primaryMuscles   ?? []);
+    const secondaryMuscles = hasMeta ? dbSecondary : (fallback?.secondaryMuscles ?? []);
+    const emphasisTags     = hasMeta ? dbEmphasis  : (fallback?.emphasisTags     ?? []);
+    const suitableSlots    = dbSlots.length > 0 ? dbSlots : deriveSlots(fallback);
+    const fatigueScore     = (row.fatigue_score ?? 3) as 1|2|3|4|5;
+    const legDominant      = hasMeta ? Boolean(row.leg_dominant) : (fallback?.legDominant ?? false);
+    const isHeavyCompound  = fatigueScore >= 4 && suitableSlots.includes("primary");
+
+    const alternatives = [row.alt_1_exercise_id, row.alt_2_exercise_id, row.alt_3_exercise_id]
+      .filter((v): v is number => Number.isInteger(v) && v !== null)
+      .map(String);
 
     exercises.push({
       id: String(row.exercise_id),
       name: row.name,
-      emphasisTags: meta.emphasisTags,
-      roleTags: meta.roleTags,
-      primaryMuscles: meta.primaryMuscles,
-      secondaryMuscles: meta.secondaryMuscles,
-      isHeavyCompound: meta.isHeavyCompound,
-      legDominant: meta.legDominant,
+      category: row.category ?? "unknown",
+      emphasisTags,
+      suitableSlots,
+      roleTags: [...suitableSlots],
+      primaryMuscles,
+      secondaryMuscles,
+      fatigueScore,
+      complexityScore: (row.complexity_score ?? 3) as 1|2|3|4|5,
+      isHeavyCompound,
+      legDominant,
       alternatives,
+      enabled: row.is_enabled ?? true,
     });
   }
 
   return exercises;
 }
+
+function deriveSlots(meta: ExerciseSchedulerMeta | undefined): ExerciseSlotType[] {
+  if (!meta) return ["accessory"];
+  return meta.roleTags.filter(
+    (r): r is ExerciseSlotType => r === "primary" || r === "secondary" || r === "accessory"
+  );
+}
+
+// ExerciseSlotType is imported from types via the Muscle import at the top
 
 async function loadLatestPerformanceByExercise(client: PoolClient, exerciseIds: number[]) {
   if (exerciseIds.length === 0) return new Map<number, {
@@ -900,10 +1012,8 @@ function isMissingSessionTypeEnumValue(error: unknown) {
   return isPgError(error) && error.code === "22P02" && String(error.message || "").includes("session_type_enum");
 }
 
-function toStringArray(value: unknown) {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string");
-}
+// Note: toStringArray above handles jsonb arrays; this is the legacy variant kept for
+// completedExerciseIds / skippedExerciseIds which are already plain JS arrays from pg.
 
 function laterTimestamp(a?: string | null, b?: string | null) {
   if (!a) return b || null;
