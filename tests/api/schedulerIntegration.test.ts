@@ -43,7 +43,7 @@ describe("scheduler integration", () => {
         }],
       })
       .mockResolvedValueOnce({ rowCount: 1, rows: [] })
-      .mockResolvedValueOnce({ rowCount: 1, rows: [{ plan_session_id: "session-1" }] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ plan_session_id: "session-1", session_type: "push" }] })
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ count: "4" }] });
 
     const result = await ensureWorkoutPlanForDate(client, "user-1", "2026-04-03");
