@@ -158,9 +158,27 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
 
   const pool = await getDb();
   const client = await pool.connect();
+  let debugStep = "init";
   try {
-    await ensureWorkoutPlanForDate(client, CONFIG.SINGLE_USER_ID, parsed.iso);
+    debugStep = "ensureWorkoutPlanForDate";
+    try {
+      await ensureWorkoutPlanForDate(client, CONFIG.SINGLE_USER_ID, parsed.iso);
+    } catch (err) {
+      const e = err as { message?: string; code?: string; detail?: string; stack?: string };
+      // eslint-disable-next-line no-console
+      console.error("[SESSION_PAGE_V1_DEBUG] ensureWorkoutPlanForDate failed", {
+        iso: parsed.iso,
+        dmy: parsed.dmy,
+        userId: CONFIG.SINGLE_USER_ID,
+        errMessage: e?.message,
+        errCode: e?.code,
+        errDetail: e?.detail,
+        errStack: e?.stack,
+      });
+      throw err;
+    }
 
+    debugStep = "load_user_profile";
     const profileRes = await client.query<{ block_id: string | null }>(
       `select block_id
        from user_profile
@@ -187,6 +205,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       );
     }
 
+    debugStep = "load_plan_session";
     const sessionRes = await client.query<SessionRow>(
       `select plan_session_id,
               date::text as date,
@@ -265,6 +284,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
 
     const session = sessionRes.rows[0];
 
+    debugStep = "load_plan_exercises";
     const exercisesRes = await client.query<ExerciseRow>(
       `select pe.plan_exercise_id,
               pe.exercise_id,
@@ -346,6 +366,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       alt_2_name: row.alt_2_name ?? null,
     }));
 
+    debugStep = "load_set_logs";
     const setLogsRes = await client.query<SetLogRow>(
       `select id,
               session_id,
@@ -362,6 +383,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       [CONFIG.SINGLE_USER_ID, session.plan_session_id]
     );
 
+    debugStep = "load_top_set_history";
     // Top set history for progress widgets (last 3 per exercise) + PR max
     const exerciseIds = exercises.map((e) => e.exercise_id);
     const topSetHistoryRes = exerciseIds.length > 0
@@ -392,6 +414,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       }
     }
 
+    debugStep = "load_pr_max";
     // PR max (max estimated 1RM per exercise)
     const prMaxRes = exerciseIds.length > 0
       ? await client.query<{ exercise_id: number; max_1rm: number }>(
@@ -429,6 +452,20 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       />
       </>
     );
+  } catch (err) {
+    const e = err as { message?: string; code?: string; detail?: string; stack?: string };
+    // eslint-disable-next-line no-console
+    console.error("[SESSION_PAGE_V1_DEBUG] SessionPage failed", {
+      debugStep,
+      iso: parsed.iso,
+      dmy: parsed.dmy,
+      userId: CONFIG.SINGLE_USER_ID,
+      errMessage: e?.message,
+      errCode: e?.code,
+      errDetail: e?.detail,
+      errStack: e?.stack,
+    });
+    throw err;
   } finally {
     client.release();
   }
