@@ -11,6 +11,8 @@ import {
   generateNextWorkout,
 } from "@/lib/scheduler";
 import type { ExerciseRole, ExerciseSlotType } from "@/lib/scheduler/types";
+import { CONFIG } from "@/lib/config";
+import { ensureWorkoutPlanForDateV2 } from "@/lib/scheduler/v2";
 
 type ExerciseRow = {
   exercise_id: number;
@@ -164,6 +166,18 @@ export async function ensureWorkoutPlanForDate(
     if ((delRes.rowCount ?? 0) === 0) return sessionId;
   }
 
+  // v2 scheduler path: behind GYM_V2_ENABLED feature flag
+  if (CONFIG.GYM_V2_ENABLED) {
+    return ensureWorkoutPlanForDateV2(
+      client,
+      userId,
+      isoDate,
+      profile.block_id,
+      profile.current_block_week
+    );
+  }
+
+  // v1 scheduler path (default)
   const exerciseRows = await loadExerciseRows(client);
   const exerciseLibrary = buildSchedulerExerciseLibrary(exerciseRows);
   const completedWorkouts = await loadCompletedWorkoutsForScheduler(client, userId);
