@@ -48,6 +48,15 @@ type ExerciseRow = {
   name: string;
   alt_1_name: string | null;
   alt_2_name: string | null;
+  // v2 fields
+  top_set_target_load_lb: string | number | null;
+  top_set_target_reps: number | null;
+  back_off_target_load_lb: string | number | null;
+  back_off_target_reps: number | null;
+  per_side_reps: boolean | null;
+  equipment_variant: string | null;
+  rationale_code: string | null;
+  rationale_text: string | null;
 };
 
 export const dynamic = "force-dynamic";
@@ -283,7 +292,15 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               e.name,
               e.movement_pattern,
               alt1.name as alt_1_name,
-              alt2.name as alt_2_name
+              alt2.name as alt_2_name,
+              pe.top_set_target_load_lb,
+              pe.top_set_target_reps,
+              pe.back_off_target_load_lb,
+              pe.back_off_target_reps,
+              pe.per_side_reps,
+              pe.equipment_variant,
+              pe.rationale_code,
+              pe.rationale_text
        from plan_exercises pe
        join exercises e on e.exercise_id = pe.exercise_id
        left join exercises alt1 on alt1.exercise_id = e.alt_1_exercise_id
@@ -313,7 +330,15 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
                 e.name,
                 e.movement_pattern,
                 alt1.name as alt_1_name,
-                alt2.name as alt_2_name
+                alt2.name as alt_2_name,
+                pe.top_set_target_load_lb,
+                pe.top_set_target_reps,
+                pe.back_off_target_load_lb,
+                pe.back_off_target_reps,
+                pe.per_side_reps,
+                pe.equipment_variant,
+                pe.rationale_code,
+                pe.rationale_text
          from plan_exercises pe
          join exercises e on e.exercise_id = pe.exercise_id
          left join exercises alt1 on alt1.exercise_id = e.alt_1_exercise_id
@@ -344,6 +369,15 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       next_target_load: toNullableNumber(row.next_target_load),
       alt_1_name: row.alt_1_name ?? null,
       alt_2_name: row.alt_2_name ?? null,
+      // v2 fields - null for legacy sessions
+      top_set_target_load_lb: toNullableNumber(row.top_set_target_load_lb),
+      top_set_target_reps: row.top_set_target_reps === null ? null : Number(row.top_set_target_reps),
+      back_off_target_load_lb: toNullableNumber(row.back_off_target_load_lb),
+      back_off_target_reps: row.back_off_target_reps === null ? null : Number(row.back_off_target_reps),
+      per_side_reps: row.per_side_reps === true,
+      equipment_variant: row.equipment_variant ?? null,
+      rationale_code: row.rationale_code ?? null,
+      rationale_text: row.rationale_text ?? null,
     }));
 
     const setLogsRes = await client.query<SetLogRow>(

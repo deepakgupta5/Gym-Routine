@@ -9,9 +9,11 @@ const { Client } = require("pg");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const sql = readFileSync(path.join(__dirname, "../supabase/migrations/0021_fix_missing_session_type_enum_values.sql"), "utf8");
 
-const connectionString =
-  process.env.SUPABASE_DB_URL ||
-  "SUPABASE_DB_URL_REDACTED";
+const connectionString = process.env.SUPABASE_DB_URL;
+if (!connectionString) {
+  console.error("Error: SUPABASE_DB_URL env var is required");
+  process.exit(1);
+}
 
 const client = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
 await client.connect();

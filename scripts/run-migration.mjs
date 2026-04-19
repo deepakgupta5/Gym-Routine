@@ -13,10 +13,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const sqlPath = path.join(__dirname, "../supabase/migrations/0020_v2_data_model.sql");
 const sql = readFileSync(sqlPath, "utf8");
 
-// Connection URL from Netlify env (passed in or hardcoded for one-off run)
-const connectionString =
-  process.env.SUPABASE_DB_URL ||
-  "SUPABASE_DB_URL_REDACTED";
+// Connection URL from env - set SUPABASE_DB_URL before running
+const connectionString = process.env.SUPABASE_DB_URL;
+if (!connectionString) {
+  console.error("Error: SUPABASE_DB_URL env var is required");
+  process.exit(1);
+}
 
 async function main() {
   const client = new Client({

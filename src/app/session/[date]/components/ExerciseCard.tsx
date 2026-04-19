@@ -146,17 +146,42 @@ export default function ExerciseCard({
               {exercise.name}
             </h2>
           </button>
-          <div className="text-sm text-gray-300">
-            Target {exercise.prescribed_sets} x {exercise.prescribed_reps_min}-{exercise.prescribed_reps_max} · Last: {last}
-            {nextTarget && <span className="ml-1 text-blue-400"> · Next: {nextTarget} lb</span>}
-          </div>
+          {exercise.top_set_target_load_lb !== null ? (
+            // v2 prescription layout
+            <div className="mt-1 space-y-0.5 text-sm text-gray-300">
+              <div>
+                <span className="text-blue-300 font-medium">Top set:</span>{" "}
+                {exercise.top_set_target_reps} reps @ {exercise.top_set_target_load_lb} lb
+                {exercise.per_side_reps && <span className="ml-1 text-gray-400">(per side)</span>}
+              </div>
+              {exercise.back_off_target_load_lb !== null && exercise.back_off_target_load_lb !== exercise.top_set_target_load_lb && (
+                <div>
+                  <span className="text-amber-300 font-medium">Back-off:</span>{" "}
+                  {exercise.prescribed_sets - 1} x {exercise.back_off_target_reps} reps @ {exercise.back_off_target_load_lb} lb
+                </div>
+              )}
+              <div className="text-xs text-gray-500">
+                {exercise.prescribed_sets} sets total · Last: {last}
+                {exercise.equipment_variant && <span className="ml-1">({exercise.equipment_variant})</span>}
+              </div>
+              {exercise.rationale_text && (
+                <div className="mt-1 text-xs text-gray-500 italic">{exercise.rationale_text}</div>
+              )}
+            </div>
+          ) : (
+            // v1 prescription layout
+            <div className="text-sm text-gray-300">
+              Target {exercise.prescribed_sets} x {exercise.prescribed_reps_min}-{exercise.prescribed_reps_max} · Last: {last}
+              {nextTarget && <span className="ml-1 text-blue-400"> · Next: {nextTarget} lb</span>}
+            </div>
+          )}
           {recentTopSets.length > 0 && (
             <div className="mt-1 text-xs text-gray-400">
               Recent:{" "}
               {recentTopSets.map((e, i) => (
                 <span key={i}>
                   {i > 0 && ", "}
-                  {e.load}×{e.reps}
+                  {e.load}x{e.reps}
                 </span>
               ))}
               {trend && (

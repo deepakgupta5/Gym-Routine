@@ -29,6 +29,15 @@ export type ExerciseView = {
   next_target_load: number | null;
   alt_1_name: string | null;
   alt_2_name: string | null;
+  // v2 fields - null for legacy sessions
+  top_set_target_load_lb: number | null;
+  top_set_target_reps: number | null;
+  back_off_target_load_lb: number | null;
+  back_off_target_reps: number | null;
+  per_side_reps: boolean;
+  equipment_variant: string | null;
+  rationale_code: string | null;
+  rationale_text: string | null;
 };
 
 export type SetLogView = {
