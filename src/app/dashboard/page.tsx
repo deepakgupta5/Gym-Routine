@@ -6,6 +6,7 @@ import WeekSummary from "./components/WeekSummary";
 import SparklineChart from "./components/SparklineChart";
 import WeightChart from "./components/WeightChart";
 import NutritionQuickStats from "./components/NutritionQuickStats";
+import TodayHeroCard from "./components/TodayHeroCard";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -262,8 +263,55 @@ export default async function DashboardPage() {
       },
     ];
 
-    // Nutrition quick summary (today + 7-day)
+    // Today's session hero card
     const today = todayUtcIso();
+    const todayDmy = today.split("-").reverse().join("-"); // YYYY-MM-DD -> DD-MM-YYYY
+
+    type TodaySessionRow = { plan_session_id: string; session_type: string; session_blueprint_version: number | null };
+    type TodayExerciseRow = {
+      name: string;
+      role: "primary" | "secondary" | "accessory";
+      prescribed_sets: number;
+      top_set_target_load_lb: number | null;
+      top_set_target_reps: number | null;
+      back_off_target_load_lb: number | null;
+      back_off_target_reps: number | null;
+      per_side_reps: boolean | null;
+    };
+
+    const todaySessionRes = blockId
+      ? await client.query<TodaySessionRow>(
+          `select plan_session_id, session_type, session_blueprint_version
+           from plan_sessions
+           where user_id = $1 and block_id = $2 and date = $3
+           limit 1`,
+          [userId, blockId, today]
+        )
+      : { rows: [] };
+
+    const todaySession = todaySessionRes.rows[0] ?? null;
+
+    const todayExercises: TodayExerciseRow[] = todaySession
+      ? (await client.query<TodayExerciseRow>(
+          `select e.name,
+                  pe.role,
+                  pe.prescribed_sets,
+                  pe.top_set_target_load_lb,
+                  pe.top_set_target_reps,
+                  pe.back_off_target_load_lb,
+                  pe.back_off_target_reps,
+                  pe.per_side_reps
+           from plan_exercises pe
+           join exercises e on e.exercise_id = pe.exercise_id
+           where pe.plan_session_id = $1
+             and pe.skipped_at is null
+           order by case pe.role when 'primary' then 1 when 'secondary' then 2 else 3 end,
+                    pe.exercise_id asc`,
+          [todaySession.plan_session_id]
+        ).catch(() => ({ rows: [] as TodayExerciseRow[] }))).rows
+      : [];
+
+    // Nutrition quick summary (today + 7-day)
 
     const [nutritionGoalsRes, nutritionRollupRes, nutritionSevenDayRes] = await Promise.all([
       client.query<{ target_calories: number; target_protein_g: number }>(
@@ -349,6 +397,25 @@ export default async function DashboardPage() {
         <h1 className="mb-4 text-2xl font-semibold text-gray-100">Dashboard</h1>
 
         <div className="grid gap-4">
+          {/* Today's workout hero card */}
+          {todaySession && (
+            <TodayHeroCard
+              sessionDmy={todayDmy}
+              sessionType={todaySession.session_type}
+              isV2={(todaySession.session_blueprint_version ?? 1) >= 2}
+              exercises={todayExercises.map((ex) => ({
+                name: ex.name,
+                role: ex.role,
+                prescribed_sets: Number(ex.prescribed_sets),
+                top_set_target_load_lb: ex.top_set_target_load_lb !== null ? Number(ex.top_set_target_load_lb) : null,
+                top_set_target_reps: ex.top_set_target_reps !== null ? Number(ex.top_set_target_reps) : null,
+                back_off_target_load_lb: ex.back_off_target_load_lb !== null ? Number(ex.back_off_target_load_lb) : null,
+                back_off_target_reps: ex.back_off_target_reps !== null ? Number(ex.back_off_target_reps) : null,
+                per_side_reps: ex.per_side_reps === true,
+              }))}
+            />
+          )}
+
           {/* This Week Summary */}
           <WeekSummary current={currentRollup} previous={previousRollup} />
 
