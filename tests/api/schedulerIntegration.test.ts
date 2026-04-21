@@ -149,6 +149,51 @@ describe("scheduler integration", () => {
     expect(schedulerMocks.generateNextWorkout).toHaveBeenCalledTimes(1);
   });
 
+  it("returns null without any DB queries for a Sunday (DOW=0)", async () => {
+    const client = makeClient();
+    client.query
+      .mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [{
+          user_id: "user-1",
+          start_date: "2026-04-01",
+          block_id: "block-1",
+          current_block_week: 1,
+          progression_state: {},
+          skipped_dates: [],
+        }],
+      })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] }); // INSERT blocks
+
+    // 2026-04-19 is a Sunday (DOW=0)
+    const result = await ensureWorkoutPlanForDate(client, "user-1", "2026-04-19");
+    expect(result).toBeNull();
+    // Profile + blocks only; no plan_sessions query or generation
+    expect(client.query).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns null for a date present in skipped_dates", async () => {
+    const client = makeClient();
+    client.query
+      .mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [{
+          user_id: "user-1",
+          start_date: "2026-04-01",
+          block_id: "block-1",
+          current_block_week: 1,
+          progression_state: {},
+          skipped_dates: ["2026-04-21"],
+        }],
+      })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] }); // INSERT blocks
+
+    const result = await ensureWorkoutPlanForDate(client, "user-1", "2026-04-21");
+    expect(result).toBeNull();
+    // Profile + blocks only; no plan_sessions query or generation
+    expect(client.query).toHaveBeenCalledTimes(2);
+  });
+
   it("increases unmet work when an exercise is skipped", async () => {
     const client = makeClient();
     client.query

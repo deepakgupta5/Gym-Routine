@@ -10,6 +10,16 @@ function todayUtcString() {
 
 export async function POST(req: Request) {
   requireConfig();
+
+  // v2 sessions are created on-demand; shifting pre-populated v1 sessions
+  // would cause UNIQUE(user_id, block_id, date) violations in v2 context.
+  if (CONFIG.GYM_V2_ENABLED) {
+    return NextResponse.json(
+      { error: "shift_disabled_in_v2", message: "Session shifting is not supported while the v2 scheduler is active." },
+      { status: 400 }
+    );
+  }
+
   const userId = CONFIG.SINGLE_USER_ID;
   const pool = await getDb();
   const client = await pool.connect();
