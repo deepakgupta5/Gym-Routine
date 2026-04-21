@@ -91,11 +91,11 @@ async function loadRecentV2DayTypes(
   isoDate: string
 ): Promise<V2DayType[]> {
   const res = await client.query<{ session_type: string }>(
-    `select session_type
+    `select session_type::text as session_type
      from plan_sessions
      where user_id = $1
        and date < $2::date
-       and session_type = any($3::text[])
+       and session_type::text = any($3::text[])
      order by date asc
      limit 10`,
     [userId, isoDate, V2_ROTATION]
