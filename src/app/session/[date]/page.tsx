@@ -463,6 +463,17 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       />
       </>
     );
+  } catch (err) {
+    console.error("[session page] render error", err);
+    return (
+      <main className="mx-auto max-w-5xl p-5 md:p-6">
+        <BackForwardRefresh />
+        <h1 className="text-2xl font-semibold text-gray-100">Session failed to load</h1>
+        <p className="mt-2 text-sm text-gray-400">
+          There was a problem loading your workout. Please refresh the page.
+        </p>
+      </main>
+    );
   } finally {
     client.release();
   }

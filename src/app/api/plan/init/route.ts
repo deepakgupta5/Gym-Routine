@@ -96,15 +96,15 @@ export async function POST() {
       exercises_count: plan.exercises.length,
     });
   } catch (err) {
-  await client.query("ROLLBACK");
-  logError("plan_init_failed", err, { user_id: CONFIG.SINGLE_USER_ID });
-  const detail =
-    process.env.NODE_ENV === "production" ? undefined : String(err);
-  return NextResponse.json(
-    { error: "plan_init_failed", detail },
-    { status: 500 }
-  );
-} finally {
-  client.release();
-}
+    await client.query("ROLLBACK");
+    logError("plan_init_failed", err, { user_id: CONFIG.SINGLE_USER_ID });
+    const detail =
+      process.env.NODE_ENV === "production" ? undefined : String(err);
+    return NextResponse.json(
+      { error: "plan_init_failed", detail },
+      { status: 500 }
+    );
+  } finally {
+    client.release();
+  }
 }

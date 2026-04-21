@@ -118,6 +118,8 @@ async function insertV2Session(
     exercises: V2SelectedExercise[];
   }
 ): Promise<string | null> {
+  // No transaction here: integration.ts wraps the delete + this call in one
+  // BEGIN/COMMIT/ROLLBACK so both are atomic.
   const sessionRes = await client.query<{ plan_session_id: string }>(
     `insert into plan_sessions
       (user_id, block_id, week_in_block, date, session_type,

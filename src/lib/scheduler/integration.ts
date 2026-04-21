@@ -128,6 +128,36 @@ const EXERCISE_META_FALLBACK: Record<number, ExerciseSchedulerMeta> = {
   25: { emphasisTags: ["mixed"], roleTags: ["core"], primaryMuscles: ["core"], secondaryMuscles: [], isHeavyCompound: false, legDominant: false },
 };
 
+// v1 scheduler generation extracted as a helper so both call sites in
+// ensureWorkoutPlanForDate can share the same logic.
+async function insertPlannedWorkoutV1(
+  client: PoolClient,
+  userId: string,
+  isoDate: string,
+  profile: ProfileRow
+): Promise<string | null> {
+  const exerciseRows = await loadExerciseRows(client);
+  const exerciseLibrary = buildSchedulerExerciseLibrary(exerciseRows);
+  const completedWorkouts = await loadCompletedWorkoutsForScheduler(client, userId);
+  const schedulerState = parseSchedulerState(profile.progression_state);
+
+  const planned = generateNextWorkout({
+    exerciseLibrary,
+    completedWorkouts,
+    schedulerState,
+    currentDate: `${isoDate}T00:00:00Z`,
+  } satisfies GenerateNextWorkoutInput);
+
+  return insertPlannedWorkout(client, {
+    userId,
+    blockId: profile.block_id,
+    currentBlockWeek: profile.current_block_week,
+    isoDate,
+    planned,
+    exerciseRows,
+  });
+}
+
 export async function ensureWorkoutPlanForDate(
   client: PoolClient,
   userId: string,
@@ -155,49 +185,50 @@ export async function ensureWorkoutPlanForDate(
     if (activeExerciseCount > 0) return sessionId;
 
     // Only delete+regenerate when the session is empty AND not yet performed.
-    const delRes = await client.query(
-      `delete from plan_sessions
-       where plan_session_id = $1
-         and performed_at is null`,
-      [sessionId]
-    );
-    // If the delete was a no-op (session was performed), keep the existing row instead of
-    // colliding on the unique constraint below.
-    if ((delRes.rowCount ?? 0) === 0) return sessionId;
+    // The delete and new inserts are wrapped in one transaction so if generation
+    // fails, the delete rolls back and the date is not left sessionless.
+    await client.query("BEGIN");
+    try {
+      const delRes = await client.query(
+        `delete from plan_sessions
+         where plan_session_id = $1
+           and performed_at is null`,
+        [sessionId]
+      );
+      // Delete was a no-op (session was performed): keep existing row.
+      if ((delRes.rowCount ?? 0) === 0) {
+        await client.query("ROLLBACK");
+        return sessionId;
+      }
+      // Generate and commit atomically with the delete.
+      const newId = CONFIG.GYM_V2_ENABLED
+        ? await ensureWorkoutPlanForDateV2(client, userId, isoDate, profile.block_id, profile.current_block_week)
+        : await insertPlannedWorkoutV1(client, userId, isoDate, profile);
+      await client.query("COMMIT");
+      return newId;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    }
   }
 
-  // v2 scheduler path: behind GYM_V2_ENABLED feature flag
+  // No existing session: generate fresh.
   if (CONFIG.GYM_V2_ENABLED) {
-    return ensureWorkoutPlanForDateV2(
-      client,
-      userId,
-      isoDate,
-      profile.block_id,
-      profile.current_block_week
-    );
+    await client.query("BEGIN");
+    try {
+      const newId = await ensureWorkoutPlanForDateV2(
+        client, userId, isoDate, profile.block_id, profile.current_block_week
+      );
+      await client.query("COMMIT");
+      return newId;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    }
   }
 
-  // v1 scheduler path (default)
-  const exerciseRows = await loadExerciseRows(client);
-  const exerciseLibrary = buildSchedulerExerciseLibrary(exerciseRows);
-  const completedWorkouts = await loadCompletedWorkoutsForScheduler(client, userId);
-  const schedulerState = parseSchedulerState(profile.progression_state);
-
-  const planned = generateNextWorkout({
-    exerciseLibrary,
-    completedWorkouts,
-    schedulerState,
-    currentDate: `${isoDate}T00:00:00Z`,
-  } satisfies GenerateNextWorkoutInput);
-
-  return insertPlannedWorkout(client, {
-    userId,
-    blockId: profile.block_id,
-    currentBlockWeek: profile.current_block_week,
-    isoDate,
-    planned,
-    exerciseRows,
-  });
+  // v1 scheduler path (no existing session, v2 disabled).
+  return insertPlannedWorkoutV1(client, userId, isoDate, profile);
 }
 
 export async function syncCompletedWorkoutAndState(

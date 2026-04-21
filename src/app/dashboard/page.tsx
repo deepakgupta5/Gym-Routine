@@ -465,6 +465,16 @@ export default async function DashboardPage() {
         </div>
       </main>
     );
+  } catch (err) {
+    console.error("[dashboard] render error", err);
+    return (
+      <main className="mx-auto max-w-5xl p-5 md:p-6">
+        <h1 className="text-2xl font-semibold text-gray-100">Dashboard</h1>
+        <p className="mt-4 text-sm text-red-400">
+          Could not load dashboard. Please refresh the page.
+        </p>
+      </main>
+    );
   } finally {
     client.release();
   }

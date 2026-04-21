@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db/pg";
 import { requireConfig } from "@/lib/config";
+import { logError } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export async function GET() {
       client.release();
     }
   } catch (err) {
-    console.error("[exercise-settings GET]", err);
+    logError("exercise_settings_get_failed", err, {});
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 }
@@ -112,7 +113,7 @@ export async function PUT(req: Request) {
       client.release();
     }
   } catch (err) {
-    console.error("[exercise-settings PUT]", err);
+    logError("exercise_settings_put_failed", err, {});
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 }

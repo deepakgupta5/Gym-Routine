@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
+import { logError } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,9 @@ export async function PUT(req: Request) {
     }
 
     return NextResponse.json({ session: res.rows[0] });
+  } catch (err) {
+    logError("toggle_deload_failed", err, { session_id: body.session_id });
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   } finally {
     client.release();
   }
