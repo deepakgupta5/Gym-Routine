@@ -135,14 +135,13 @@ describe("scheduler integration", () => {
           skipped_dates: ["2026-04-03"],
         }],
       })
-      .mockResolvedValueOnce({ rowCount: 1, rows: [] })
-      .mockResolvedValueOnce({ rowCount: 0, rows: [] })
-      .mockResolvedValueOnce({ rows: exerciseRows })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ plan_session_id: "session-new" }] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValue({ rows: [] });
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] })   // INSERT blocks (ensureSchedulerProfile)
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] })   // SELECT plan_sessions (date check - no existing)
+      .mockResolvedValueOnce({ rows: exerciseRows })       // loadExerciseRows
+      .mockResolvedValueOnce({ rows: [] })                 // loadCompletedWorkoutsForScheduler (plan_sessions)
+      .mockResolvedValueOnce({ rows: [{ plan_session_id: "session-new" }] }) // INSERT plan_sessions
+      .mockResolvedValueOnce({ rows: [] })                 // loadLatestPerformanceByExercise (top_set_history)
+      .mockResolvedValue({ rows: [] });                    // INSERT plan_exercises x5 (catchall)
 
     const result = await ensureWorkoutPlanForDate(client, "user-1", "2026-04-03");
 
