@@ -165,6 +165,11 @@ export async function ensureWorkoutPlanForDate(
 ) {
   const profile = await ensureSchedulerProfile(client, userId);
 
+  // Never generate a session for Sundays (DOW = 0) or dates the user has skipped.
+  const dow = new Date(`${isoDate}T00:00:00Z`).getUTCDay();
+  if (dow === 0) return null;
+  if ((profile.skipped_dates ?? []).includes(isoDate)) return null;
+
   const existingRes = await client.query<{ plan_session_id: string; session_type: string }>(
     `select plan_session_id, session_type
      from plan_sessions
