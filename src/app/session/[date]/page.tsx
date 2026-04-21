@@ -39,9 +39,7 @@ type ExerciseRow = {
   prescribed_sets: number;
   prescribed_reps_min: number;
   prescribed_reps_max: number;
-  prescribed_load: string;
   rest_seconds: number;
-  tempo: string;
   prev_load: string | number | null;
   prev_reps: number | null;
   next_target_load: string | number | null;
@@ -283,9 +281,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               pe.prescribed_sets,
               pe.prescribed_reps_min,
               pe.prescribed_reps_max,
-              pe.prescribed_load::text as prescribed_load,
               pe.rest_seconds,
-              pe.tempo,
               pe.prev_load,
               pe.prev_reps,
               pe.next_target_load,
@@ -310,45 +306,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
        order by case pe.role when 'primary' then 1 when 'secondary' then 2 else 3 end,
                 pe.exercise_id asc`,
       [session.plan_session_id]
-    ).catch((error) => {
-      if (!isMissingSkippedAtColumn(error)) throw error;
-      return client.query<ExerciseRow>(
-        `select pe.plan_exercise_id,
-                pe.exercise_id,
-                pe.role,
-                pe.targeted_primary_muscle,
-                pe.targeted_secondary_muscle,
-                pe.prescribed_sets,
-                pe.prescribed_reps_min,
-                pe.prescribed_reps_max,
-                pe.prescribed_load::text as prescribed_load,
-                pe.rest_seconds,
-                pe.tempo,
-                pe.prev_load,
-                pe.prev_reps,
-                pe.next_target_load,
-                e.name,
-                e.movement_pattern,
-                alt1.name as alt_1_name,
-                alt2.name as alt_2_name,
-                pe.top_set_target_load_lb,
-                pe.top_set_target_reps,
-                pe.back_off_target_load_lb,
-                pe.back_off_target_reps,
-                pe.per_side_reps,
-                pe.equipment_variant,
-                pe.rationale_code,
-                pe.rationale_text
-         from plan_exercises pe
-         join exercises e on e.exercise_id = pe.exercise_id
-         left join exercises alt1 on alt1.exercise_id = e.alt_1_exercise_id
-         left join exercises alt2 on alt2.exercise_id = e.alt_2_exercise_id
-         where pe.plan_session_id = $1
-         order by case pe.role when 'primary' then 1 when 'secondary' then 2 else 3 end,
-                  pe.exercise_id asc`,
-        [session.plan_session_id]
-      );
-    });
+    );
 
     const exercises = exercisesRes.rows.map((row) => ({
       plan_exercise_id: row.plan_exercise_id,
@@ -361,9 +319,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       prescribed_sets: Number(row.prescribed_sets),
       prescribed_reps_min: Number(row.prescribed_reps_min),
       prescribed_reps_max: Number(row.prescribed_reps_max),
-      prescribed_load: row.prescribed_load,
       rest_seconds: Number(row.rest_seconds),
-      tempo: row.tempo,
       prev_load: toNullableNumber(row.prev_load),
       prev_reps: row.prev_reps === null ? null : Number(row.prev_reps),
       next_target_load: toNullableNumber(row.next_target_load),
@@ -479,8 +435,3 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   }
 }
 
-function isMissingSkippedAtColumn(error: unknown): error is { code?: string; message?: string } {
-  if (!error || typeof error !== "object") return false;
-  const pgError = error as { code?: string; message?: string };
-  return pgError.code === "42703" && String(pgError.message || "").includes("skipped_at");
-}

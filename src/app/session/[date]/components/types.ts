@@ -21,9 +21,7 @@ export type ExerciseView = {
   prescribed_sets: number;
   prescribed_reps_min: number;
   prescribed_reps_max: number;
-  prescribed_load: string;
   rest_seconds: number;
-  tempo: string;
   prev_load: number | null;
   prev_reps: number | null;
   next_target_load: number | null;

@@ -5,15 +5,6 @@ type ExerciseDetailDrawerProps = {
   onClose?: () => void;
 };
 
-function formatTempo(tempo: string) {
-  if (!tempo || tempo === "0" || tempo === "0000") return null;
-  // Tempo format like "3010" → "3-0-1-0 (ecc-pause-con-pause)"
-  if (/^\d{4}$/.test(tempo)) {
-    return `${tempo[0]}-${tempo[1]}-${tempo[2]}-${tempo[3]}`;
-  }
-  return tempo;
-}
-
 function formatRest(seconds: number) {
   if (!seconds || seconds <= 0) return null;
   if (seconds >= 60) {
@@ -25,7 +16,6 @@ function formatRest(seconds: number) {
 }
 
 export default function ExerciseDetailDrawer({ exercise, onClose }: ExerciseDetailDrawerProps) {
-  const tempo = formatTempo(exercise.tempo);
   const rest = formatRest(exercise.rest_seconds);
   const hasAlternatives = exercise.alt_1_name || exercise.alt_2_name;
 
@@ -68,15 +58,6 @@ export default function ExerciseDetailDrawer({ exercise, onClose }: ExerciseDeta
           </div>
         )}
 
-        {tempo && (
-          <div>
-            <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
-              Tempo
-            </span>
-            <div className="text-gray-300">{tempo}</div>
-          </div>
-        )}
-
         {rest && (
           <div>
             <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
@@ -86,12 +67,14 @@ export default function ExerciseDetailDrawer({ exercise, onClose }: ExerciseDeta
           </div>
         )}
 
-        <div>
-          <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
-            Rx Load
-          </span>
-          <div className="text-gray-300">{exercise.prescribed_load || "—"}</div>
-        </div>
+        {exercise.next_target_load != null && (
+          <div>
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
+              Target Load
+            </span>
+            <div className="text-gray-300">{exercise.next_target_load} lb</div>
+          </div>
+        )}
       </div>
 
       {hasAlternatives && (
