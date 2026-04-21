@@ -11,6 +11,17 @@ import { logError } from "@/lib/logger";
 
 export async function POST() {
   requireConfig();
+
+  // v2 scheduler generates sessions on-demand per date visit.
+  // Pre-populating a block with v1 sessions while v2 is enabled would cause
+  // the session page to reuse stale v1 exercises instead of v2-generated ones.
+  if (CONFIG.GYM_V2_ENABLED) {
+    return NextResponse.json(
+      { error: "regenerate_disabled_in_v2", message: "Block regeneration is not supported while the v2 scheduler is active." },
+      { status: 400 }
+    );
+  }
+
   const userId = CONFIG.SINGLE_USER_ID;
   const pool = await getDb();
   const client = await pool.connect();

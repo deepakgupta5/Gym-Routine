@@ -40,10 +40,11 @@ export async function PUT(req: Request) {
     const updatedRes = await client.query(
       `update plan_sessions
        set cardio_minutes = $1,
- cardio_saved_at = now()
-where user_id = $2
- and plan_session_id = $3
-       returning plan_session_id, cardio_minutes, cardio_saved_at,date::text as date,performed_at`,
+           cardio_saved_at = now()
+       where user_id = $2
+         and plan_session_id = $3
+       returning plan_session_id, cardio_minutes, cardio_saved_at,
+                 date::text as date, performed_at`,
       [body.cardio_minutes, userId, body.session_id]
     );
 

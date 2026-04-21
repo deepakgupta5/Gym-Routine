@@ -52,7 +52,7 @@ describe("scheduler integration", () => {
     expect(schedulerMocks.generateNextWorkout).not.toHaveBeenCalled();
   });
 
-  it("generates and stores a new workout when the day was skipped and no stored session exists", async () => {
+  it("generates and stores a new workout when no stored session exists", async () => {
     const client = makeClient();
     schedulerMocks.generateNextWorkout.mockReturnValue({
       emphasis: "push",
@@ -132,7 +132,7 @@ describe("scheduler integration", () => {
           block_id: "block-1",
           current_block_week: 1,
           progression_state: {},
-          skipped_dates: ["2026-04-03"],
+          skipped_dates: [],
         }],
       })
       .mockResolvedValueOnce({ rowCount: 1, rows: [] })   // INSERT blocks (ensureSchedulerProfile)

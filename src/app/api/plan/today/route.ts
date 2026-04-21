@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
 import { getExerciseImageUrl } from "@/lib/engine/exerciseImages";
+import { logError } from "@/lib/logger";
 
 function toDateString(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -51,6 +52,7 @@ export async function GET(req: NextRequest) {
        from plan_exercises pe
        join exercises e on e.exercise_id = pe.exercise_id
        where pe.plan_session_id = $1
+         and pe.skipped_at is null
        order by case pe.role when 'primary' then 1 when 'secondary' then 2 else 3 end,
                 pe.exercise_id asc`,
       [session.plan_session_id]
@@ -62,6 +64,9 @@ export async function GET(req: NextRequest) {
     }));
 
     return NextResponse.json({ session, exercises });
+  } catch (err) {
+    logError("plan_today_failed", err, { user_id: userId });
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   } finally {
     client.release();
   }
