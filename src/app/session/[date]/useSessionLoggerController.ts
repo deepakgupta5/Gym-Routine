@@ -386,6 +386,10 @@ export function useSessionLoggerController({
         setError(`Cannot skip ${ex.name} after logging sets.`);
       } else if (body?.error === "exercise_not_in_session") {
         setError(`Could not find ${ex.name} in this session.`);
+      } else if (body?.error === "session_already_completed") {
+        // Session was completed (possibly in another tab or stale UI) -- reload to show final state
+        window.location.reload();
+        return false;
       } else {
         setError(`Failed to skip ${ex.name}.`);
       }
