@@ -36,6 +36,10 @@ export async function POST(req: Request) {
   const pool = await getDb();
   const client = await pool.connect();
 
+  // Hoisted so Phase 2 (state sync) can reference the resolved session id
+  // after the Phase 1 try block closes.
+  let resolvedSessionId: string | null = null;
+
   try {
     await client.query("BEGIN");
 
@@ -48,12 +52,14 @@ export async function POST(req: Request) {
 
     if ((profileRes.rowCount ?? 0) === 0) {
       await client.query("ROLLBACK");
+      client.release();
       return NextResponse.json({ error: "profile_not_found" }, { status: 404 });
     }
 
     const blockId = profileRes.rows[0]?.block_id;
     if (!blockId) {
       await client.query("ROLLBACK");
+      client.release();
       return NextResponse.json({ error: "no_block" }, { status: 400 });
     }
 
@@ -71,12 +77,15 @@ export async function POST(req: Request) {
 
     if ((sessionRes.rowCount ?? 0) === 0) {
       await client.query("ROLLBACK");
+      client.release();
       return NextResponse.json({ error: "session_not_found" }, { status: 404 });
     }
 
     const session = sessionRes.rows[0];
+    resolvedSessionId = session.plan_session_id;
     if (session.performed_at) {
       await client.query("ROLLBACK");
+      client.release();
       return NextResponse.json({ error: "session_already_completed" }, { status: 409 });
     }
 
@@ -100,6 +109,7 @@ export async function POST(req: Request) {
 
     if ((targetRes.rowCount ?? 0) === 0) {
       await client.query("ROLLBACK");
+      client.release();
       return NextResponse.json({ error: "exercise_not_in_session" }, { status: 404 });
     }
 
@@ -115,6 +125,7 @@ export async function POST(req: Request) {
 
     if ((logsRes.rowCount ?? 0) > 0) {
       await client.query("ROLLBACK");
+      client.release();
       return NextResponse.json({ error: "exercise_already_started" }, { status: 409 });
     }
 
@@ -132,27 +143,46 @@ export async function POST(req: Request) {
       );
     });
 
-    await incrementUnmetWorkForSkippedExercise(client, userId, exerciseId);
-    await syncCompletedWorkoutAndState(client, userId, session.plan_session_id);
-
+    // Phase 1 complete - commit the core skip so the user is unblocked regardless
+    // of what happens in the secondary state-sync phase below.
     await client.query("COMMIT");
-
-    return NextResponse.json({
-      ok: true,
-      shifted: 0,
-      dropped: 0,
-    });
   } catch (err) {
     await client.query("ROLLBACK");
+    client.release();
     logError("skip_exercise_failed", err, {
       user_id: userId,
       session_id: body.session_id,
       exercise_id: body.exercise_id,
     });
     return NextResponse.json({ error: "skip_exercise_failed" }, { status: 500 });
+  }
+
+  // Phase 2: secondary state sync - runs in its own transaction after the skip
+  // is durably committed. A failure here is logged but does NOT return an error
+  // to the client; the skip already succeeded.
+  try {
+    await client.query("BEGIN");
+    await incrementUnmetWorkForSkippedExercise(client, userId, exerciseId);
+    // resolvedSessionId is guaranteed non-null here (Phase 1 committed successfully)
+    await syncCompletedWorkoutAndState(client, userId, resolvedSessionId!);
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    logError("skip_exercise_state_sync_failed", err, {
+      user_id: userId,
+      session_id: body.session_id,
+      exercise_id: body.exercise_id,
+    });
+    // Non-fatal: skip is already committed above.
   } finally {
     client.release();
   }
+
+  return NextResponse.json({
+    ok: true,
+    shifted: 0,
+    dropped: 0,
+  });
 }
 
 function isMissingSkippedAtColumn(error: unknown): error is { code?: string; message?: string } {
