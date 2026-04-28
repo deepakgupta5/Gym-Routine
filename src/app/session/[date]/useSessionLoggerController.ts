@@ -381,7 +381,7 @@ export function useSessionLoggerController({
     setPendingKey(null);
 
     if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      const body = (await res.json().catch(() => null)) as { error?: string; detail?: string } | null;
       if (body?.error === "exercise_already_started") {
         setError(`Cannot skip ${ex.name} after logging sets.`);
       } else if (body?.error === "exercise_not_in_session") {
@@ -391,7 +391,7 @@ export function useSessionLoggerController({
         window.location.reload();
         return false;
       } else {
-        setError(`Failed to skip ${ex.name}.`);
+        setError(`Failed to skip ${ex.name}. Debug: ${body?.detail ?? body?.error ?? "unknown"}`);
       }
       return false;
     }

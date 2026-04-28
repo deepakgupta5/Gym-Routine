@@ -154,7 +154,8 @@ export async function POST(req: Request) {
       session_id: body.session_id,
       exercise_id: body.exercise_id,
     });
-    return NextResponse.json({ error: "skip_exercise_failed" }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: "skip_exercise_failed", detail: msg }, { status: 500 });
   }
 
   // Phase 2: secondary state sync - runs in its own transaction after the skip
