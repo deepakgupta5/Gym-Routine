@@ -53,6 +53,7 @@ export function useSessionLoggerController({
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(null);
   const [nowMs, setNowMs] = useState(() => new Date().getTime());
+  const [skippedExerciseIds, setSkippedExerciseIds] = useState<Set<number>>(new Set());
   const [sessionMinutes, setSessionMinutes] = useState({
     cardio: String(session.cardio_minutes),
   });
@@ -402,15 +403,16 @@ export function useSessionLoggerController({
       return false;
     }
 
-    // Store skip confirmation in sessionStorage so we can show it after reload
-    try {
-      sessionStorage.setItem("gymSkipDebug", `Skipped ${ex.name} at ${new Date().toLocaleTimeString()} - session ${session.plan_session_id}`);
-    } catch (_) { /* ignore */ }
-
+    // Optimistically hide the exercise immediately so the user sees it vanish
+    // without depending on a page reload (window.location.reload is unreliable
+    // in iOS PWA standalone mode).
+    setSkippedExerciseIds((prev) => new Set([...prev, ex.exercise_id]));
     haptic("medium");
-    window.location.reload();
+    // Refresh server data in the background so the exercise stays gone on
+    // subsequent navigations.
+    router.refresh();
     return true;
-  }, [logsByExercise, session.plan_session_id]);
+  }, [logsByExercise, session.plan_session_id, router]);
 
   const extendTimer = useCallback(function extendTimer() {
     setActiveTimer((prev) => {
@@ -449,6 +451,7 @@ export function useSessionLoggerController({
     doneExercises,
     entryForms,
     editForms,
+    skippedExerciseIds,
     setSessionMinutes,
     setEntryForms,
     setEditForms,
