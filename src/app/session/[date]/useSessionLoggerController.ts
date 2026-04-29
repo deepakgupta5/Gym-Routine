@@ -397,9 +397,12 @@ export function useSessionLoggerController({
     }
 
     haptic("medium");
-    router.refresh();
+    // Hard reload so the page re-fetches fresh server data and skipped
+    // exercises are filtered out server-side. router.refresh() has been
+    // observed to not update the exercises list reliably after a skip.
+    window.location.reload();
     return true;
-  }, [logsByExercise, router, session.plan_session_id]);
+  }, [logsByExercise, session.plan_session_id]);
 
   const extendTimer = useCallback(function extendTimer() {
     setActiveTimer((prev) => {
