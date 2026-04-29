@@ -185,10 +185,14 @@ export async function ensureWorkoutPlanForDate(
     // This covers both legacy (Mon/Tue/etc.) and new (push/pull/squat/hinge/mixed) schedulers,
     // and prevents a duplicate-key crash when a legacy session is already performed and the
     // conditional DELETE would be a no-op before the INSERT below.
-    const activeExerciseCount = await countActivePlanExercises(client, sessionId);
-    if (activeExerciseCount > 0) return sessionId;
+    // Count ALL exercises - including skipped ones. If any exercise exists
+    // (skipped or not), the session has been interacted with and must NOT be
+    // regenerated; regeneration would wipe skipped_at flags and make skips
+    // appear to silently fail from the user's perspective.
+    const totalExerciseCount = await countAllPlanExercises(client, sessionId);
+    if (totalExerciseCount > 0) return sessionId;
 
-    // Only delete+regenerate when the session is empty AND not yet performed.
+    // Only delete+regenerate when the session is completely empty AND not yet performed.
     // The delete and new inserts are wrapped in one transaction so if generation
     // fails, the delete rolls back and the date is not left sessionless.
     await client.query("BEGIN");
@@ -627,6 +631,16 @@ async function countActivePlanExercises(client: PoolClient, sessionId: string) {
      from plan_exercises
      where plan_session_id = $1
        and skipped_at is null`,
+    [sessionId]
+  );
+  return Number(res.rows[0]?.count ?? 0);
+}
+
+async function countAllPlanExercises(client: PoolClient, sessionId: string) {
+  const res = await client.query<{ count: string }>(
+    `select count(*)::text as count
+     from plan_exercises
+     where plan_session_id = $1`,
     [sessionId]
   );
   return Number(res.rows[0]?.count ?? 0);
