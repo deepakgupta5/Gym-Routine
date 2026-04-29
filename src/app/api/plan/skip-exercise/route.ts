@@ -146,6 +146,7 @@ export async function POST(req: Request) {
     // Phase 1 complete - commit the core skip so the user is unblocked regardless
     // of what happens in the secondary state-sync phase below.
     await client.query("COMMIT");
+    console.log(`[skip-exercise] Phase1 committed: session=${body.session_id} exercise=${body.exercise_id}`);
   } catch (err) {
     await client.query("ROLLBACK");
     client.release();
