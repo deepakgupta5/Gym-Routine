@@ -41,6 +41,17 @@ export default function SessionLogger({
 
   const [cardioSaved, setCardioSaved] = useState(Boolean(session.cardio_saved_at));
   const [showSkipPreview, setShowSkipPreview] = useState(false);
+  const [skipDebugMsg, setSkipDebugMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const msg = sessionStorage.getItem("gymSkipDebug");
+      if (msg) {
+        setSkipDebugMsg(msg);
+        sessionStorage.removeItem("gymSkipDebug");
+      }
+    } catch (_) { /* ignore */ }
+  }, []);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -88,6 +99,12 @@ export default function SessionLogger({
       />
 
       <SkipConfirmationBanner isoDate={session.date} initialVisible={skipConfirmed} />
+
+      {skipDebugMsg ? (
+        <div className="mt-3 rounded-lg border border-yellow-700 bg-yellow-950/40 px-3 py-2 text-sm text-yellow-200">
+          DEBUG: {skipDebugMsg}
+        </div>
+      ) : null}
 
       {controller.error ? (
         <div className="mt-3 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-200">

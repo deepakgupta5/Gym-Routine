@@ -369,14 +369,21 @@ export function useSessionLoggerController({
     const key = `skip-exercise-${ex.exercise_id}`;
     setPendingKey(key);
 
-    const res = await fetch("/api/plan/skip-exercise", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        session_id: session.plan_session_id,
-        exercise_id: ex.exercise_id,
-      }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/plan/skip-exercise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: session.plan_session_id,
+          exercise_id: ex.exercise_id,
+        }),
+      });
+    } catch (fetchErr) {
+      setPendingKey(null);
+      setError(`Skip failed (network): ${fetchErr instanceof Error ? fetchErr.message : "offline?"}`);
+      return false;
+    }
 
     setPendingKey(null);
 
@@ -387,19 +394,20 @@ export function useSessionLoggerController({
       } else if (body?.error === "exercise_not_in_session") {
         setError(`Could not find ${ex.name} in this session.`);
       } else if (body?.error === "session_already_completed") {
-        // Session was completed (possibly in another tab or stale UI) -- reload to show final state
         window.location.reload();
         return false;
       } else {
-        setError(`Failed to skip ${ex.name}. Debug: ${body?.detail ?? body?.error ?? "unknown"}`);
+        setError(`Skip failed (${res.status}): ${body?.detail ?? body?.error ?? "unknown"}`);
       }
       return false;
     }
 
+    // Store skip confirmation in sessionStorage so we can show it after reload
+    try {
+      sessionStorage.setItem("gymSkipDebug", `Skipped ${ex.name} at ${new Date().toLocaleTimeString()} - session ${session.plan_session_id}`);
+    } catch (_) { /* ignore */ }
+
     haptic("medium");
-    // Hard reload so the page re-fetches fresh server data and skipped
-    // exercises are filtered out server-side. router.refresh() has been
-    // observed to not update the exercises list reliably after a skip.
     window.location.reload();
     return true;
   }, [logsByExercise, session.plan_session_id]);
