@@ -111,7 +111,6 @@ export default function ExerciseCard({
   onLogButtonRef,
 }: ExerciseCardProps) {
   const [detailOpen, setDetailOpen] = useState(false);
-  const [confirmingSkip, setConfirmingSkip] = useState(false);
   const role = roleMeta(exercise.role);
   const setCount = logs.length;
   const complete = setCount >= exercise.prescribed_sets;
@@ -214,34 +213,14 @@ export default function ExerciseCard({
             onLogButtonRef={onLogButtonRef}
           />
           {canSkipExercise ? (
-            confirmingSkip ? (
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setConfirmingSkip(false)}
-                  className="min-h-[44px] rounded-lg border border-gray-600 bg-gray-800 px-4 py-2 text-sm font-medium text-gray-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setConfirmingSkip(false); onSkipExercise(); }}
-                  disabled={isSkippingExercise}
-                  className="min-h-[44px] rounded-lg border border-amber-700 bg-amber-900/50 px-4 py-2 text-sm font-medium text-amber-200 disabled:opacity-60"
-                >
-                  {isSkippingExercise ? "Skipping..." : "Yes, skip it"}
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setConfirmingSkip(true)}
-                disabled={isSkippingExercise}
-                className="min-h-[44px] rounded-lg border border-amber-700 bg-amber-900/30 px-4 py-2 text-sm font-medium text-amber-200 hover:bg-amber-800/40 disabled:opacity-60"
-              >
-                Skip Exercise
-              </button>
-            )
+            <button
+              type="button"
+              onClick={onSkipExercise}
+              disabled={isSkippingExercise}
+              className="min-h-[44px] rounded-lg border border-amber-700 bg-amber-900/30 px-4 py-2 text-sm font-medium text-amber-200 hover:bg-amber-800/40 disabled:opacity-60"
+            >
+              {isSkippingExercise ? "Skipping..." : "Skip Exercise"}
+            </button>
           ) : null}
         </div>
       )}
