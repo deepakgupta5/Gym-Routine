@@ -54,6 +54,7 @@ export function useSessionLoggerController({
   const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(null);
   const [nowMs, setNowMs] = useState(() => new Date().getTime());
   const [skippedExerciseIds, setSkippedExerciseIds] = useState<Set<number>>(new Set());
+  const [skipDebug, setSkipDebug] = useState<string | null>(null);
   const [sessionMinutes, setSessionMinutes] = useState({
     cardio: String(session.cardio_minutes),
   });
@@ -361,14 +362,17 @@ export function useSessionLoggerController({
 
   const skipExercise = useCallback(async function skipExercise(ex: ExerciseView) {
     setError(null);
+    setSkipDebug(`1. called for: ${ex.name} (id=${ex.exercise_id})`);
 
     if ((logsByExercise.get(ex.exercise_id) || []).length > 0) {
       setError(`Cannot skip ${ex.name} after logging sets.`);
+      setSkipDebug(`1b. blocked: has logs`);
       return false;
     }
 
     const key = `skip-exercise-${ex.exercise_id}`;
     setPendingKey(key);
+    setSkipDebug(`2. sending fetch...`);
 
     let res: Response;
     try {
@@ -382,14 +386,19 @@ export function useSessionLoggerController({
       });
     } catch (fetchErr) {
       setPendingKey(null);
-      setError(`Skip failed (network): ${fetchErr instanceof Error ? fetchErr.message : "offline?"}`);
+      const msg = fetchErr instanceof Error ? fetchErr.message : "offline?";
+      setError(`Skip failed (network): ${msg}`);
+      setSkipDebug(`3. network error: ${msg}`);
       return false;
     }
 
     setPendingKey(null);
+    setSkipDebug(`3. response: status=${res.status} ok=${res.ok}`);
 
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { error?: string; detail?: string } | null;
+      const errCode = body?.error ?? "unknown";
+      setSkipDebug(`4. not ok: ${errCode}`);
       if (body?.error === "exercise_already_started") {
         setError(`Cannot skip ${ex.name} after logging sets.`);
       } else if (body?.error === "exercise_not_in_session") {
@@ -403,13 +412,9 @@ export function useSessionLoggerController({
       return false;
     }
 
-    // Optimistically hide the exercise immediately so the user sees it vanish
-    // without depending on a page reload (window.location.reload is unreliable
-    // in iOS PWA standalone mode).
+    setSkipDebug(`4. SUCCESS - hiding exercise`);
     setSkippedExerciseIds((prev) => new Set([...prev, ex.exercise_id]));
     haptic("medium");
-    // Refresh server data in the background so the exercise stays gone on
-    // subsequent navigations.
     router.refresh();
     return true;
   }, [logsByExercise, session.plan_session_id, router]);
@@ -452,6 +457,7 @@ export function useSessionLoggerController({
     entryForms,
     editForms,
     skippedExerciseIds,
+    skipDebug,
     setSessionMinutes,
     setEntryForms,
     setEditForms,
