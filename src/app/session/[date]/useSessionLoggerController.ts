@@ -412,12 +412,14 @@ export function useSessionLoggerController({
       return false;
     }
 
-    setSkipDebug(`4. SUCCESS - hiding exercise`);
-    setSkippedExerciseIds((prev) => new Set([...prev, ex.exercise_id]));
+    setSkipDebug(`4. SUCCESS - reloading`);
     haptic("medium");
-    router.refresh();
+    // window.location.replace navigates to same URL, forcing a full server
+    // re-fetch. This is the same mechanism used by skipDay and is reliable
+    // on iOS PWA where window.location.reload() and router.refresh() are not.
+    window.location.replace(window.location.href);
     return true;
-  }, [logsByExercise, session.plan_session_id, router]);
+  }, [logsByExercise, session.plan_session_id]);
 
   const extendTimer = useCallback(function extendTimer() {
     setActiveTimer((prev) => {
