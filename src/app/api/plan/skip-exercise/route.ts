@@ -83,11 +83,11 @@ export async function POST(req: Request) {
 
     const session = sessionRes.rows[0];
     resolvedSessionId = session.plan_session_id;
-    if (session.performed_at) {
-      await client.query("ROLLBACK");
-      client.release();
-      return NextResponse.json({ error: "session_already_completed" }, { status: 409 });
-    }
+    // NOTE: We do NOT block on session.performed_at here. performed_at is set
+    // as soon as any set is logged in the session (not when all exercises are done),
+    // so blocking skips on it would prevent skipping exercises after logging even
+    // one set for a different exercise. The exercise_already_started check below
+    // is the correct guard for this route.
 
     const targetRes = await client.query<{ plan_exercise_id: string }>(
       `select plan_exercise_id
