@@ -395,14 +395,14 @@ export function useSessionLoggerController({
     setPendingKey(null);
     setSkipDebug(`3. response: status=${res.status} ok=${res.ok}`);
 
-    // Send debug info to Telegram so we can see it without user needing to read screen
+    // Send debug info via server endpoint (avoids CORS)
     const bodyClone = res.clone();
     bodyClone.json().catch(() => null).then((b: { error?: string; detail?: string } | null) => {
-      const tgMsg = `[SKIP DEBUG] ex=${ex.name}(${ex.exercise_id}) session=${session.plan_session_id} status=${res.status} ok=${res.ok} error=${b?.error ?? "-"} detail=${b?.detail ?? "-"}`;
-      fetch(`https://api.telegram.org/bot8344058040:AAEAcaKNzmbygKqNnLEBEl7vT2OY3TMgre4/sendMessage`, {
+      const msg = `ex=${ex.name}(${ex.exercise_id}) session=${session.plan_session_id} status=${res.status} ok=${res.ok} error=${b?.error ?? "-"} detail=${b?.detail ?? "-"}`;
+      fetch("/api/debug/skip-log", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: "6481884643", text: tgMsg }),
+        body: JSON.stringify({ msg }),
       }).catch(() => {});
     });
 
