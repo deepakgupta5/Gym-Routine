@@ -89,15 +89,9 @@ export default function SessionLogger({
 
       <SkipConfirmationBanner isoDate={session.date} initialVisible={skipConfirmed} />
 
-      {controller.skipDebug ? (
-        <div className="fixed left-4 right-4 top-16 z-50 rounded-lg border-2 border-yellow-400 bg-black px-3 py-3 text-base font-mono font-bold text-yellow-300 shadow-2xl">
-          SKIP: {controller.skipDebug}
-        </div>
-      ) : null}
-
-      {controller.error && !controller.skipDebug ? (
-        <div className="fixed left-4 right-4 top-16 z-50 rounded-lg border-2 border-red-400 bg-black px-3 py-3 text-base font-bold text-red-300 shadow-2xl">
-          ERR: {controller.error}
+      {controller.error ? (
+        <div className="mt-3 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-200">
+          {controller.error}
         </div>
       ) : null}
 
