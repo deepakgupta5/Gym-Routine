@@ -216,9 +216,16 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
 
+  const RAW_INPUT_MAX_CHARS = 2000;
   const rawInput = typeof body.raw_input === "string" ? body.raw_input.trim() : "";
   if (!rawInput) {
     return NextResponse.json({ error: "missing_raw_input" }, { status: 400 });
+  }
+  if (rawInput.length > RAW_INPUT_MAX_CHARS) {
+    return NextResponse.json(
+      { error: "raw_input_too_long", detail: `max ${RAW_INPUT_MAX_CHARS} characters` },
+      { status: 400 }
+    );
   }
 
   if (!CONFIG.OPENAI_API_KEY) {

@@ -177,7 +177,15 @@ export async function POST(req: Request) {
   let parseDurationMs: number | null = null;
   const warnings: string[] = [];
   let inputMode: "text" | "photo" | "text_photo" | "manual" = "manual";
-  const rawInput = typeof body.raw_input === "string" ? body.raw_input.trim() : null;
+  const RAW_INPUT_MAX_CHARS = 2000;
+  const rawInputRaw = typeof body.raw_input === "string" ? body.raw_input.trim() : null;
+  if (rawInputRaw && rawInputRaw.length > RAW_INPUT_MAX_CHARS) {
+    return NextResponse.json(
+      { error: "raw_input_too_long", detail: `max ${RAW_INPUT_MAX_CHARS} characters` },
+      { status: 400 }
+    );
+  }
+  const rawInput = rawInputRaw;
 
   if (saveMode === "ai_parse") {
     if (!rawInput) {
@@ -243,9 +251,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "missing_raw_input" }, { status: 400 });
     }
 
+    const ALLOWED_AI_MODELS = ["gpt-4o", "gpt-4o-mini"];
+    const requestedModel = typeof body.ai_model === "string" ? body.ai_model : null;
     aiModel =
-      typeof body.ai_model === "string"
-        ? body.ai_model
+      requestedModel && ALLOWED_AI_MODELS.includes(requestedModel)
+        ? requestedModel
         : inputModeHint === "photo"
           ? "gpt-4o"
           : "gpt-4o-mini";

@@ -11,6 +11,8 @@ type UpdateSessionMinutesBody = {
   cardio_minutes?: number;
 };
 
+const MAX_CARDIO_MINUTES = 300;
+
 function isNonNegativeInteger(value: unknown) {
   return Number.isInteger(value) && Number(value) >= 0;
 }
@@ -24,9 +26,9 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
-  if (!isNonNegativeInteger(body.cardio_minutes)) {
+  if (!isNonNegativeInteger(body.cardio_minutes) || Number(body.cardio_minutes) > MAX_CARDIO_MINUTES) {
     return NextResponse.json(
-      { error: "invalid_minutes", detail: "cardio_minutes must be an integer >= 0" },
+      { error: "invalid_minutes", detail: `cardio_minutes must be an integer 0-${MAX_CARDIO_MINUTES}` },
       { status: 400 }
     );
   }

@@ -565,6 +565,7 @@ async function insertPlannedWorkout(
 async function loadCompletedWorkoutsForScheduler(client: PoolClient, userId: string) {
   // completed_workouts table was never created in production; read history directly
   // from plan_sessions + set_logs.
+  // Rolling 90-day window keeps query cost bounded as history grows.
   const sessionRes = await client.query<LegacySessionRow>(
     `select plan_session_id as session_id,
             performed_at::text as completed_at,
@@ -573,6 +574,7 @@ async function loadCompletedWorkoutsForScheduler(client: PoolClient, userId: str
      from plan_sessions
      where user_id = $1
        and performed_at is not null
+       and performed_at >= now() - interval '90 days'
      order by performed_at asc`,
     [userId]
   );

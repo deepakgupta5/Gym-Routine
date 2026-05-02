@@ -114,7 +114,18 @@ export async function middleware(req: NextRequest) {
 
   if (pathname.startsWith("/api/admin/")) {
     const adminSecret = req.headers.get("x-admin-secret");
-    if (adminSecret && adminSecret === CONFIG.ADMIN_SECRET) {
+    const expected = CONFIG.ADMIN_SECRET || "";
+    // Constant-time comparison to prevent timing-based secret brute-force.
+    const provided = adminSecret || "";
+    const enc = new TextEncoder();
+    const expectedBytes = enc.encode(expected);
+    const providedBytes = enc.encode(provided);
+    let mismatch = expectedBytes.length ^ providedBytes.length;
+    const max = Math.max(expectedBytes.length, providedBytes.length);
+    for (let i = 0; i < max; i++) {
+      mismatch |= (expectedBytes[i] ?? 0) ^ (providedBytes[i] ?? 0);
+    }
+    if (mismatch === 0 && expected.length > 0) {
       return finalize(req, startMs, NextResponse.next());
     }
 

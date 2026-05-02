@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import dns from "dns/promises";
 import { CONFIG } from "@/lib/config";
+import { logError, logInfo } from "@/lib/logger";
 
 let poolPromise: Promise<Pool> | null = null;
 let cleanupHandlersRegistered = false;
@@ -16,7 +17,7 @@ function registerPoolCleanup(pool: Pool) {
     shutdownStarted = true;
 
     pool.end().catch((err) => {
-      console.warn("pg_pool_end_failed", { signal, error: String(err) });
+      logError("pg_pool_end_failed", err, { signal });
     });
   };
 
@@ -34,7 +35,7 @@ async function createPool(): Promise<Pool> {
       url.hostname = addrs[0];
     }
   } catch (err) {
-    console.warn("pg_dns_resolve_fallback", { host, error: String(err) });
+    logInfo("pg_dns_resolve_fallback", { host, error: String(err) });
   }
 
   const pool = new Pool({

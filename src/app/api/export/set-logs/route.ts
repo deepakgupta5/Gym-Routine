@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db/pg";
 import { CONFIG, requireConfig } from "@/lib/config";
+import { logError } from "@/lib/logger";
 
 export async function GET() {
   requireConfig();
@@ -85,6 +86,9 @@ export async function GET() {
         "Content-Disposition": `attachment; filename="set-logs-${blockId}.csv"`,
       },
     });
+  } catch (err) {
+    logError("export_set_logs_failed", err, { user_id: userId });
+    return NextResponse.json({ error: "export_failed" }, { status: 500 });
   } finally {
     client.release();
   }
