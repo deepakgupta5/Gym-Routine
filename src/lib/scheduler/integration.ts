@@ -190,10 +190,7 @@ export async function ensureWorkoutPlanForDate(
     // regenerated; regeneration would wipe skipped_at flags and make skips
     // appear to silently fail from the user's perspective.
     const totalExerciseCount = await countAllPlanExercises(client, sessionId);
-    console.log(`[ensureWorkoutPlanForDate] date=${isoDate} sessionId=${sessionId} totalExerciseCount=${totalExerciseCount}`);
     if (totalExerciseCount > 0) return sessionId;
-
-    console.log(`[ensureWorkoutPlanForDate] REGENERATING session for date=${isoDate} (totalExerciseCount=0)`);
     // Only delete+regenerate when the session is completely empty AND not yet performed.
     // The delete and new inserts are wrapped in one transaction so if generation
     // fails, the delete rolls back and the date is not left sessionless.

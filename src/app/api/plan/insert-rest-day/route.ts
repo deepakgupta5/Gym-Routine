@@ -22,6 +22,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "rest_date_required" }, { status: 400 });
     }
 
+    const isValidIsoDate = (s: string) =>
+      /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(new Date(s).getTime());
+    if (!isValidIsoDate(restDate)) {
+      return NextResponse.json({ error: "invalid_date" }, { status: 400 });
+    }
+
     if (body?.dry_run === true) {
       return NextResponse.json({
         ok: true,

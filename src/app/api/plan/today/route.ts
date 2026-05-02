@@ -8,10 +8,17 @@ function toDateString(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
+function isValidIsoDate(s: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(new Date(s).getTime());
+}
+
 export async function GET(req: NextRequest) {
   requireConfig();
   const userId = CONFIG.SINGLE_USER_ID;
   const dateParam = req.nextUrl.searchParams.get("date");
+  if (dateParam && !isValidIsoDate(dateParam)) {
+    return NextResponse.json({ error: "invalid_date" }, { status: 400 });
+  }
   const date = dateParam || toDateString(new Date());
 
   const pool = await getDb();

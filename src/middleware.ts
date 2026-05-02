@@ -9,7 +9,6 @@ const PUBLIC_PATHS = [
   "/icon.png",
   "/unlock",
   "/api/auth/",
-  "/api/debug/",
   "/manifest.json",
   "/manifest.webmanifest",
   "/robots.txt",
