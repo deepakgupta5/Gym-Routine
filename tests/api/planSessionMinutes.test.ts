@@ -81,6 +81,9 @@ describe("PUT /api/plan/session-minutes", () => {
           performed_at: null,
         }],
       })
+      .mockResolvedValueOnce({     // SELECT count(*) remaining unskipped exercises
+        rows: [{ remaining: "2" }],
+      })
       .mockResolvedValueOnce({}); // COMMIT
 
     const res = await PUT(makeRequest({ session_id: "sess-1", cardio_minutes: 30 }));
