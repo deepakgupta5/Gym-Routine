@@ -8,6 +8,7 @@ export type SessionView = {
   is_deload: boolean;
   cardio_minutes: number;
   cardio_saved_at: string | null;
+  cardio_type: "zone2" | "hiit";
 };
 
 export type ExerciseView = {

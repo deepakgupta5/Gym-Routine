@@ -9,6 +9,7 @@ import { logError } from "@/lib/logger";
 type UpdateSessionMinutesBody = {
   session_id?: string;
   cardio_minutes?: number;
+  cardio_type?: string;
 };
 
 const MAX_CARDIO_MINUTES = 300;
@@ -39,15 +40,18 @@ export async function PUT(req: Request) {
   try {
     await client.query("BEGIN");
 
+    const cardioType = body.cardio_type === "hiit" ? "hiit" : "zone2";
+
     const updatedRes = await client.query(
       `update plan_sessions
        set cardio_minutes = $1,
-           cardio_saved_at = now()
+           cardio_saved_at = now(),
+           cardio_type = $4
        where user_id = $2
          and plan_session_id = $3
        returning plan_session_id, cardio_minutes, cardio_saved_at,
                  date::text as date, performed_at`,
-      [body.cardio_minutes, userId, body.session_id]
+      [body.cardio_minutes, userId, body.session_id, cardioType]
     );
 
     if (updatedRes.rowCount === 0) {

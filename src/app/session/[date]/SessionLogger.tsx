@@ -55,7 +55,9 @@ export default function SessionLogger({
   // tells us exercises existed in the plan.
   const allExercisesSkipped = exercises.length === 0 && totalExercisesInSession > 0;
 
-  const cardioDirty = controller.sessionMinutes.cardio !== String(session.cardio_minutes);
+  const cardioDirty =
+    controller.sessionMinutes.cardio !== String(session.cardio_minutes) ||
+    controller.sessionMinutes.cardioType !== (session.cardio_type ?? "zone2");
   const cardioValue = Number(controller.sessionMinutes.cardio);
   const cardioValid = Number.isInteger(cardioValue) && cardioValue >= 0;
   const cardioComplete =
@@ -82,10 +84,14 @@ export default function SessionLogger({
         doneExercises={controller.doneExercises}
         totalExercises={exercises.length}
         cardioValue={controller.sessionMinutes.cardio}
+        cardioType={controller.sessionMinutes.cardioType}
         cardioCanSave={cardioCanSave}
         cardioComplete={cardioComplete}
         onCardioChange={(value) =>
           controller.setSessionMinutes((prev) => ({ ...prev, cardio: value }))
+        }
+        onCardioTypeChange={(type) =>
+          controller.setSessionMinutes((prev) => ({ ...prev, cardioType: type }))
         }
         onSaveCardio={handleSaveCardio}
         isSavingCardio={controller.pendingKey === "session-minutes"}

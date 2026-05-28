@@ -2,14 +2,18 @@ import Link from "next/link";
 import CardioEditor from "./CardioEditor";
 import { SessionView } from "./types";
 
+type CardioType = "zone2" | "hiit";
+
 type SessionHeaderProps = {
   session: SessionView;
   doneExercises: number;
   totalExercises: number;
   cardioValue: string;
+  cardioType: CardioType;
   cardioCanSave: boolean;
   cardioComplete: boolean;
   onCardioChange: (value: string) => void;
+  onCardioTypeChange: (type: CardioType) => void;
   onSaveCardio: () => void;
   isSavingCardio: boolean;
   onSkipDay: () => void;
@@ -40,14 +44,18 @@ function formatDisplayDate(isoDate: string) {
   return `${weekday}, ${day} ${month} ${year}`;
 }
 
+const UPPER_DAY_TYPES = new Set(["push_upper", "pull_upper", "Mon", "Tue", "Wed", "Fri"]);
+
 export default function SessionHeader({
   session,
   doneExercises,
   totalExercises,
   cardioValue,
+  cardioType,
   cardioCanSave,
   cardioComplete,
   onCardioChange,
+  onCardioTypeChange,
   onSaveCardio,
   isSavingCardio,
   onSkipDay,
@@ -57,6 +65,7 @@ export default function SessionHeader({
   isSkippingAllExercises = false,
   showSkipAll = false,
 }: SessionHeaderProps) {
+  const isUpperDay = UPPER_DAY_TYPES.has(session.session_type);
   const prevDmy = isoToDmy(addDaysIso(session.date, -1));
   const nextDmy = isoToDmy(addDaysIso(session.date, 1));
 
@@ -113,10 +122,13 @@ export default function SessionHeader({
 
         <CardioEditor
           value={cardioValue}
+          cardioType={cardioType}
           isSaving={isSavingCardio}
           canSave={cardioCanSave}
           isComplete={cardioComplete}
+          isUpperDay={isUpperDay}
           onChange={onCardioChange}
+          onTypeChange={onCardioTypeChange}
           onSave={onSaveCardio}
         />
 

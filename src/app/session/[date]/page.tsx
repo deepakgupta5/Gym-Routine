@@ -25,8 +25,8 @@ type SessionRow = {
   session_type: string;
   is_deload: boolean;
   cardio_minutes: number;
-cardio_saved_at: string | null;
-
+  cardio_saved_at: string | null;
+  cardio_type: "zone2" | "hiit";
 };
 
 type ExerciseRow = {
@@ -200,7 +200,8 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               session_type,
               is_deload,
               cardio_minutes,
-              cardio_saved_at::text as cardio_saved_at
+              cardio_saved_at::text as cardio_saved_at,
+              coalesce(cardio_type, 'zone2') as cardio_type
        from plan_sessions
        where user_id = $1 and block_id = $2 and date = $3`,
       [CONFIG.SINGLE_USER_ID, activeBlockId, parsed.iso]

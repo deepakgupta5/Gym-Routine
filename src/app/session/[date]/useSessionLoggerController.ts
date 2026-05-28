@@ -56,14 +56,19 @@ export function useSessionLoggerController({
   const [skippedExerciseIds, setSkippedExerciseIds] = useState<Set<number>>(new Set());
   const [sessionMinutes, setSessionMinutes] = useState({
     cardio: String(session.cardio_minutes),
+    cardioType: session.cardio_type ?? "zone2" as "zone2" | "hiit",
   });
 
   // Re-sync cardio input when the server refreshes with a new value.
   // Keeps client state truthful after router.refresh() resolves.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    setSessionMinutes((prev) => ({ ...prev, cardio: String(session.cardio_minutes) }));
-  }, [session.cardio_minutes]);
+    setSessionMinutes((prev) => ({
+      ...prev,
+      cardio: String(session.cardio_minutes),
+      cardioType: session.cardio_type ?? "zone2",
+    }));
+  }, [session.cardio_minutes, session.cardio_type]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const logButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({});
@@ -311,6 +316,7 @@ export function useSessionLoggerController({
       body: JSON.stringify({
         session_id: session.plan_session_id,
         cardio_minutes: cardio,
+        cardio_type: sessionMinutes.cardioType,
       }),
     });
 
