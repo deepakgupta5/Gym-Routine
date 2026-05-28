@@ -329,7 +329,7 @@ export function useSessionLoggerController({
 
     // Normalize local state to the saved integer immediately so cardioDirty
     // goes false without waiting for the router.refresh() round-trip.
-    setSessionMinutes({ cardio: String(cardio) });
+    setSessionMinutes((prev) => ({ ...prev, cardio: String(cardio) }));
     router.refresh();
     return true;
   }, [sessionMinutes.cardio, session.plan_session_id, router]);
