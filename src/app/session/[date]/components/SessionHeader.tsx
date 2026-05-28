@@ -1,21 +1,11 @@
 import Link from "next/link";
-import CardioEditor from "./CardioEditor";
 import { SessionView } from "./types";
-
-type CardioType = "zone2" | "hiit";
 
 type SessionHeaderProps = {
   session: SessionView;
   doneExercises: number;
   totalExercises: number;
-  cardioValue: string;
-  cardioType: CardioType;
-  cardioCanSave: boolean;
   cardioComplete: boolean;
-  onCardioChange: (value: string) => void;
-  onCardioTypeChange: (type: CardioType) => void;
-  onSaveCardio: () => void;
-  isSavingCardio: boolean;
   onSkipDay: () => void;
   isSkippingDay: boolean;
   showSkipDay?: boolean;
@@ -44,20 +34,11 @@ function formatDisplayDate(isoDate: string) {
   return `${weekday}, ${day} ${month} ${year}`;
 }
 
-const UPPER_DAY_TYPES = new Set(["push_upper", "pull_upper", "Mon", "Tue", "Wed", "Fri"]);
-
 export default function SessionHeader({
   session,
   doneExercises,
   totalExercises,
-  cardioValue,
-  cardioType,
-  cardioCanSave,
   cardioComplete,
-  onCardioChange,
-  onCardioTypeChange,
-  onSaveCardio,
-  isSavingCardio,
   onSkipDay,
   isSkippingDay,
   showSkipDay = true,
@@ -65,7 +46,6 @@ export default function SessionHeader({
   isSkippingAllExercises = false,
   showSkipAll = false,
 }: SessionHeaderProps) {
-  const isUpperDay = UPPER_DAY_TYPES.has(session.session_type);
   const prevDmy = isoToDmy(addDaysIso(session.date, -1));
   const nextDmy = isoToDmy(addDaysIso(session.date, 1));
 
@@ -77,7 +57,7 @@ export default function SessionHeader({
 
   let statusText = `${normalizedDoneExercises} / ${totalExercises} exercises done`;
   if (normalizedDoneExercises === totalExercises && !cardioComplete) {
-    statusText = "Exercises complete - save cardio to finish";
+    statusText = "Exercises complete - log cardio below to finish";
   }
   if (complete) {
     statusText = "Session complete";
@@ -91,7 +71,7 @@ export default function SessionHeader({
           prefetch={false}
           className="min-h-[44px] rounded-lg px-3 py-2 text-sm text-gray-400 hover:text-gray-100 active:opacity-80"
         >
-          ← Prev
+          Prev
         </Link>
         <h1 className="text-center text-2xl font-semibold text-gray-100">{formatDisplayDate(session.date)}</h1>
         <Link
@@ -99,7 +79,7 @@ export default function SessionHeader({
           prefetch={false}
           className="min-h-[44px] rounded-lg px-3 py-2 text-sm text-gray-400 hover:text-gray-100 active:opacity-80"
         >
-          Next →
+          Next
         </Link>
       </div>
 
@@ -119,18 +99,6 @@ export default function SessionHeader({
             Deload
           </span>
         ) : null}
-
-        <CardioEditor
-          value={cardioValue}
-          cardioType={cardioType}
-          isSaving={isSavingCardio}
-          canSave={cardioCanSave}
-          isComplete={cardioComplete}
-          isUpperDay={isUpperDay}
-          onChange={onCardioChange}
-          onTypeChange={onCardioTypeChange}
-          onSave={onSaveCardio}
-        />
 
         {showSkipAll && onSkipAllExercises && (
           <button
