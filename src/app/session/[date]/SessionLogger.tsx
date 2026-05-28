@@ -17,6 +17,7 @@ type Props = {
   skipConfirmed?: boolean;
   recentTopSets: Record<number, TopSetHistoryEntry[]>;
   prMaxByExercise: Record<number, number>;
+  totalExercisesInSession: number;
 };
 
 function defaultEntryForm(role: ExerciseView["role"]) {
@@ -36,6 +37,7 @@ export default function SessionLogger({
   skipConfirmed = false,
   recentTopSets,
   prMaxByExercise,
+  totalExercisesInSession,
 }: Props) {
   const controller = useSessionLoggerController({ session, exercises, logs });
 
@@ -47,6 +49,11 @@ export default function SessionLogger({
     setCardioSaved(Boolean(session.cardio_saved_at));
   }, [session.cardio_saved_at]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // All exercises were individually skipped (not a skip-day). exercises array
+  // is empty because the server filters out skipped ones; totalExercisesInSession
+  // tells us exercises existed in the plan.
+  const allExercisesSkipped = exercises.length === 0 && totalExercisesInSession > 0;
 
   const cardioDirty = controller.sessionMinutes.cardio !== String(session.cardio_minutes);
   const cardioValue = Number(controller.sessionMinutes.cardio);
@@ -84,10 +91,17 @@ export default function SessionLogger({
         isSavingCardio={controller.pendingKey === "session-minutes"}
         onSkipDay={() => setShowSkipPreview(true)}
         isSkippingDay={controller.pendingKey === "skip-day"}
-        showSkipDay={logs.length === 0}
+        showSkipDay={logs.length === 0 && !allExercisesSkipped}
       />
 
       <SkipConfirmationBanner isoDate={session.date} initialVisible={skipConfirmed} />
+
+      {allExercisesSkipped && !cardioComplete ? (
+        <div className="mt-3 rounded-lg border border-blue-800 bg-blue-950/40 px-4 py-3 text-sm text-blue-200">
+          All exercises skipped. Enter your cardio minutes above (0 if none) and tap{" "}
+          <strong>Save</strong> to finish the session.
+        </div>
+      ) : null}
 
       {controller.error ? (
         <div className="mt-3 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-200">

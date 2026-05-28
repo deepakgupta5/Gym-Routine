@@ -57,6 +57,31 @@ export async function PUT(req: Request) {
 
     const session = updatedRes.rows[0];
 
+    // If all exercises in this session are skipped (none remain unskipped),
+    // mark the session as performed now so cardio counts in weekly rollup.
+    // This covers the "skipped all exercises but did cardio" use-case where
+    // performed_at is never set by set-logging.
+    if (!session.performed_at) {
+      const unfinishedRes = await client.query<{ remaining: string }>(
+        `select count(*) as remaining
+         from plan_exercises
+         where plan_session_id = $1
+           and skipped_at is null`,
+        [body.session_id]
+      );
+      const remaining = Number(unfinishedRes.rows[0]?.remaining ?? 1);
+      if (remaining === 0) {
+        // All exercises skipped - stamp performed_at so this session is tracked
+        await client.query(
+          `update plan_sessions
+           set performed_at = now()
+           where plan_session_id = $1 and performed_at is null`,
+          [body.session_id]
+        );
+        session.performed_at = new Date().toISOString();
+      }
+    }
+
     if (session.performed_at) {
       const weekStart = toDateString(getMondayUtc(new Date(`${session.date}T00:00:00Z`)));
       await recomputeWeeklyRollup(client, userId, weekStart);

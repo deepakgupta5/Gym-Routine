@@ -272,6 +272,15 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
 
     const session = sessionRes.rows[0];
 
+    // Count ALL exercises for this session (including skipped) so we can detect
+    // when a user has individually skipped every exercise (exercises array will be
+    // empty but totalExercisesInSession > 0).
+    const totalExercisesRes = await client.query<{ total: string }>(
+      `select count(*) as total from plan_exercises where plan_session_id = $1`,
+      [session.plan_session_id]
+    );
+    const totalExercisesInSession = Number(totalExercisesRes.rows[0]?.total ?? 0);
+
     const exercisesRes = await client.query<ExerciseRow>(
       `select pe.plan_exercise_id,
               pe.exercise_id,
@@ -410,13 +419,14 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       <>
         <BackForwardRefresh />
         <SessionLogger
-        session={session}
-        exercises={exercises}
-        logs={setLogsRes.rows}
-        skipConfirmed={skipHintFromQuery}
-        recentTopSets={recentTopSets}
-        prMaxByExercise={prMaxByExercise}
-      />
+          session={session}
+          exercises={exercises}
+          logs={setLogsRes.rows}
+          skipConfirmed={skipHintFromQuery}
+          recentTopSets={recentTopSets}
+          prMaxByExercise={prMaxByExercise}
+          totalExercisesInSession={totalExercisesInSession}
+        />
       </>
     );
   } catch (err) {
