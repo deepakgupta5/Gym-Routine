@@ -15,6 +15,9 @@ type SessionHeaderProps = {
   onSkipDay: () => void;
   isSkippingDay: boolean;
   showSkipDay?: boolean;
+  onSkipAllExercises?: () => void;
+  isSkippingAllExercises?: boolean;
+  showSkipAll?: boolean;
 };
 
 function addDaysIso(isoDate: string, days: number) {
@@ -50,6 +53,9 @@ export default function SessionHeader({
   onSkipDay,
   isSkippingDay,
   showSkipDay = true,
+  onSkipAllExercises,
+  isSkippingAllExercises = false,
+  showSkipAll = false,
 }: SessionHeaderProps) {
   const prevDmy = isoToDmy(addDaysIso(session.date, -1));
   const nextDmy = isoToDmy(addDaysIso(session.date, 1));
@@ -113,6 +119,17 @@ export default function SessionHeader({
           onChange={onCardioChange}
           onSave={onSaveCardio}
         />
+
+        {showSkipAll && onSkipAllExercises && (
+          <button
+            type="button"
+            onClick={onSkipAllExercises}
+            disabled={isSkippingAllExercises}
+            className="min-h-[44px] rounded-lg border border-amber-700 bg-amber-900/50 px-4 text-sm font-medium text-amber-100 hover:bg-amber-900/70 active:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSkippingAllExercises ? "Skipping..." : "Cardio Only"}
+          </button>
+        )}
 
         {showSkipDay && (
           <button

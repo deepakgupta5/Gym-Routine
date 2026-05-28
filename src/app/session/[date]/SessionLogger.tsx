@@ -92,6 +92,9 @@ export default function SessionLogger({
         onSkipDay={() => setShowSkipPreview(true)}
         isSkippingDay={controller.pendingKey === "skip-day"}
         showSkipDay={logs.length === 0 && !allExercisesSkipped}
+        onSkipAllExercises={controller.skipAllExercises}
+        isSkippingAllExercises={controller.pendingKey === "skip-all-exercises"}
+        showSkipAll={logs.length === 0 && exercises.length > 0}
       />
 
       <SkipConfirmationBanner isoDate={session.date} initialVisible={skipConfirmed} />

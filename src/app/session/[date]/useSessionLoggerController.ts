@@ -328,6 +328,42 @@ export function useSessionLoggerController({
     return true;
   }, [sessionMinutes.cardio, session.plan_session_id, router]);
 
+  const skipAllExercises = useCallback(async function skipAllExercises() {
+    setError(null);
+    const key = "skip-all-exercises";
+    setPendingKey(key);
+
+    let res: Response;
+    try {
+      res = await fetch("/api/plan/skip-all-exercises", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: session.plan_session_id }),
+      });
+    } catch (fetchErr) {
+      setPendingKey(null);
+      const msg = fetchErr instanceof Error ? fetchErr.message : "offline?";
+      setError(`Skip all failed (network): ${msg}`);
+      return false;
+    }
+
+    setPendingKey(null);
+
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (body?.error === "some_exercises_already_started") {
+        setError("Cannot skip all - some exercises already have sets logged.");
+      } else {
+        setError("Failed to skip all exercises.");
+      }
+      return false;
+    }
+
+    haptic("medium");
+    window.location.replace(window.location.href);
+    return true;
+  }, [session.plan_session_id]);
+
   const skipDay = useCallback(async function skipDay() {
     setError(null);
     const key = "skip-day";
@@ -455,6 +491,7 @@ export function useSessionLoggerController({
     confirmDelete,
     repeatSet,
     saveSessionMinutes,
+    skipAllExercises,
     skipDay,
     skipExercise,
     extendTimer,
