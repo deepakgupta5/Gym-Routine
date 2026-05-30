@@ -37,16 +37,17 @@ async function loadRecentPrimaryExerciseIds(
   userId: string,
   isoDate: string
 ): Promise<Set<number>> {
-  // Pull exercise IDs used as primary or secondary in plan_exercises
-  // linked to plan_sessions within the last 7 days (excluding today)
+  // Pull exercise IDs used in any role in plan_exercises
+  // linked to plan_sessions within the last 7 days (excluding today).
+  // Accessory exercises are included so high-scored accessories (e.g. core)
+  // don't lock in as the same 3 exercises every single session.
   const res = await client.query<{ exercise_id: number }>(
     `select distinct pe.exercise_id
      from plan_exercises pe
      join plan_sessions ps on ps.plan_session_id = pe.plan_session_id
      where ps.user_id = $1
        and ps.date >= $2::date - interval '7 days'
-       and ps.date < $2::date
-       and pe.role in ('primary', 'secondary')`,
+       and ps.date < $2::date`,
     [userId, isoDate]
   );
   return new Set(res.rows.map((r) => Number(r.exercise_id)));

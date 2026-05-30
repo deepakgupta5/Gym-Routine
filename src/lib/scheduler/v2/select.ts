@@ -133,8 +133,8 @@ function candidatesForSlot(
       !selectedIds.has(e.exercise_id)
   );
 
-  // For primary/secondary slots, exclude exercises used recently (no-repeat rule)
-  if (role === "primary" || role === "secondary") {
+  // Exclude exercises used recently (no-repeat rule applies to all roles)
+  {
     const filtered = candidates.filter((e) => !recentExerciseIds.has(e.exercise_id));
     // Only apply the no-repeat filter if it doesn't empty the pool
     if (filtered.length > 0) candidates = filtered;
