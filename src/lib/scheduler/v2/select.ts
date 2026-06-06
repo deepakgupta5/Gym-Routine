@@ -159,10 +159,14 @@ function candidatesForSlot(
  * 1. Equipment preference: prefer equipment that fills an unfulfilled group
  * 2. User preference score (from exercise.user_preference_score)
  * 3. Seed completeness: exercises with seed_load_lb ranked higher than unseeded
+ * 4. Recency penalty (optional): exercises used recently are deprioritised.
+ *    Used in fallback mode so the same exercises don't win every session even
+ *    when the strict 7-day no-repeat pool is empty.
  */
 function scoreCandidates(
   candidates: V2ExerciseRow[],
-  selectedSoFar: V2ExerciseRow[]
+  selectedSoFar: V2ExerciseRow[],
+  recentExerciseIds?: Set<number>
 ): V2ExerciseRow[] {
   const { unfulfilledGroups } = buildEquipmentState(selectedSoFar);
   const preferredEquipment = new Set<string>();
@@ -171,17 +175,25 @@ function scoreCandidates(
   }
 
   return [...candidates].sort((a, b) => {
-    const aScore = scoreOne(a, preferredEquipment);
-    const bScore = scoreOne(b, preferredEquipment);
+    const aScore = scoreOne(a, preferredEquipment, recentExerciseIds);
+    const bScore = scoreOne(b, preferredEquipment, recentExerciseIds);
     return bScore - aScore;
   });
 }
 
-function scoreOne(e: V2ExerciseRow, preferredEquipment: Set<string>): number {
+function scoreOne(
+  e: V2ExerciseRow,
+  preferredEquipment: Set<string>,
+  recentExerciseIds?: Set<number>
+): number {
   let s = 0;
   if (preferredEquipment.has(e.equipment_type)) s += 100;
   s += (e.user_preference_score ?? 0) * 20;
   if (e.seed_load_lb !== null) s += 10;
+  // Penalise recently-used exercises so they are picked last in fallback mode.
+  // Penalty (-200) is larger than the max positive score (100+40+10=150) so
+  // any fresh exercise will always outscore a recently-used one.
+  if (recentExerciseIds?.has(e.exercise_id)) s -= 200;
   return s;
 }
 
@@ -232,13 +244,16 @@ export function selectExercisesForSession(input: SelectionInput): V2SelectedExer
     );
 
     if (candidates.length === 0) {
-      // Relax no-repeat constraint as fallback
+      // Relax no-repeat constraint as fallback, but keep the recency penalty in
+      // scoring so recently-used exercises are deprioritised within the expanded pool.
+      // This prevents core exercises (high user_preference_score) from winning
+      // every session when the strict 7-day pool is exhausted for a day type.
       candidates = candidatesForSlot(
         all,
         dayType,
         role,
         slotOrigin,
-        new Set(), // no exclusions
+        new Set(), // no hard exclusions -- pool is fully open
         selectedExercises,
         requiredEquipment
       );
@@ -246,7 +261,9 @@ export function selectExercisesForSession(input: SelectionInput): V2SelectedExer
 
     if (candidates.length === 0) continue; // skip slot if truly no candidates
 
-    const scored = scoreCandidates(candidates, selectedExercises);
+    // Always pass recentExerciseIds so the recency penalty applies in both
+    // normal mode (some candidates excluded) and fallback mode (pool open).
+    const scored = scoreCandidates(candidates, selectedExercises, recentExerciseIds);
     const exercise = deterministicPick(scored, userId, isoDate, i);
 
     const prior = lastTopSets.get(exercise.exercise_id);
