@@ -77,6 +77,39 @@
 
 ---
 
+## INC-009 -- Exercise repeat persisting after INC-004 fix (2026-06-06)
+
+**Severity:** P2 (UX broken; exercises repeating day-to-day)
+**Detected:** User reported 3 of yesterday's exercises repeated today AND on Monday
+**Resolved:** Commit `28a3d40` + migration 0029, 2026-06-06
+
+**Root cause (two-part):**
+1. The fallback in `selectExercisesForSession` fires when the strict 7-day no-repeat pool is exhausted (e.g., all push_upper accessories used yesterday). Fallback reopens the full pool with `new Set()` but kept the original `scoreCandidates()` call with no recency context. Core exercises (score +40) always won the fallback over other accessories (score +10).
+2. Migration 0028 deleted sessions where `date > CURRENT_DATE` but left today's session intact. If today's session was generated before the no-repeat fix, it still had repeated exercises and the scheduler would not regenerate it (`totalExerciseCount > 0` guard).
+
+**Fix:**
+- `scoreOne()` now accepts optional `recentExerciseIds` and applies a -200 penalty to recently-used exercises. Max positive score is 150 (100+40+10), so any fresh exercise always outscores a penalised one.
+- `scoreCandidates()` passes `recentExerciseIds` in both normal and fallback paths.
+- Migration 0029 Part B: deletes today's unperformed session (`date = CURRENT_DATE`) so it regenerates fresh.
+
+**Prevention:** See L8 in LESSONS_LEARNED_GYM.md.
+
+---
+
+## INC-010 -- Supabase CRITICAL: SECURITY DEFINER views bypass RLS (2026-06-06)
+
+**Severity:** P1 (security advisory -- CRITICAL x2 in Supabase advisor)
+**Detected:** Supabase security advisor flagged `v_weekly_muscle_volume` and `v_last_top_set_per_exercise`
+**Resolved:** Migration 0029, 2026-06-06
+
+**Root cause:** PostgreSQL views run as the view owner (SECURITY DEFINER) by default. This means the view bypasses RLS policies and executes with the creator's permissions rather than the querying user's. Any user who can query the view can see all rows, not just their own.
+
+**Fix:** Migration 0029 Part A drops both views and recreates them with `WITH (security_invoker = on)`. The view now runs under the querying user's identity, so RLS policies apply correctly.
+
+**Prevention:** See L9 in LESSONS_LEARNED_GYM.md.
+
+---
+
 ## INC-001 to INC-003 (pre-2026-05-30)
 
 Pre-dating this tracker. See `docs/release-signoff-2026-02-24.md` for v1.1 sprint hardening issues.

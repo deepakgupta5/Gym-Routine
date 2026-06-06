@@ -92,6 +92,42 @@
 
 ---
 
+### L8 -- Fallback scoring must retain recency context to prevent repeat monopoly [UNIVERSAL]
+
+**Problem:** The fallback in `selectExercisesForSession` fires when the strict 7-day no-repeat pool is empty. It reopened the full exercise pool but called `scoreCandidates()` without passing `recentExerciseIds`. Core exercises with `user_preference_score=2` (score=40) always beat other accessories (score=10) in the fallback, so the same 3 core exercises won every session with a small pool.
+
+**Fix:** Added optional `recentExerciseIds` parameter to `scoreCandidates()` and `scoreOne()`. Penalty of -200 applied to recently-used exercises. Max positive score is 150 (100+40+10), so any fresh exercise always outscores a penalised one. `recentExerciseIds` now passed in both normal and fallback code paths.
+
+**Pattern:** Fallback paths must be as defensively scored as normal paths. A fallback that opens a wider pool but scores without recency context will always produce the same winner among high-scored candidates. "Open the pool" and "deprioritise recently-used" are two independent axes -- both must be applied.
+
+[UNIVERSAL]
+
+---
+
+### L9 -- PostgreSQL views are SECURITY DEFINER by default -- bypass RLS [UNIVERSAL]
+
+**Problem:** `v_weekly_muscle_volume` and `v_last_top_set_per_exercise` created in migration 0020 without explicit security mode. PostgreSQL defaults views to SECURITY DEFINER (run as view owner). This bypasses row-level security: any authenticated user querying the view sees ALL rows, not just their own.
+
+**Fix:** Migration 0029 recreates both views with `WITH (security_invoker = on)` so the view runs as the querying user and RLS applies normally.
+
+**Pattern:** In Supabase (PostgreSQL 15+), always create views with `WITH (security_invoker = on)` when the underlying tables have RLS enabled. This is a one-line addition and should be part of every view creation template. Supabase security advisor flags omissions as CRITICAL.
+
+[UNIVERSAL]
+
+---
+
+### L10 -- Purge scope must include today, not just future dates [UNIVERSAL]
+
+**Problem:** Migration 0028 deleted unperformed sessions for `date > CURRENT_DATE` (strictly future). Today's session (`date = CURRENT_DATE`) was left intact even if it was generated before the exercise-repeat fix. The scheduler's `totalExerciseCount > 0` guard prevented regeneration, so stale exercises persisted.
+
+**Fix:** Migration 0029 adds a complementary delete for `date = CURRENT_DATE` with the same safe conditions (no logged sets, not performed).
+
+**Pattern:** When purging stale data to force regeneration, check whether "today" is in scope. `date > today` and `date >= today` differ by exactly one day and the wrong choice leaves today's stale record untouched. Use `date >= CURRENT_DATE` when the intent is "today and all future dates."
+
+[UNIVERSAL]
+
+---
+
 ### Universal lessons from this session
 
 1. No-repeat rules must cover every slot type -- partial application causes monopoly repeats.
@@ -99,3 +135,6 @@
 3. `netlify.toml` always wins over UI settings -- commit it, rely on it.
 4. React state functional update form is mandatory when preserving sibling fields.
 5. Test DB mock count must exactly match route DB call count -- add a comment enumerating calls.
+6. Fallback scoring paths must pass the same recency context as normal paths -- open pool + score penalty are independent.
+7. PostgreSQL views bypass RLS by default -- always add `WITH (security_invoker = on)` on Supabase.
+8. Purge migrations must explicitly check whether today's date is in scope, not just strictly future dates.

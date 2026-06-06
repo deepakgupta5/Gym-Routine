@@ -65,6 +65,35 @@
 
 ---
 
+## D007 -- Recency penalty (-200) in scorer deprioritises recently-used exercises in fallback (2026-06-06)
+
+**Decision:** Add a -200 score penalty to recently-used exercises in `scoreOne()`, passed through both normal and fallback `scoreCandidates()` calls in `selectExercisesForSession`.
+
+**Rationale:** The fallback fires when the strict 7-day no-repeat pool is exhausted for a slot. Without a penalty, exercises with high `user_preference_score` (core exercises: +40 each) always win the fallback, producing the same session every day when the pool is small. The -200 penalty ensures that ANY fresh exercise (max score: +150) outscores a recently-used one (max score: 150-200 = -50). This preserves the intent of the preference score (prefer these when fresh) without allowing it to monopolise when stale.
+
+**Penalty magnitude:** -200 chosen because max positive score is 150 (equipment 100 + preference 40 + seed 10). -200 is comfortably below -150, guaranteeing a fresh exercise always wins.
+
+**Alternatives considered:**
+- Zero out `user_preference_score` for core exercises. Rejected: they should still appear frequently -- just not every single day.
+- Add more exercises to the pool. Rejected: exercises must be equipment-appropriate; adding arbitrary exercises degrades plan quality.
+- Separate fallback pool with fixed 3-day window. Rejected: requires a second DB query; the penalty approach achieves the same result in-process.
+
+**Status:** LOCKED. Implemented in commit `28a3d40`.
+
+---
+
+## D008 -- Views must use security_invoker = on on Supabase (2026-06-06)
+
+**Decision:** All views on tables with RLS enabled must be created with `WITH (security_invoker = on)`. Existing views without this option must be migrated.
+
+**Rationale:** PostgreSQL views default to SECURITY DEFINER (run as view owner), which bypasses RLS. On a single-user app the practical risk is low, but Supabase flags it as CRITICAL and it is a correctness violation -- the view should never expose rows outside the querying user's RLS scope.
+
+**Scope:** `v_weekly_muscle_volume` and `v_last_top_set_per_exercise` fixed in migration 0029. All future view creation must include `WITH (security_invoker = on)`.
+
+**Status:** LOCKED.
+
+---
+
 ## D006 -- 5-day rotation fixed: push_upper, squat_lower, pull_upper, hinge_lower, full_body (2026-04-18)
 
 **Decision:** Fixed 5-day rotation. No adaptive day selection based on muscle exposure (PRD 4.2 rule 1 not implemented).

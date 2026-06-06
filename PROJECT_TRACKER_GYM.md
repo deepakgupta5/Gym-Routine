@@ -4,12 +4,12 @@ Single source of truth for gym app state. Update every session.
 
 ---
 
-## Status Snapshot -- 2026-06-06
+## Status Snapshot -- 2026-06-06 (updated)
 
-**Deployment:** Netlify (`deepakgupta5`), site `gym-routine-app.netlify.app`
-**GitHub HEAD:** `0138169` (Remove ignore = exit 0 from netlify.toml)
-**CI:** Green
-**Migration HEAD:** 0028
+**Deployment:** Netlify (`deepakgupta5`), site `gym-routine-app.netlify.app` -- green
+**GitHub HEAD:** `28a3d40` (Fix exercise repeat in fallback + SECURITY DEFINER views)
+**CI:** Green (128 tests)
+**Migration HEAD:** 0029
 **Build:** `npm run build` / `.next` / `@netlify/plugin-nextjs`
 
 ---
@@ -18,9 +18,7 @@ Single source of truth for gym app state. Update every session.
 
 | Priority | Item | Notes |
 |---|---|---|
-| P1 | Add env vars to new Netlify account | DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY, NEXTAUTH_SECRET, NEXTAUTH_URL |
-| P1 | Test app on new Netlify URL | Log a session; check exercises load correctly |
-| P2 | Delete old Netlify sites on `deepak-gupta5` | gym-routine-app (36697ac0) + meal-planner-deepak (2c69b0f8) |
+| P1 | Delete old Netlify sites on `deepak-gupta5` | gym-routine-app (36697ac0) + meal-planner-deepak (2c69b0f8); new account confirmed working |
 | P3 | Implement top-set + back-off load computation | PRD Section 4.4; not yet built |
 | P3 | Progression visibility ("up 5 lb" rationale) | PRD Section 7; not yet built |
 | P4 | Equipment diversity / rotation rules | PRD Section 3.4; not yet built |
@@ -45,13 +43,16 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-04 | commit `5617958` | Fix TypeScript: functional update form for setSessionMinutes |
 | 2026-06-05 | migration 0028 | Fix suitable_slots for exercises 26-44; purge stale future sessions |
 | 2026-06-06 | commit `0138169` | Re-enable Netlify builds (remove ignore = exit 0) |
-| 2026-06-06 | -- | Migrated to new Netlify account (deepakgupta5) |
+| 2026-06-06 | -- | Migrated to new Netlify account (deepakgupta5); both sites green |
+| 2026-06-06 | commit `4b7d70f` | Add operational docs (PROJECT_TRACKER, LESSONS_LEARNED, INCIDENT_LOG, DECISION_LOG); PRD rev 4 |
+| 2026-06-06 | commit `28a3d40` | Fix fallback scoring: recency penalty (-200) prevents repeat monopoly in small pools |
+| 2026-06-06 | migration 0029 | Fix SECURITY DEFINER on v_weekly_muscle_volume + v_last_top_set_per_exercise; purge today's stale session |
 
 ---
 
 ## Data Model
 
-**Migration HEAD:** 0028
+**Migration HEAD:** 0029
 **Key tables:** `plan_sessions`, `plan_exercises`, `set_logs`, `exercises`, `body_stats_daily`
 **Key fields on exercises:** `suitable_slots`, `allowed_day_types`, `user_preference_score`, `role`
 **Key fields on plan_sessions:** `cardio_type`, `performed_at`, `cardio_saved_at`
@@ -76,7 +77,5 @@ Single source of truth for gym app state. Update every session.
 
 ## Next Session Checklist
 
-- [ ] Confirm env vars set on new Netlify account
-- [ ] Confirm gym app loads and sessions work on new URL
-- [ ] Delete old Netlify sites once confirmed
+- [ ] Delete old Netlify sites on `deepak-gupta5` (both new sites confirmed working)
 - [ ] Decide: implement PRD 4.4 load computation next?
