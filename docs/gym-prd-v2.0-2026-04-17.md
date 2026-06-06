@@ -1,11 +1,46 @@
 # Gym App PRD v2.0 (Complete Redesign)
 
-Version: 2.0 DRAFT (rev 2)
-Date: 2026-04-17, rev 2 on 2026-04-18
+Version: 2.0 (rev 4)
+Date: 2026-04-17 | rev 2: 2026-04-18 | rev 3: 2026-05-30 | rev 4: 2026-06-06
 Scope: UI, data model, scheduler, equipment
 Base: `docs/nutrition-pwa-prd-v1.1-2026-02-24.md` (shipped state)
 Replaces: gym-side contracts in v1.1 sections 3, 7. Nutrition scope in v1.1/v1.2 is unchanged.
-Status: Draft for user review before any code changes.
+Status: Partially shipped. See Section 0a for current build state.
+
+---
+
+## 0a) Current Build State (2026-06-06)
+
+### Shipped (in production)
+
+| Component | Commit / Migration | Notes |
+|---|---|---|
+| v2 data model | migration 0020 | `plan_exercises`, `plan_sessions` with v2 fields live |
+| v2 scheduler (`src/lib/scheduler/v2/`) | commit `2291878` | 5-day rotation live: push_upper, squat_lower, pull_upper, hinge_lower, full_body |
+| No-repeat filter -- ALL roles | commit `2291878` | Extended from primary/secondary only to all roles (see Section 3.2 revision) |
+| suitable_slots corrections | migration 0028 | Exercises 26-44 corrected; Back Squat no longer appears as accessory |
+| Cardio moved to bottom of session | commit `421bafc` | CardioEditor below exercise grid; SessionHeader cardio props removed |
+| cardio_type field | migration 0027 | `plan_sessions.cardio_type` column added |
+| Program redesign (core exercises) | migration 0026 | Cable Crunch, Hanging Knee Raise, Pallof Press added; user_preference_score seeded |
+| Session page controller fix | commit `5617958` | `setSessionMinutes` functional update prevents cardioType field loss |
+| Deployment | Netlify (`deepakgupta5`) | Not Render. CI on GitHub Actions. |
+
+### Migration HEAD: 0028
+
+### Not yet shipped (from original PRD spec)
+
+| Component | Section | Status |
+|---|---|---|
+| Load computation (top set + back-off) | Section 4.4 | Not implemented; currently uses `next_target_load` forward-copy |
+| Progression visibility ("up 5 lb" rationale text) | Section 7 | Not implemented |
+| Equipment diversity / rotation rules | Section 3.4 | Not implemented in scheduler |
+| `/today` hero + day type override | Section 6.1 | Not implemented |
+| Dashboard weekly volume bars | Section 6.3 | Not implemented |
+| Settings -- exercise preferences, load increment override | Section 6.5 | Not implemented |
+| `/api/plan/regenerate` endpoint | Section 8.1 | Not implemented |
+| Deload rule | Section 4.5 | Not implemented |
+
+---
 
 ---
 
@@ -86,9 +121,13 @@ Heaviest absolute load lands in slot 1 or 2, not later. This is universal, not u
 
 ### 3.2 Day-to-day separation (no-repeat window)
 
-- Within any rolling 7-day window, no primary compound may appear in two sessions.
-- Between day N and day N+1, zero overlap in primary or secondary compound exercises.
-- Accessories may repeat across days only if the muscle group's `muscle_exposures.hard_ready_at` has passed.
+**Rev 3 (2026-05-30):** No-repeat filter extended to ALL roles, not just primary/secondary.
+
+- Within any rolling 7-day window, **no exercise of any role** (primary, secondary, accessory) may appear in two sessions.
+- Implementation: `loadRecentPrimaryExerciseIds` query in `src/lib/scheduler/v2/index.ts` no longer filters by `pe.role`; the no-repeat filter in `src/lib/scheduler/v2/select.ts` applies to all candidate pools.
+- Fallback: if the no-repeat rule would leave a slot with zero candidates, the filter is relaxed for that slot only (candidates used most recently are picked last).
+
+Original wording (superseded): "Accessories may repeat across days only if the muscle group's `muscle_exposures.hard_ready_at` has passed."
 
 ### 3.3 Weekly frequency targets (per muscle group)
 
@@ -437,4 +476,39 @@ No destructive migration. `set_logs` history preserved in full. Block-based sess
 - Migration 0019 rolling scheduler: superseded by v2.0 scheduler in Phase 1. Tables (`planned_workouts`, `muscle_exposures`) kept, extended by migration 0020.
 - `getPrescriptionForRole` static map: replaced by data-driven computation in Section 4.4.
 
-End of v2.0 draft. Awaiting user edits and answers to Section 11 open questions.
+---
+
+## 13) Body Composition Context (User-specific, 2026-06-06)
+
+**Current stats:** 80 kg, 24.5% body fat (bioimpedance). Goal: below 20% BF.
+
+**Trend (Feb-Jun 2026):** Losing 2.5x more muscle than fat:
+- Muscle lost: ~4.2 kg
+- Fat lost: ~1.7 kg
+
+**Root cause:** Protein intake ~133g/day vs 160g target. Gap = 27g/day.
+
+**Current protein sources:**
+- 4 eggs + half glass milk: ~28g
+- 2 scoops whey: ~50g
+- 250g chicken: ~55g
+- Total: ~133g
+
+**Fix:** Add 200g Greek yoghurt (~20g protein) OR 1 extra scoop whey (~25g) to close the 27g gap.
+
+**Nutrition targets (locked in meal-planner):**
+- Training days: 2200 kcal, 160g protein, 70g fat
+- Rest days: 2050 kcal, 160g protein, 70g fat
+
+---
+
+## 14) Deployment (Rev 4, 2026-06-06)
+
+- **Platform:** Netlify, account `deepakgupta5`
+- **Repo:** `deepakgupta5/Gym-Routine` (GitHub)
+- **CI:** GitHub Actions (`.github/workflows/ci.yml`)
+- **Build:** `npm run build`, publish `.next`, plugin `@netlify/plugin-nextjs`
+- **netlify.toml:** present at repo root; overrides any UI build settings
+- **Old account (`deepak-gupta5`):** deprecated, pending deletion
+
+End of v2.0 (rev 4).
