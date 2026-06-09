@@ -6,10 +6,10 @@ Single source of truth for gym app state. Update every session.
 
 ## Status Snapshot -- 2026-06-08 (updated)
 
-**Deployment:** Netlify (`deepakgupta5`), site `gym-routine-app.netlify.app` -- building (commit `6a7cdf5`)
-**GitHub HEAD:** `6a7cdf5` (Reduce no-repeat window 7->2 days + migration 0030)
+**Deployment:** Netlify (`deepakgupta5`), site `gym-routine-app.netlify.app` -- green
+**GitHub HEAD:** `bb821b3` (ops docs update)
 **CI:** Green (128 tests)
-**Migration HEAD:** 0029 (0030 written, pending Supabase run)
+**Migration HEAD:** 0030
 **Build:** `npm run build` / `.next` / `@netlify/plugin-nextjs`
 
 ---
@@ -74,7 +74,7 @@ Single source of truth for gym app state. Update every session.
 | G1 | Load progression not yet dynamic | getPrescriptionForRole still static map; PRD 4.4 not implemented | Open |
 | G2 | No "rationale text" on exercise cards | PRD Section 7 not built | Open |
 | G3 | Equipment diversity not enforced | Scheduler does not check equipment_type across slots | Open |
-| G4 | Exercise repeat -- PENDING migration 0030 run | Code fix deployed; migration 0030 not yet run in Supabase | Pending migration |
+| G4 | Exercise repeat | CLOSED -- migration 0030 run 2026-06-09, INC-011 resolved | Closed |
 
 ---
 
