@@ -110,14 +110,23 @@ async function loadRecentV2DayTypes(
   userId: string,
   isoDate: string
 ): Promise<V2DayType[]> {
+  // We only need the single most-recent v2 session: selectDayType uses
+  // recentV2DayTypes[length-1] exclusively to advance the rotation.
+  //
+  // Bug fixed (2026-06-09): the previous query used ORDER BY date ASC LIMIT 10,
+  // which returns the 10 OLDEST sessions. Once the user had more than 10 v2
+  // sessions in the DB, selectDayType's "last" element was permanently the
+  // 10th-oldest session type (pull_upper from April), causing it to return
+  // hinge_lower on every call forever. Changing to DESC LIMIT 1 always reads
+  // the true most-recent session regardless of total session count.
   const res = await client.query<{ session_type: string }>(
     `select session_type::text as session_type
      from plan_sessions
      where user_id = $1
        and date < $2::date
        and session_type::text = any($3::text[])
-     order by date asc
-     limit 10`,
+     order by date desc
+     limit 1`,
     [userId, isoDate, V2_ROTATION]
   );
   return res.rows
