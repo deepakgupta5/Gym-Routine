@@ -4,12 +4,12 @@ Single source of truth for gym app state. Update every session.
 
 ---
 
-## Status Snapshot -- 2026-06-06 (updated)
+## Status Snapshot -- 2026-06-08 (updated)
 
-**Deployment:** Netlify (`deepakgupta5`), site `gym-routine-app.netlify.app` -- green
-**GitHub HEAD:** `28a3d40` (Fix exercise repeat in fallback + SECURITY DEFINER views)
+**Deployment:** Netlify (`deepakgupta5`), site `gym-routine-app.netlify.app` -- building (commit `6a7cdf5`)
+**GitHub HEAD:** `6a7cdf5` (Reduce no-repeat window 7->2 days + migration 0030)
 **CI:** Green (128 tests)
-**Migration HEAD:** 0029
+**Migration HEAD:** 0029 (0030 written, pending Supabase run)
 **Build:** `npm run build` / `.next` / `@netlify/plugin-nextjs`
 
 ---
@@ -47,6 +47,8 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-06 | commit `4b7d70f` | Add operational docs (PROJECT_TRACKER, LESSONS_LEARNED, INCIDENT_LOG, DECISION_LOG); PRD rev 4 |
 | 2026-06-06 | commit `28a3d40` | Fix fallback scoring: recency penalty (-200) prevents repeat monopoly in small pools |
 | 2026-06-06 | migration 0029 | Fix SECURITY DEFINER on v_weekly_muscle_volume + v_last_top_set_per_exercise; purge today's stale session |
+| 2026-06-08 | commit `6a7cdf5` | Fix exercise repeat root cause: reduce no-repeat window from 7 to 2 days (INC-011) |
+| 2026-06-08 | migration 0030 | Purge today + future unperformed sessions so they regenerate with 2-day window |
 
 ---
 
@@ -72,6 +74,7 @@ Single source of truth for gym app state. Update every session.
 | G1 | Load progression not yet dynamic | getPrescriptionForRole still static map; PRD 4.4 not implemented | Open |
 | G2 | No "rationale text" on exercise cards | PRD Section 7 not built | Open |
 | G3 | Equipment diversity not enforced | Scheduler does not check equipment_type across slots | Open |
+| G4 | Exercise repeat -- PENDING migration 0030 run | Code fix deployed; migration 0030 not yet run in Supabase | Pending migration |
 
 ---
 

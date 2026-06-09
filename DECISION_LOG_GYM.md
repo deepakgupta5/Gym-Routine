@@ -94,6 +94,24 @@
 
 ---
 
+## D009 -- No-repeat window reduced from 7 days to 2 days (2026-06-08)
+
+**Decision:** Reduce `loadRecentPrimaryExerciseIds` interval from `interval '7 days'` to `interval '2 days'`.
+
+**Rationale:** With a 5-day rotation the previous same-type session is 5 days ago -- inside a 7-day window. ALL exercises for that day type end up in `recentIds`. The strict no-repeat filter empties the pool; `candidatesForSlot`'s internal fallback restores the full pool; with every candidate penalised -200 uniformly, relative ordering is unchanged and core exercises (preference +40) still win. The -200 penalty fix from D007 is therefore ineffective unless the pool actually contains a mix of fresh and recently-used exercises. With a 2-day window, day-type-specific accessories from 5 days ago are outside the window and always available as fresh candidates -- the strict filter passes them and the fallback rarely fires.
+
+**Tradeoff accepted:** The same exercise may appear across two push_upper sessions 5 days apart. This is acceptable for a 5-day rotation -- the user experiences variety day-to-day, and the same push day exercises every 5 days is comparable to any fixed strength program.
+
+**Rule generalised (L11):** `no_repeat_window < rotation_period - 1`. For any fixed rotation of N days, window must be at most N-2 days.
+
+**Alternatives considered:**
+- Graduated penalty based on days-since-last-use. Rejected: requires a second DB query and more complex scoring; 2-day window achieves the same result more simply.
+- Keep 7-day window, add more exercises to each day type. Rejected: exercises must match user equipment; arbitrary additions degrade plan quality.
+
+**Status:** LOCKED. Implemented in commit `6a7cdf5`. Migration 0030 purges stale sessions.
+
+---
+
 ## D006 -- 5-day rotation fixed: push_upper, squat_lower, pull_upper, hinge_lower, full_body (2026-04-18)
 
 **Decision:** Fixed 5-day rotation. No adaptive day selection based on muscle exposure (PRD 4.2 rule 1 not implemented).

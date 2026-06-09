@@ -110,6 +110,23 @@
 
 ---
 
+## INC-011 -- Exercise repeat STILL persisting after INC-009 fix (2026-06-08)
+
+**Severity:** P2 (UX broken; exercises repeating day-to-day)
+**Detected:** User reported same exercises repeating after migration 0029 + commit `28a3d40`
+**Resolved:** Commit `6a7cdf5` + migration 0030, 2026-06-08
+
+**Root cause:**
+The -200 recency penalty in `scoreOne()` only prevents repeats when FRESH exercises exist in the candidate pool. With a 7-day exclusion window and a 5-day rotation, the previous same-type session is 5 days ago -- inside the 7-day window. This puts ALL day-type-specific accessories into `recentIds`, triggering `candidatesForSlot`'s internal fallback (keep full pool when filter empties it). With every candidate penalised by -200, the relative ordering is identical to the unpenalised case: core exercises (user_preference_score=2 -> +40 -> net -160) beat non-core (+0 -> net -200). Same exercises win regardless of the penalty.
+
+**Fix:**
+- `index.ts`: `loadRecentPrimaryExerciseIds` interval reduced from `7 days` to `2 days`. Only yesterday's + day-before's exercises are excluded. Day-type-specific accessories from 5 days ago (previous same-type session) are fresh candidates; the strict filter passes them; the fallback rarely fires.
+- Migration 0030: purges today's and all future unperformed sessions (no logged sets) so they regenerate with the 2-day window code.
+
+**Prevention:** See L11 in LESSONS_LEARNED_GYM.md.
+
+---
+
 ## INC-001 to INC-003 (pre-2026-05-30)
 
 Pre-dating this tracker. See `docs/release-signoff-2026-02-24.md` for v1.1 sprint hardening issues.

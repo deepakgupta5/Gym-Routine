@@ -128,6 +128,22 @@
 
 ---
 
+---
+
+### L11 -- No-repeat window must be shorter than the rotation period [UNIVERSAL]
+
+**Problem:** 7-day exclusion window + 5-day rotation = the previous same-type session (5 days ago) is always inside the window. ALL exercises for that day type are in `recentIds`. The internal fallback (keep full pool when filter empties it) fires every session. With every candidate penalised uniformly, the penalty is irrelevant -- relative ordering is preserved and high-preference-score exercises win identically.
+
+**Root cause formula:** `no_repeat_window >= rotation_period` => pool always exhausted => fallback always fires => penalty has no discriminating power.
+
+**Fix:** Window reduced from 7 days to 2 days in `loadRecentPrimaryExerciseIds`. Only yesterday + day-before excluded. Same-type exercises from N days ago (N > window) are fresh. The strict filter finds candidates; fallback rarely fires.
+
+**Rule:** `no_repeat_window` must be `< rotation_period - 1`. For a 5-day rotation: max window = 4 days (exercises from the previous same-type session are fresh). 2 days is the conservative choice -- maximises variety while keeping "no same-as-yesterday" intact.
+
+[UNIVERSAL]
+
+---
+
 ### Universal lessons from this session
 
 1. No-repeat rules must cover every slot type -- partial application causes monopoly repeats.
@@ -138,3 +154,4 @@
 6. Fallback scoring paths must pass the same recency context as normal paths -- open pool + score penalty are independent.
 7. PostgreSQL views bypass RLS by default -- always add `WITH (security_invoker = on)` on Supabase.
 8. Purge migrations must explicitly check whether today's date is in scope, not just strictly future dates.
+9. No-repeat window must be shorter than the rotation period; otherwise the pool is always exhausted and scoring penalties are useless (L11).
