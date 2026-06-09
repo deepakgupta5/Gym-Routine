@@ -38,15 +38,34 @@ async function loadRecentPrimaryExerciseIds(
   isoDate: string
 ): Promise<Set<number>> {
   // Pull exercise IDs used in any role in plan_exercises
-  // linked to plan_sessions within the last 7 days (excluding today).
-  // Accessory exercises are included so high-scored accessories (e.g. core)
-  // don't lock in as the same 3 exercises every single session.
+  // linked to plan_sessions within the last 2 days (excluding today).
+  //
+  // Why 2 days, not 7:
+  //   The scheduler uses a 5-day rotation (push_upper -> squat_lower ->
+  //   pull_upper -> hinge_lower -> full_body). The previous push_upper session
+  //   is therefore 5 days ago. With a 7-day window, those exercises are inside
+  //   the exclusion window, so ALL push_upper accessories (core + day-type-specific)
+  //   are in recentIds on every push_upper session. The internal fallback in
+  //   candidatesForSlot (keep pool if filter empties it) restores them, then
+  //   scoring assigns the same -200 penalty to every candidate -- so core
+  //   exercises still win by their +40 preference score, repeating identically.
+  //
+  //   With 2 days: only yesterday's + day-before's exercises are excluded.
+  //   Day-type-specific accessories from 5 days ago are fresh candidates,
+  //   the strict no-repeat filter passes them, and the fallback never fires.
+  //   Core exercises (#25, #43, #44 used in every session) are excluded for
+  //   2 days then return to the fresh pool, maintaining variety without
+  //   starving the candidate set.
+  //
+  //   Tradeoff accepted (D009 in DECISION_LOG_GYM.md): the same exercise may
+  //   appear across two push_upper sessions separated by 5 days. That is
+  //   acceptable for a fixed 5-day rotation -- the user sees variety day-to-day.
   const res = await client.query<{ exercise_id: number }>(
     `select distinct pe.exercise_id
      from plan_exercises pe
      join plan_sessions ps on ps.plan_session_id = pe.plan_session_id
      where ps.user_id = $1
-       and ps.date >= $2::date - interval '7 days'
+       and ps.date >= $2::date - interval '2 days'
        and ps.date < $2::date`,
     [userId, isoDate]
   );
