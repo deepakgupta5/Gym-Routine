@@ -93,7 +93,8 @@ export default async function DashboardPage() {
          right_leg_ratio
        from body_stats_daily
        where user_id = $1
-       order by 1  asc`,
+         and date >= current_date - interval '365 days'
+       order by 1 asc`,
       [userId]
     );
 

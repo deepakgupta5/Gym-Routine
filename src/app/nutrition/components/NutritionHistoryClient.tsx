@@ -22,6 +22,20 @@ type NutritionHistoryResponse = {
   days: HistoryDay[];
 };
 
+// P2-14: consistent DD-MM-YYYY display across the app
+function isoToDmy(iso: string): string {
+  return iso.split("-").reverse().join("-");
+}
+
+// P2-13: human-readable messages for API error codes
+function mapErrorCode(code: string): string {
+  switch (code) {
+    case "nutrition_history_failed": return "Could not load nutrition history. Tap Refresh to try again.";
+    case "invalid_date_range": return "Invalid date range. Make sure From is before To.";
+    default: return code;
+  }
+}
+
 function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -50,7 +64,7 @@ export default function NutritionHistoryClient() {
 
     if (!res.ok || !json || ("error" in json && json.error)) {
       const err = json && "error" in json ? json.error : "nutrition_history_failed";
-      setError(typeof err === "string" ? err : "nutrition_history_failed");
+      setError(mapErrorCode(typeof err === "string" ? err : "nutrition_history_failed"));
       setLoading(false);
       return;
     }
@@ -126,7 +140,7 @@ export default function NutritionHistoryClient() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <div className="text-sm font-medium text-gray-100">{day.date}</div>
+                      <div className="text-sm font-medium text-gray-100">{isoToDmy(day.date)}</div>
                       <div className="text-xs text-gray-400">
                         {day.meal_count} meals | {day.is_training_day ? "training" : "rest"} day
                       </div>

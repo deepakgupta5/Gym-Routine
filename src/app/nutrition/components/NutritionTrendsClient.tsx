@@ -39,6 +39,20 @@ type HistoryResponse = {
   days: HistoryDay[];
 };
 
+// P2-14: consistent DD-MM-YYYY display across the app
+function isoToDmy(iso: string): string {
+  return iso.split("-").reverse().join("-");
+}
+
+// P2-13: human-readable messages for API error codes
+function mapErrorCode(code: string): string {
+  switch (code) {
+    case "nutrition_week_failed": return "Could not load this week's nutrition data. Refresh to retry.";
+    case "nutrition_history_failed": return "Could not load nutrition history. Refresh to retry.";
+    default: return code;
+  }
+}
+
 function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -87,14 +101,14 @@ export default function NutritionTrendsClient() {
 
     if (!weekRes.ok || !weekJson || ("error" in weekJson && weekJson.error)) {
       const err = weekJson && "error" in weekJson ? weekJson.error : "nutrition_week_failed";
-      setError(typeof err === "string" ? err : "nutrition_week_failed");
+      setError(mapErrorCode(typeof err === "string" ? err : "nutrition_week_failed"));
       setLoading(false);
       return;
     }
 
     if (!historyRes.ok || !historyJson || ("error" in historyJson && historyJson.error)) {
       const err = historyJson && "error" in historyJson ? historyJson.error : "nutrition_history_failed";
-      setError(typeof err === "string" ? err : "nutrition_history_failed");
+      setError(mapErrorCode(typeof err === "string" ? err : "nutrition_history_failed"));
       setLoading(false);
       return;
     }
@@ -210,7 +224,7 @@ export default function NutritionTrendsClient() {
               return (
                 <div key={day.date} className="rounded-md border border-gray-800 bg-gray-800/40 p-2">
                   <div className="mb-1 flex items-center justify-between text-xs text-gray-400">
-                    <span>{day.date}</span>
+                    <span>{isoToDmy(day.date)}</span>
                     <span>{Math.round(day.total_calories)} kcal | {day.adherence_pct}% adherence</span>
                   </div>
                   <div className="h-2 w-full rounded bg-gray-700">

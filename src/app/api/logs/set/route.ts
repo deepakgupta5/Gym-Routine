@@ -442,12 +442,15 @@ export async function POST(req: Request) {
         ])
       );
 
+      // P2-9: bulk UPDATE -- one query instead of N queries.
+      // Dedup by (block_id, exercise_id): last writer wins (same as serial loop).
+      type UpdateEntry = { nextLoad: number; blockId: string; afterWeek: number; exerciseId: number };
+      const updateMap = new Map<string, UpdateEntry>();
       for (const r of topRows) {
         const meta = exerciseMeta.get(Number(r.exercise_id));
         if (!meta) continue;
         const session = r.session_id ? sessionMap.get(r.session_id) : null;
         if (!session?.block_id || !session?.week_in_block) continue;
-
         const nextLoad = computeNextTopSetLoad({
           last_prescribed_load: Number(r.load),
           last_performed_reps: Number(r.reps),
@@ -455,16 +458,35 @@ export async function POST(req: Request) {
           increment: meta.increment,
           load_semantic: meta.semantic,
         });
-
+        const key = `${session.block_id}:${r.exercise_id}`;
+        updateMap.set(key, {
+          nextLoad,
+          blockId: session.block_id as string,
+          afterWeek: session.week_in_block as number,
+          exerciseId: Number(r.exercise_id),
+        });
+      }
+      if (updateMap.size > 0) {
+        const valFragments: string[] = [];
+        const bulkParams: unknown[] = [];
+        let p = 1;
+        for (const u of updateMap.values()) {
+          valFragments.push(`($${p++}::numeric, $${p++}::uuid, $${p++}::int, $${p++}::int)`);
+          bulkParams.push(u.nextLoad, u.blockId, u.afterWeek, u.exerciseId);
+        }
         await client.query(
-          `update plan_exercises pe
-           set next_target_load = $1
-           from plan_sessions ps
-           where pe.plan_session_id = ps.plan_session_id
-             and ps.block_id = $2
-             and ps.week_in_block > $3
-             and pe.exercise_id = $4`,
-          [nextLoad, session.block_id, session.week_in_block, r.exercise_id]
+          `WITH upd(next_load, block_id, after_week, exercise_id) AS (
+             VALUES ${valFragments.join(",")}
+           )
+           UPDATE plan_exercises pe
+           SET next_target_load = u.next_load
+           FROM plan_sessions ps
+           JOIN upd u
+             ON ps.block_id = u.block_id
+            AND ps.week_in_block > u.after_week
+           WHERE pe.plan_session_id = ps.plan_session_id
+             AND pe.exercise_id = u.exercise_id`,
+          bulkParams
         );
       }
     }
