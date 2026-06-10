@@ -128,7 +128,7 @@ No test runs SQL against a real PostgreSQL schema. All DB tests mock `client.que
 
 ```bash
 export PATH="/opt/homebrew/Cellar/postgresql@16/16.13/bin:$PATH"
-SUPABASE_DB_URL=$(cd /Users/deepakgupta/Claude-Code/Projects/gym-app && netlify env:get SUPABASE_DB_URL --context production)
+SUPABASE_DB_URL=$(cd /Users/deepakgupta/Vault/Claude-Code/Projects/gym-app && netlify env:get SUPABASE_DB_URL --context production)
 
 # All enum values
 psql "$SUPABASE_DB_URL" -c "SELECT unnest(enum_range(NULL::session_type_enum))::text;"

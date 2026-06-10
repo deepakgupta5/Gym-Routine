@@ -1,4 +1,11 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+const V2_DAY_TYPES = ["push_upper", "squat_lower", "pull_upper", "hinge_lower", "full_body"] as const;
+type V2DayType = typeof V2_DAY_TYPES[number];
 
 type HeroExercise = {
   name: string;
@@ -17,6 +24,7 @@ type TodayHeroCardProps = {
   sessionDmy: string;
   sessionType: string;
   isV2: boolean;
+  canRegen: boolean;       // true = no logged sets, force-regen is allowed
   exercises: HeroExercise[];
 };
 
@@ -68,7 +76,7 @@ function DeltaBadge({ code, text }: { code: string | null; text: string | null }
       ? "text-green-400"
       : code === "regression"
         ? "text-red-400"
-        : "text-gray-500"; // hold or seed_only
+        : "text-gray-500";
   return <span className={`text-xs ${color}`}>{text}</span>;
 }
 
@@ -76,14 +84,41 @@ export default function TodayHeroCard({
   sessionDmy,
   sessionType,
   isV2,
+  canRegen,
   exercises,
 }: TodayHeroCardProps) {
+  const router = useRouter();
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [selectedDayType, setSelectedDayType] = useState<V2DayType>(
+    V2_DAY_TYPES.includes(sessionType as V2DayType) ? (sessionType as V2DayType) : "push_upper"
+  );
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
   const label = DAY_TYPE_LABELS[sessionType] ?? sessionType;
   const colors = dayColors(sessionType);
 
   const sorted = [...exercises].sort((a, b) => roleOrder(a.role) - roleOrder(b.role));
-  // Show primary + secondary for compound days, all 3 primaries for full_body
   const preview = sorted.slice(0, sessionType === "full_body" ? 3 : 2);
+
+  async function callForceRegen(dayType?: V2DayType) {
+    setActionError(null);
+    const res = await fetch("/api/plan/force-regen-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: sessionDmy,
+        ...(dayType ? { day_type: dayType } : {}),
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as Record<string, unknown>;
+      setActionError((err.error as string) ?? "Failed to regenerate session.");
+      return;
+    }
+    setActionsOpen(false);
+    startTransition(() => router.refresh());
+  }
 
   return (
     <section className={`rounded-xl border-l-4 border border-gray-700 bg-gray-800 p-4 ${colors.border}`}>
@@ -149,6 +184,61 @@ export default function TodayHeroCard({
             <p className="text-xs text-gray-500 text-center">
               +{exercises.length - preview.length} more exercises
             </p>
+          )}
+        </div>
+      )}
+
+      {/* Secondary actions (PRD Section 6.1) -- only shown for v2 sessions without logged sets */}
+      {isV2 && canRegen && (
+        <div className="mt-3 border-t border-gray-700 pt-3">
+          <button
+            type="button"
+            onClick={() => setActionsOpen((o) => !o)}
+            className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1"
+          >
+            <span>{actionsOpen ? "Hide actions" : "More actions"}</span>
+            <span className="ml-1 text-gray-600">{actionsOpen ? "[-]" : "[+]"}</span>
+          </button>
+
+          {actionsOpen && (
+            <div className="mt-2 space-y-2">
+              {/* Force regenerate */}
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => callForceRegen(undefined)}
+                className="w-full rounded-lg border border-gray-600 bg-gray-700 px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-600 disabled:opacity-50"
+              >
+                {isPending ? "Regenerating..." : "Force regenerate (re-pick exercises)"}
+              </button>
+
+              {/* Change day type */}
+              <div className="flex gap-2">
+                <select
+                  value={selectedDayType}
+                  onChange={(e) => setSelectedDayType(e.target.value as V2DayType)}
+                  className="flex-1 rounded-lg border border-gray-600 bg-gray-700 px-2 py-2 text-sm text-gray-200"
+                >
+                  {V2_DAY_TYPES.map((dt) => (
+                    <option key={dt} value={dt}>
+                      {DAY_TYPE_LABELS[dt]}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={isPending || selectedDayType === sessionType}
+                  onClick={() => callForceRegen(selectedDayType)}
+                  className="rounded-lg border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-gray-300 hover:bg-gray-600 disabled:opacity-50"
+                >
+                  Change
+                </button>
+              </div>
+
+              {actionError && (
+                <p className="text-xs text-red-400">{actionError}</p>
+              )}
+            </div>
           )}
         </div>
       )}

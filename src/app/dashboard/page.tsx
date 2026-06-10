@@ -267,7 +267,7 @@ export default async function DashboardPage() {
     const today = todayUtcIso();
     const todayDmy = today.split("-").reverse().join("-"); // YYYY-MM-DD -> DD-MM-YYYY
 
-    type TodaySessionRow = { plan_session_id: string; session_type: string; session_blueprint_version: number | null };
+    type TodaySessionRow = { plan_session_id: string; session_type: string; session_blueprint_version: number | null; performed_at: string | null };
     type TodayExerciseRow = {
       name: string;
       role: "primary" | "secondary" | "accessory";
@@ -283,7 +283,8 @@ export default async function DashboardPage() {
 
     const todaySessionRes = blockId
       ? await client.query<TodaySessionRow>(
-          `select plan_session_id, session_type, session_blueprint_version
+          `select plan_session_id, session_type, session_blueprint_version,
+                  performed_at::text as performed_at
            from plan_sessions
            where user_id = $1 and block_id = $2 and date = $3
            limit 1`,
@@ -407,6 +408,7 @@ export default async function DashboardPage() {
               sessionDmy={todayDmy}
               sessionType={todaySession.session_type}
               isV2={(todaySession.session_blueprint_version ?? 1) >= 2}
+              canRegen={!todaySession.performed_at}
               exercises={todayExercises.map((ex) => ({
                 name: ex.name,
                 role: ex.role,

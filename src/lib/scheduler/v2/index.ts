@@ -215,17 +215,26 @@ async function insertV2Session(
 /**
  * Generate a v2 session plan for the given date.
  * Returns the new plan_session_id, or null if generation fails.
+ *
+ * @param forcedDayType - if provided, bypasses the rotation and uses this
+ *   day type directly (used for the "Change day type" override in the UI).
  */
 export async function ensureWorkoutPlanForDateV2(
   client: PoolClient,
   userId: string,
   isoDate: string,
   blockId: string,
-  blockWeek: number
+  blockWeek: number,
+  forcedDayType?: V2DayType
 ): Promise<string | null> {
-  // 1. Select day type from rotation
-  const recentDayTypes = await loadRecentV2DayTypes(client, userId, isoDate);
-  const dayType = selectDayType(recentDayTypes);
+  // 1. Select day type from rotation (or use the forced override)
+  let dayType: V2DayType;
+  if (forcedDayType) {
+    dayType = forcedDayType;
+  } else {
+    const recentDayTypes = await loadRecentV2DayTypes(client, userId, isoDate);
+    dayType = selectDayType(recentDayTypes);
+  }
 
   // 2. Load exercises and recent history
   const allExercises = await loadV2Exercises(client);
