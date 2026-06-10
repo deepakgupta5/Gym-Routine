@@ -46,6 +46,8 @@ export default function SessionLogger({
 
   const [cardioSaved, setCardioSaved] = useState(Boolean(session.cardio_saved_at));
   const [showSkipPreview, setShowSkipPreview] = useState(false);
+  // P1-3: Skip All Exercises requires explicit confirmation before firing
+  const [showSkipAllConfirm, setShowSkipAllConfirm] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -77,6 +79,11 @@ export default function SessionLogger({
     await controller.skipDay();
   }
 
+  async function handleSkipAllConfirmed() {
+    setShowSkipAllConfirm(false);
+    await controller.skipAllExercises();
+  }
+
   return (
     <main className="mx-auto max-w-5xl p-5 md:p-6">
       <SessionHeader
@@ -87,7 +94,7 @@ export default function SessionLogger({
         onSkipDay={() => setShowSkipPreview(true)}
         isSkippingDay={controller.pendingKey === "skip-day"}
         showSkipDay={logs.length === 0 && !allExercisesSkipped}
-        onSkipAllExercises={controller.skipAllExercises}
+        onSkipAllExercises={() => setShowSkipAllConfirm(true)}
         isSkippingAllExercises={controller.pendingKey === "skip-all-exercises"}
         showSkipAll={logs.length === 0 && exercises.length > 0}
       />
@@ -182,6 +189,45 @@ export default function SessionLogger({
           onSave={handleSaveCardio}
         />
       </div>
+
+      {/* P1-3: Skip All Exercises (Cardio Only) confirmation modal */}
+      {showSkipAllConfirm && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4"
+          onClick={() => setShowSkipAllConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-gray-700 bg-gray-800 p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-gray-100">Skip All Exercises?</h3>
+            <p className="mt-2 text-sm text-gray-300">
+              All {exercises.length} exercise{exercises.length !== 1 ? "s" : ""} will be marked as skipped.
+              This cannot be undone.
+            </p>
+            <p className="mt-1 text-sm text-gray-400">
+              Log cardio below and tap Save to complete the session.
+            </p>
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowSkipAllConfirm(false)}
+                className="min-h-[44px] flex-1 rounded-lg border border-gray-600 bg-gray-700 px-4 text-sm font-medium text-gray-200 active:opacity-80"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSkipAllConfirmed}
+                disabled={controller.pendingKey === "skip-all-exercises"}
+                className="min-h-[44px] flex-1 rounded-lg border border-amber-700 bg-amber-900/50 px-4 text-sm font-medium text-amber-100 active:opacity-80 disabled:opacity-60"
+              >
+                {controller.pendingKey === "skip-all-exercises" ? "Skipping..." : "Skip All"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SkipPreviewModal
         isOpen={showSkipPreview}

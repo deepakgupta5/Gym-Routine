@@ -173,24 +173,31 @@ export function useSessionLoggerController({
     const key = `add-${ex.exercise_id}`;
     setPendingKey(key);
 
-    const res = await fetch("/api/logs/set", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        session_id: session.plan_session_id,
-        exercise_id: ex.exercise_id,
-        movement_pattern: ex.movement_pattern,
-        targeted_primary_muscle: ex.targeted_primary_muscle,
-        targeted_secondary_muscle: ex.targeted_secondary_muscle,
-        role: ex.role,
-        set_type: v2SetType(ex, setIndex),
-        set_index: setIndex,
-        load,
-        reps,
-        rpe: form.rpe ? Number(form.rpe) : null,
-        notes: form.notes || null,
-      }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/logs/set", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: session.plan_session_id,
+          exercise_id: ex.exercise_id,
+          movement_pattern: ex.movement_pattern,
+          targeted_primary_muscle: ex.targeted_primary_muscle,
+          targeted_secondary_muscle: ex.targeted_secondary_muscle,
+          role: ex.role,
+          set_type: v2SetType(ex, setIndex),
+          set_index: setIndex,
+          load,
+          reps,
+          rpe: form.rpe ? Number(form.rpe) : null,
+          notes: form.notes || null,
+        }),
+      });
+    } catch {
+      setPendingKey(null);
+      setError("No connection -- tap Log Set again when back online.");
+      return;
+    }
 
     setPendingKey(null);
 
@@ -255,16 +262,23 @@ export function useSessionLoggerController({
     const key = `save-${log.id}`;
     setPendingKey(key);
 
-    const res = await fetch(`/api/logs/set/${log.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        load,
-        reps,
-        set_type: form.setType,
-        notes: form.notes || null,
-      }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`/api/logs/set/${log.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          load,
+          reps,
+          set_type: form.setType,
+          notes: form.notes || null,
+        }),
+      });
+    } catch {
+      setPendingKey(null);
+      setError("No connection -- tap Save again when back online.");
+      return;
+    }
 
     setPendingKey(null);
 
@@ -286,9 +300,16 @@ export function useSessionLoggerController({
     setPendingKey(key);
 
     haptic("heavy");
-    const res = await fetch(`/api/logs/set/${log.id}`, {
-      method: "DELETE",
-    });
+    let res: Response;
+    try {
+      res = await fetch(`/api/logs/set/${log.id}`, {
+        method: "DELETE",
+      });
+    } catch {
+      setPendingKey(null);
+      setError("No connection -- tap Delete again when back online.");
+      return;
+    }
 
     setPendingKey(null);
 
@@ -338,15 +359,22 @@ export function useSessionLoggerController({
     const key = "session-minutes";
     setPendingKey(key);
 
-    const res = await fetch("/api/plan/session-minutes", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        session_id: session.plan_session_id,
-        cardio_minutes: cardio,
-        cardio_type: sessionMinutes.cardioType,
-      }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/plan/session-minutes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: session.plan_session_id,
+          cardio_minutes: cardio,
+          cardio_type: sessionMinutes.cardioType,
+        }),
+      });
+    } catch {
+      setPendingKey(null);
+      setError("No connection -- tap Save again when back online.");
+      return false;
+    }
 
     setPendingKey(null);
 
@@ -403,11 +431,18 @@ export function useSessionLoggerController({
     const key = "skip-day";
     setPendingKey(key);
 
-    const res = await fetch("/api/plan/insert-rest-day", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rest_date: session.date }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/plan/insert-rest-day", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rest_date: session.date }),
+      });
+    } catch {
+      setPendingKey(null);
+      setError("No connection -- try again when back online.");
+      return false;
+    }
 
     setPendingKey(null);
 
