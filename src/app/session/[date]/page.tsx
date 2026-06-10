@@ -180,7 +180,18 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       return (
         <main className="mx-auto max-w-5xl p-5 md:p-6">
           <BackForwardRefresh />
-          <h1 className="text-2xl font-semibold text-gray-100">Profile not found</h1>
+          <div className="mt-6 rounded-xl border border-gray-700 bg-gray-800 p-6">
+            <h1 className="text-xl font-semibold text-gray-100">Profile not found</h1>
+            <p className="mt-2 text-sm text-gray-400">
+              Your user profile has not been set up yet.
+            </p>
+            <a
+              href="/dashboard"
+              className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+            >
+              Go to Dashboard
+            </a>
+          </div>
         </main>
       );
     }
@@ -190,7 +201,27 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       return (
         <main className="mx-auto max-w-5xl p-5 md:p-6">
           <BackForwardRefresh />
-          <h1 className="text-2xl font-semibold text-gray-100">No active block</h1>
+          <div className="mt-6 rounded-xl border border-gray-700 bg-gray-800 p-6">
+            <h1 className="text-xl font-semibold text-gray-100">No active training block</h1>
+            <p className="mt-2 text-sm text-gray-400">
+              A training block defines your workout schedule and progression.
+              Set one up in Settings to get started.
+            </p>
+            <div className="mt-4 flex gap-3">
+              <a
+                href="/settings"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+              >
+                Go to Settings
+              </a>
+              <a
+                href="/dashboard"
+                className="rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-sm font-medium text-gray-200 hover:bg-gray-600"
+              >
+                Dashboard
+              </a>
+            </div>
+          </div>
         </main>
       );
     }

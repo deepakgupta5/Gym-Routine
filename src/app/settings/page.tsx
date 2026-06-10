@@ -335,13 +335,15 @@ export default function SettingsPage() {
         )}
       </section>
 
-      {/* ── Deload toggle ── */}
-      {upcomingSessions.length > 0 && (
-        <section className="mb-6 rounded-lg border border-gray-700 bg-gray-900 p-4">
-          <h2 className="mb-1 text-lg font-medium text-gray-100">Deload</h2>
-          <p className="mb-3 text-xs text-gray-500">
-            Mark a session as a deload week. Load targets will be reduced automatically on the next generation.
-          </p>
+      {/* Deload toggle -- always visible; shows placeholder when no upcoming sessions */}
+      <section className="mb-6 rounded-lg border border-gray-700 bg-gray-900 p-4">
+        <h2 className="mb-1 text-lg font-medium text-gray-100">Deload</h2>
+        <p className="mb-3 text-xs text-gray-500">
+          Mark a session as a deload week. Load targets will be reduced automatically on the next generation.
+        </p>
+        {upcomingSessions.length === 0 ? (
+          <p className="text-xs text-gray-600 italic">No upcoming sessions planned yet.</p>
+        ) : (
           <div className="grid gap-2">
             {upcomingSessions.slice(0, 5).map((s) => (
               <div key={s.plan_session_id} className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800 px-3 py-2">
@@ -368,8 +370,8 @@ export default function SettingsPage() {
               </div>
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* ── Exercise preferences ── */}
       <section className="rounded-lg border border-gray-700 bg-gray-900 p-4">

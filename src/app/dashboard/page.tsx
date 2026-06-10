@@ -320,7 +320,29 @@ export default async function DashboardPage() {
         <h1 className="mb-4 text-2xl font-semibold text-gray-100">Dashboard</h1>
 
         <div className="grid gap-4">
-          {/* Today's workout hero card */}
+          {/* Today's workout hero card -- or onboarding prompt if no block active */}
+          {!todaySession && (
+            <div className="rounded-xl border border-dashed border-gray-600 bg-gray-900/60 p-6">
+              <h2 className="text-base font-semibold text-gray-200">No workout scheduled today</h2>
+              <p className="mt-1 text-sm text-gray-400">
+                No active training block found. Set one up in Settings to start tracking your workouts.
+              </p>
+              <div className="mt-4 flex gap-3">
+                <a
+                  href="/settings"
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+                >
+                  Go to Settings
+                </a>
+                <a
+                  href="/history"
+                  className="rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-sm font-medium text-gray-200 hover:bg-gray-600"
+                >
+                  View History
+                </a>
+              </div>
+            </div>
+          )}
           {todaySession && (
             <TodayHeroCard
               sessionDmy={todayDmy}
