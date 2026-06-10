@@ -5,7 +5,6 @@ import { normalizePrimaryLiftMap, PrimaryCatalogKey } from "@/lib/engine/rotatio
 import WeekSummary from "./components/WeekSummary";
 import SparklineChart from "./components/SparklineChart";
 import WeightChart from "./components/WeightChart";
-import NutritionQuickStats from "./components/NutritionQuickStats";
 import TodayHeroCard from "./components/TodayHeroCard";
 
 export const dynamic = "force-dynamic";
@@ -316,87 +315,6 @@ export default async function DashboardPage() {
         ).catch(() => ({ rows: [] as TodayExerciseRow[] }))).rows
       : [];
 
-    // Nutrition quick summary (today + 7-day)
-
-    const [nutritionGoalsRes, nutritionRollupRes, nutritionSevenDayRes] = await Promise.all([
-      client.query<{ target_calories: number; target_protein_g: number }>(
-        `select
-           target_calories::float as target_calories,
-           target_protein_g::float as target_protein_g
-         from nutrition_goals_daily
-         where user_id = $1 and goal_date = $2`,
-        [userId, today]
-      ),
-      client.query<{ total_calories: number; total_protein_g: number }>(
-        `select
-           total_calories::float as total_calories,
-           total_protein_g::float as total_protein_g
-         from daily_nutrition_rollups
-         where user_id = $1 and rollup_date = $2`,
-        [userId, today]
-      ),
-      client.query<{ total_calories: number; total_protein_g: number; target_calories: number }>(
-        `select
-           dnr.total_calories::float as total_calories,
-           dnr.total_protein_g::float as total_protein_g,
-           coalesce(ngd.target_calories, 2050)::float as target_calories
-         from daily_nutrition_rollups dnr
-         left join nutrition_goals_daily ngd
-           on ngd.user_id = dnr.user_id
-          and ngd.goal_date = dnr.rollup_date
-         where dnr.user_id = $1
-           and dnr.rollup_date >= ($2::date - interval '6 day')
-           and dnr.rollup_date <= $2::date`,
-        [userId, today]
-      ),
-    ]);
-
-    const targetCalories = Number(nutritionGoalsRes.rows[0]?.target_calories ?? 2050);
-    const targetProtein = Number(nutritionGoalsRes.rows[0]?.target_protein_g ?? 160);
-    const totalCalories = Number(nutritionRollupRes.rows[0]?.total_calories ?? 0);
-    const totalProtein = Number(nutritionRollupRes.rows[0]?.total_protein_g ?? 0);
-
-    const adherencePct =
-      targetCalories > 0 ? Math.min(100, Math.round((totalCalories / targetCalories) * 100)) : 0;
-
-    const sevenRows = nutritionSevenDayRes.rows;
-    const sevenLoggedDays = sevenRows.length;
-    const sevenAvgCalories =
-      sevenRows.length > 0
-        ? sevenRows.reduce((sum, row) => sum + Number(row.total_calories), 0) / sevenRows.length
-        : 0;
-    const sevenAvgProtein =
-      sevenRows.length > 0
-        ? sevenRows.reduce((sum, row) => sum + Number(row.total_protein_g), 0) / sevenRows.length
-        : 0;
-    const sevenAvgAdherence =
-      sevenRows.length > 0
-        ? sevenRows.reduce((sum, row) => {
-            const dayTarget = Number(row.target_calories);
-            if (dayTarget <= 0) return sum;
-            return sum + Math.min(100, (Number(row.total_calories) / dayTarget) * 100);
-          }, 0) / sevenRows.length
-        : 0;
-
-    const nutritionSummary = {
-      date: today,
-      totals: {
-        calories: totalCalories,
-        protein_g: totalProtein,
-      },
-      targets: {
-        calories: targetCalories,
-        protein_g: targetProtein,
-      },
-      adherence_pct: adherencePct,
-      seven_day: {
-        avg_calories: sevenAvgCalories,
-        avg_protein_g: sevenAvgProtein,
-        avg_adherence_pct: sevenAvgAdherence,
-        logged_days: sevenLoggedDays,
-      },
-    };
-
     return (
       <main className="mx-auto max-w-5xl p-5 md:p-6">
         <h1 className="mb-4 text-2xl font-semibold text-gray-100">Dashboard</h1>
@@ -468,8 +386,6 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          {/* Unified nutrition summary */}
-          <NutritionQuickStats summary={nutritionSummary} />
         </div>
       </main>
     );
