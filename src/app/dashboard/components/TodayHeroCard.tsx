@@ -9,6 +9,8 @@ type HeroExercise = {
   back_off_target_reps: number | null;
   per_side_reps: boolean;
   prescribed_sets: number;
+  rationale_code: string | null;
+  rationale_text: string | null;
 };
 
 type TodayHeroCardProps = {
@@ -56,6 +58,18 @@ function dayColors(sessionType: string) {
 
 function roleOrder(role: HeroExercise["role"]) {
   return role === "primary" ? 0 : role === "secondary" ? 1 : 2;
+}
+
+/** Colored delta badge for progression visibility (PRD Section 7). */
+function DeltaBadge({ code, text }: { code: string | null; text: string | null }) {
+  if (!code || !text) return null;
+  const color =
+    code === "progression"
+      ? "text-green-400"
+      : code === "regression"
+        ? "text-red-400"
+        : "text-gray-500"; // hold or seed_only
+  return <span className={`text-xs ${color}`}>{text}</span>;
 }
 
 export default function TodayHeroCard({
@@ -107,19 +121,22 @@ export default function TodayHeroCard({
                 <span className="shrink-0 text-xs text-gray-500 capitalize">{ex.role}</span>
               </div>
               {isV2 && ex.top_set_target_load_lb !== null ? (
-                <div className="mt-0.5 text-xs text-gray-400">
-                  <span className="text-blue-300">
-                    {ex.top_set_target_reps} reps @ {ex.top_set_target_load_lb} lb
-                  </span>
-                  {ex.back_off_target_load_lb !== null &&
-                    ex.back_off_target_load_lb !== ex.top_set_target_load_lb && (
-                      <span className="ml-2 text-amber-300/80">
-                        back-off {ex.back_off_target_load_lb} lb
-                      </span>
+                <div className="mt-0.5 space-y-0.5">
+                  <div className="text-xs text-gray-400">
+                    <span className="text-blue-300">
+                      {ex.top_set_target_reps} reps @ {ex.top_set_target_load_lb} lb
+                    </span>
+                    {ex.back_off_target_load_lb !== null &&
+                      ex.back_off_target_load_lb !== ex.top_set_target_load_lb && (
+                        <span className="ml-2 text-amber-300/80">
+                          back-off {ex.back_off_target_load_lb} lb
+                        </span>
+                      )}
+                    {ex.per_side_reps && (
+                      <span className="ml-1 text-gray-500">(per side)</span>
                     )}
-                  {ex.per_side_reps && (
-                    <span className="ml-1 text-gray-500">(per side)</span>
-                  )}
+                  </div>
+                  <DeltaBadge code={ex.rationale_code} text={ex.rationale_text} />
                 </div>
               ) : (
                 <div className="mt-0.5 text-xs text-gray-500">

@@ -46,7 +46,7 @@ export function computeLoad(
   if (!prior) {
     topSetLoad = roundTo5(Math.max(0, exercise.seed_load_lb ?? 0));
     rationale_code = "seed_only";
-    rationale_text = `New exercise. Starting at seed load ${topSetLoad} lb.`;
+    rationale_text = `${topSetLoad} lb, new exercise`;
   } else {
     const prevLoad = Number(prior.last_load);
     const prevReps = Number(prior.last_reps);
@@ -54,15 +54,15 @@ export function computeLoad(
     if (prevReps >= p.repsMax) {
       topSetLoad = roundTo5(prevLoad + increment);
       rationale_code = "progression";
-      rationale_text = `Up ${increment} lb: last session ${prevLoad} lb x ${prevReps} (hit top range).`;
+      rationale_text = `${topSetLoad} lb, up ${increment} lb (${prevLoad} lb x ${prevReps} last time)`;
     } else if (prevReps < p.repsMin) {
       topSetLoad = roundTo5(Math.max(0, prevLoad - increment));
       rationale_code = "regression";
-      rationale_text = `Down ${increment} lb: last session ${prevLoad} lb x ${prevReps} (below min reps).`;
+      rationale_text = `${topSetLoad} lb, down ${increment} lb (${prevLoad} lb x ${prevReps} last time)`;
     } else {
       topSetLoad = roundTo5(prevLoad);
       rationale_code = "hold";
-      rationale_text = `Hold ${prevLoad} lb: last session x ${prevReps}. Beat the rep count.`;
+      rationale_text = `${topSetLoad} lb, hold (${prevReps} reps last time, beat it)`;
     }
   }
 

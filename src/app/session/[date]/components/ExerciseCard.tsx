@@ -165,7 +165,13 @@ export default function ExerciseCard({
                 {exercise.equipment_variant && <span className="ml-1">({exercise.equipment_variant})</span>}
               </div>
               {exercise.rationale_text && (
-                <div className="mt-1 text-xs text-gray-500 italic">{exercise.rationale_text}</div>
+                <div className={`mt-1 text-xs font-medium ${
+                  exercise.rationale_code === "progression"
+                    ? "text-green-400"
+                    : exercise.rationale_code === "regression"
+                      ? "text-red-400"
+                      : "text-gray-400"
+                }`}>{exercise.rationale_text}</div>
               )}
             </div>
           ) : (

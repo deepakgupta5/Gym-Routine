@@ -277,6 +277,8 @@ export default async function DashboardPage() {
       back_off_target_load_lb: number | null;
       back_off_target_reps: number | null;
       per_side_reps: boolean | null;
+      rationale_code: string | null;
+      rationale_text: string | null;
     };
 
     const todaySessionRes = blockId
@@ -300,7 +302,9 @@ export default async function DashboardPage() {
                   pe.top_set_target_reps,
                   pe.back_off_target_load_lb,
                   pe.back_off_target_reps,
-                  pe.per_side_reps
+                  pe.per_side_reps,
+                  pe.rationale_code,
+                  pe.rationale_text
            from plan_exercises pe
            join exercises e on e.exercise_id = pe.exercise_id
            where pe.plan_session_id = $1
@@ -412,6 +416,8 @@ export default async function DashboardPage() {
                 back_off_target_load_lb: ex.back_off_target_load_lb !== null ? Number(ex.back_off_target_load_lb) : null,
                 back_off_target_reps: ex.back_off_target_reps !== null ? Number(ex.back_off_target_reps) : null,
                 per_side_reps: ex.per_side_reps === true,
+                rationale_code: ex.rationale_code ?? null,
+                rationale_text: ex.rationale_text ?? null,
               }))}
             />
           )}
