@@ -7,7 +7,7 @@ Single source of truth for gym app state. Update every session.
 ## Status Snapshot -- 2026-06-09 (updated)
 
 **Deployment:** Netlify (`deepakgupta5`), site `gym-routine-app.netlify.app` -- green
-**GitHub HEAD:** `5e9c0df` (PRD 4.4 top-set + back-off logging)
+**GitHub HEAD:** `9b2a56b` (PRD 6.1 today hero day-type override + force-regen)
 **CI:** Green (128 tests)
 **Migration HEAD:** 0031
 **Build:** `npm run build` / `.next` / `@netlify/plugin-nextjs`
@@ -20,9 +20,9 @@ Single source of truth for gym app state. Update every session.
 |---|---|---|
 | P1 | Delete old Netlify sites on `deepak-gupta5` | gym-routine-app (36697ac0) + meal-planner-deepak (2c69b0f8); new account confirmed working |
 | P3 | Implement top-set + back-off load computation | DONE -- 2026-06-09 |
-| P3 | Progression visibility ("up 5 lb" rationale) | PRD Section 7; not yet built |
-| P4 | Equipment diversity / rotation rules | PRD Section 3.4; not yet built |
-| P4 | /today hero + day type override UI | PRD Section 6.1; not yet built |
+| P3 | Progression visibility ("up 5 lb" rationale) | DONE -- 2026-06-09 (rationale_text + rationale_code colors in ExerciseCard + TodayHeroCard) |
+| P4 | Equipment diversity / rotation rules | PRD Section 3.4; CONFIRMED already implemented (EQUIPMENT_GROUPS + requiredEquipmentTypes()) |
+| P4 | /today hero + day type override UI | DONE -- 2026-06-09 (PRD Section 6.1, commit 9b2a56b) |
 
 ---
 
@@ -52,6 +52,8 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-09 | commit `de1639e` | Fix rotation stuck on hinge_lower: ORDER BY date ASC LIMIT 10 was reading 10 oldest sessions; changed to DESC LIMIT 1 (INC-012) |
 | 2026-06-09 | migration 0031 | Enum values no-op + purge all unperformed sessions to reset rotation |
 | 2026-06-09 | commit `5e9c0df` | Complete PRD 4.4 top-set + back-off logging flow: auto-switch load after set 1, correct set_type in DB, fix top_set_history filter |
+| 2026-06-09 | commit `cd816aa` | PRD Section 7 progression visibility: rationale_text format + colored rationale in ExerciseCard + DeltaBadge in TodayHeroCard |
+| 2026-06-09 | commit `9b2a56b` | PRD Section 6.1 today hero + day type override: force-regen API, forcedDayType scheduler param, TodayHeroCard client component with More Actions panel |
 
 ---
 
@@ -75,8 +77,8 @@ Single source of truth for gym app state. Update every session.
 | ID | Description | Root cause | Status |
 |---|---|---|---|
 | G1 | Load progression (PRD 4.4) | CLOSED -- load.ts implements progression/regression/hold; logging flow wired up with auto-switch + correct set_type, commit 5e9c0df 2026-06-09 | Closed |
-| G2 | No "rationale text" on exercise cards | PRD Section 7 not built | Open |
-| G3 | Equipment diversity not enforced | Scheduler does not check equipment_type across slots | Open |
+| G2 | No "rationale text" on exercise cards | CLOSED -- PRD Section 7 built (rationale_text + rationale_code + colored display), commit cd816aa 2026-06-09 | Closed |
+| G3 | Equipment diversity not enforced | CLOSED -- EQUIPMENT_GROUPS + requiredEquipmentTypes() already implemented in constants.ts + select.ts | Closed |
 | G4 | Exercise repeat | CLOSED -- migration 0030 run 2026-06-09, INC-011 resolved | Closed |
 | G5 | Rotation stuck on hinge_lower | CLOSED -- ORDER BY ASC LIMIT 10 read 10 oldest sessions; fixed DESC LIMIT 1 + migration 0031, INC-012 resolved 2026-06-09 | Closed |
 
@@ -84,5 +86,6 @@ Single source of truth for gym app state. Update every session.
 
 ## Next Session Checklist
 
-- [ ] Delete old Netlify sites on `deepak-gupta5` (both new sites confirmed working)
-- [ ] Decide: implement PRD 4.4 load computation next?
+- [ ] Delete old Netlify sites on `deepak-gupta5` (gym-routine-app 36697ac0 + meal-planner-deepak 2c69b0f8)
+- [ ] Future: PRD Section 4.5 deload rule
+- [ ] Future: PRD Section 7 sparklines ("vs last time" sparklines)
