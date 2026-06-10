@@ -7,12 +7,13 @@ Single source of truth for gym app state. Update every session.
 ## Status Snapshot -- 2026-06-10 (updated)
 
 **Deployment:** Netlify (`deepakgupta5`), site `exerciseplanning.netlify.app` -- green
-**GitHub HEAD:** `d2c92b5` (tracker close G2/G3/G5 + PRD 6.1 + 7 shipped)
-**CI:** Green (128 tests)
-**Migration HEAD:** 0031
+**GitHub HEAD:** `51d923e` (Wave 7 audit fixes -- 139 tests, 0 TS errors)
+**CI:** Green (139 tests)
+**Migration HEAD:** 0032 (applied to production 2026-06-10)
 **Build:** `npm run build` / `.next` / `@netlify/plugin-nextjs`
 **Netlify site ID:** `f16ac1c7-3a1b-4e22-a39f-bc4855f18360` (exerciseplanning, deepakgupta5)
 **CLI auth:** `deepakgupta5@gmail.com` (deepakgupta5 account)
+**PRD:** v2.0 rev 5 (2026-06-10)
 
 ---
 
@@ -20,11 +21,12 @@ Single source of truth for gym app state. Update every session.
 
 | Priority | Item | Notes |
 |---|---|---|
-| P1 | Delete old Netlify sites on `deepak-gupta5` | DONE -- 2026-06-10; deepak-gupta5 has 0 sites; all 3 apps on deepakgupta5; CLI re-auth'd |
-| P3 | Implement top-set + back-off load computation | DONE -- 2026-06-09 |
-| P3 | Progression visibility ("up 5 lb" rationale) | DONE -- 2026-06-09 (rationale_text + rationale_code colors in ExerciseCard + TodayHeroCard) |
-| P4 | Equipment diversity / rotation rules | PRD Section 3.4; CONFIRMED already implemented (EQUIPMENT_GROUPS + requiredEquipmentTypes()) |
-| P4 | /today hero + day type override UI | DONE -- 2026-06-09 (PRD Section 6.1, commit 9b2a56b) |
+| P2 | Dashboard weekly volume bars (PRD Section 6.3) | `v_weekly_muscle_volume` view exists; need UI bar chart per muscle group |
+| P2 | /history muscle-group filter | Session-type filter exists; muscle-group filter not implemented |
+| P3 | Deload auto-trigger rule (PRD Section 4.5) | Manual toggle shipped; auto-trigger (>max weekly sets) not implemented |
+| P3 | Equipment rotation week-over-week | Per-session diversity enforced; week-over-week not enforced |
+| P4 | Settings frequency override | Target sessions/week (default 4, range 3-6) |
+| P4 | Warm-up set logging | `is_warmup` flag not implemented |
 
 ---
 
@@ -51,21 +53,28 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-06 | migration 0029 | Fix SECURITY DEFINER on v_weekly_muscle_volume + v_last_top_set_per_exercise; purge today's stale session |
 | 2026-06-08 | commit `6a7cdf5` | Fix exercise repeat root cause: reduce no-repeat window from 7 to 2 days (INC-011) |
 | 2026-06-08 | migration 0030 | Purge today + future unperformed sessions so they regenerate with 2-day window |
-| 2026-06-09 | commit `de1639e` | Fix rotation stuck on hinge_lower: ORDER BY date ASC LIMIT 10 was reading 10 oldest sessions; changed to DESC LIMIT 1 (INC-012) |
+| 2026-06-09 | commit `de1639e` | Fix rotation stuck on hinge_lower: ORDER BY date ASC LIMIT 10 -> DESC LIMIT 1 (INC-012) |
 | 2026-06-09 | migration 0031 | Enum values no-op + purge all unperformed sessions to reset rotation |
-| 2026-06-09 | commit `5e9c0df` | Complete PRD 4.4 top-set + back-off logging flow: auto-switch load after set 1, correct set_type in DB, fix top_set_history filter |
+| 2026-06-09 | commit `5e9c0df` | PRD Section 4.4 top-set + back-off logging flow: auto-switch load, correct set_type in DB, fix top_set_history filter |
 | 2026-06-09 | commit `cd816aa` | PRD Section 7 progression visibility: rationale_text format + colored rationale in ExerciseCard + DeltaBadge in TodayHeroCard |
-| 2026-06-09 | commit `9b2a56b` | PRD Section 6.1 today hero + day type override: force-regen API, forcedDayType scheduler param, TodayHeroCard client component with More Actions panel |
-| 2026-06-10 | ops | Netlify account consolidation: autonomybridge + gym + meal-planner all migrated to deepakgupta5; deepak-gupta5 decommissioned (0 sites); CLI re-auth'd; .netlify/state.json updated; Cloudflare SSL Full (strict) restored |
+| 2026-06-09 | commit `9b2a56b` | PRD Section 6.1 today hero + day type override: force-regen API, forcedDayType scheduler param, TodayHeroCard client component |
+| 2026-06-10 | ops | Netlify account consolidation: all 3 apps on deepakgupta5; deepak-gupta5 decommissioned; Cloudflare SSL Full (strict) restored |
+| 2026-06-10 | commit `a4b5f9f` | W1-W3: scheduler fixes (backoff_percent typo, forbidden_day_types, NO_REPEAT_DAYS removed); bodyweight 0lb fix; roundToIncrement; 5x network safety; Skip All confirm modal |
+| 2026-06-10 | commit `f3c7188` | W4: dashboard empty state (P1-4); session error CTAs (P1-5); settings deload always visible (P2-8) |
+| 2026-06-10 | commit `66685ae` | W5: N+1 bulk UPDATE (P2-9); body_stats 365-day cap (P2-12); nutrition error codes + date format (P2-13/14) |
+| 2026-06-10 | commit `1779e43` | W6: migration 0032 -- RLS on planned_workouts + muscle_exposures; v_last_top_set set_type filter; 2 indexes; backoff_percent backfill; drop orphaned index |
+| 2026-06-10 | commit `51d923e` | W7 audit fixes: settings fetch safety BLOCKER; loadWeeklyMuscleVolume fallback; core removed from WEEKLY_MIN_SETS; 6 new tests; back-off assertion fix |
 
 ---
 
 ## Data Model
 
-**Migration HEAD:** 0031
+**Migration HEAD:** 0032
 **Key tables:** `plan_sessions`, `plan_exercises`, `set_logs`, `exercises`, `body_stats_daily`
-**Key fields on exercises:** `suitable_slots`, `allowed_day_types`, `user_preference_score`, `role`
-**Key fields on plan_sessions:** `cardio_type`, `performed_at`, `cardio_saved_at`
+**Key fields on exercises:** `suitable_slots`, `allowed_day_types`, `forbidden_day_types`, `user_preference_score`, `uses_bodyweight`, `load_increment_lb`
+**Key fields on plan_sessions:** `cardio_type`, `performed_at`, `cardio_saved_at`, `session_blueprint_version`
+**Key views:** `v_weekly_muscle_volume` (rolling 7-day sets per muscle), `v_last_top_set_per_exercise` (most recent top/straight set per exercise)
+**Key indexes (0032):** `idx_set_logs_top_set` (partial, set_index=1), `idx_plan_sessions_user_date_type` (covering)
 
 **suitable_slots assignments (post-0028):**
 - `['primary','secondary']` -- exercises 26 (Back Squat), 28 (Pull-Up)
@@ -73,22 +82,32 @@ Single source of truth for gym app state. Update every session.
 - `['accessory']` -- exercises 35-37, 39, 41-42
 - Core exercises (43 Cable Crunch, 44 Hanging Knee Raise, 25 Pallof Press): fixed in 0026
 
+**WEEKLY_MIN_SETS (Section 3.3, in constants.ts):**
+- quads:12, hamstrings:10, glutes:12, chest:12, back:14, shoulders:12, biceps:8, triceps:8, calves:8
+- core intentionally omitted (no dedicated day type in 5-day rotation; cannot trigger override)
+
 ---
 
 ## Known Gaps / Bugs (Open)
 
-| ID | Description | Root cause | Status |
-|---|---|---|---|
-| G1 | Load progression (PRD 4.4) | CLOSED -- load.ts implements progression/regression/hold; logging flow wired up with auto-switch + correct set_type, commit 5e9c0df 2026-06-09 | Closed |
-| G2 | No "rationale text" on exercise cards | CLOSED -- PRD Section 7 built (rationale_text + rationale_code + colored display), commit cd816aa 2026-06-09 | Closed |
-| G3 | Equipment diversity not enforced | CLOSED -- EQUIPMENT_GROUPS + requiredEquipmentTypes() already implemented in constants.ts + select.ts | Closed |
-| G4 | Exercise repeat | CLOSED -- migration 0030 run 2026-06-09, INC-011 resolved | Closed |
-| G5 | Rotation stuck on hinge_lower | CLOSED -- ORDER BY ASC LIMIT 10 read 10 oldest sessions; fixed DESC LIMIT 1 + migration 0031, INC-012 resolved 2026-06-09 | Closed |
+| ID | Description | Status |
+|---|---|---|
+| G1 | Load progression (PRD 4.4) | CLOSED -- 2026-06-09 |
+| G2 | Progression visibility (rationale text) | CLOSED -- 2026-06-09 |
+| G3 | Equipment diversity not enforced | CLOSED -- already implemented (EQUIPMENT_GROUPS + requiredEquipmentTypes()) |
+| G4 | Exercise repeat | CLOSED -- 2026-06-09 |
+| G5 | Rotation stuck on hinge_lower | CLOSED -- 2026-06-09 |
+| G6 | Network safety -- bare fetch calls | CLOSED -- 2026-06-10 (W3 + W7 audit) |
+| G7 | Settings loading state stuck on network error | CLOSED -- 2026-06-10 (W7 audit) |
+| G8 | Bodyweight exercises show 0 lb instead of "Bodyweight" | CLOSED -- 2026-06-10 (W2) |
+| G9 | backoff_percent written as 0.1 (10%) instead of 0.9 (90%) | CLOSED -- 2026-06-10 (W1 code + W6 DB backfill) |
+| G10 | Weekly minimum sets not tracked or enforced | CLOSED -- 2026-06-10 (W1, Section 3.3 Wednesday gate) |
 
 ---
 
 ## Next Session Checklist
 
-- [ ] Future: PRD Section 4.5 deload rule
-- [ ] Future: PRD Section 7 sparklines ("vs last time" sparklines)
-- [ ] Future: adaptive day-type selection (PRD Section 4.2) -- requires v_weekly_muscle_volume
+- [ ] Dashboard weekly volume bars (Section 6.3) -- `v_weekly_muscle_volume` data exists, need UI
+- [ ] /history muscle-group filter
+- [ ] Deload auto-trigger rule (Section 4.5)
+- [ ] Consider integration test suite (real PostgreSQL container in CI) -- flagged in GYM_APP_AUDIT.md Section 5c

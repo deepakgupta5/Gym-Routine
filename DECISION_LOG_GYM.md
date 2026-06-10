@@ -143,4 +143,55 @@
 
 **Rationale:** Adaptive selection (pick day type by most under-exposed muscle group) requires `v_weekly_muscle_volume` view and muscle tracking that is not yet built. Fixed rotation is simpler and sufficient for now.
 
-**Status:** ACTIVE. Adaptive selection is a future enhancement (PRD Section 4.2).
+**Status:** SUPERSEDED by D011 (2026-06-10). Weekly minimum sets override now implemented using `v_weekly_muscle_volume`.
+
+---
+
+## D011 -- Weekly minimum sets override: Wednesday gate + large-deficit exception (2026-06-10)
+
+**Decision:** `selectDayType` overrides pure rotation when any muscle group is below its minimum. Gate fires when `dayOfWeek >= 3` (Wednesday or later) OR when the largest single-muscle deficit fraction exceeds 0.5 (50% below minimum). Override picks the day type with the highest total-set deficit; alphabetical tiebreak for determinism. `full_body` excluded from override targets (reserved for deload).
+
+**Rationale:** PRD Section 4.2 rule 1 specifies "if any muscle group is below min weekly sets and we are past Wednesday, pick the day type that targets the deepest under-exposed group." The 50%-deficit exception handles the case where a user skips 3+ consecutive days and arrives at Monday with massive deficits -- waiting until Wednesday would let the week end without correction.
+
+**Implementation:**
+- `WEEKLY_MIN_SETS` constant in `constants.ts` (quads:12, hamstrings:10, glutes:12, chest:12, back:14, shoulders:12, biceps:8, triceps:8, calves:8; core intentionally excluded)
+- `MUSCLE_TO_DAY_TYPES` map in `select.ts` routes muscle -> day type(s)
+- `loadWeeklyMuscleVolume()` queries `v_weekly_muscle_volume`; returns empty Map on DB error (falls back to pure rotation)
+- `selectDayType` signature: `(recentV2DayTypes, weeklyVolume, isoDate)`
+
+**Alternatives considered:**
+- Always override regardless of day of week. Rejected: causes erratic rotation early in the week when deficits are normal.
+- Override only on Wednesday+. Rejected: doesn't handle multi-day skip scenarios.
+- Large-deficit threshold at 33% (1/3 below minimum). Rejected: too aggressive, overrides on minor mid-week deficits.
+
+**Status:** LOCKED. Implemented in commit `a4b5f9f`.
+
+---
+
+## D012 -- backoff_percent typo fix and DB backfill (2026-06-10)
+
+**Decision:** `backoff_percent` was inserted as `(1 - 0.9)` = `0.1` (10%) due to a JavaScript arithmetic expression error. Fixed in code to `BACK_OFF_PERCENT = 0.9` (90%). All existing `plan_exercises` rows with `backoff_percent = 0.1` backfilled to `0.9` via migration 0032.
+
+**Impact:** Back-off sets were being prescribed at 10% of top-set load (e.g., 13.5 lb for a 135 lb top set) instead of 90% (121.5 lb). This would produce incorrect prescriptions for any session generated before the fix.
+
+**Status:** LOCKED. Code fixed in commit `a4b5f9f`. DB backfilled in migration 0032.
+
+---
+
+## D013 -- bodyweight_mode not stored in V2SelectedExercise; re-derived at render (2026-06-10)
+
+**Decision:** `LoadResult.bodyweight_mode` is computed in `computeLoad` but not stored in the DB or passed through `V2SelectedExercise`. The session page instead re-derives it from `uses_bodyweight && top_set_target_load_lb === 0` in `ExerciseCard`. The `LoadResult.bodyweight_mode` field is redundant.
+
+**Rationale:** Storing an extra boolean in `plan_exercises` for a value that is perfectly deterministic from two existing fields adds migration cost with no benefit. The re-derivation at render is correct and self-documenting.
+
+**Status:** LOCKED. `LoadResult.bodyweight_mode` retained as informational only; ExerciseCard uses field-derived logic.
+
+---
+
+## D014 -- core excluded from WEEKLY_MIN_SETS (2026-06-10)
+
+**Decision:** `core` was listed in `WEEKLY_MIN_SETS` (6 sets/week) but no day type in the 5-day rotation maps to `core`. The entry was dead: it could never trigger an override and could never contribute to `largestDeficitFraction`. Removed from the constant.
+
+**Rationale:** Dead entries in `WEEKLY_MIN_SETS` create the false impression that core volume is tracked and enforced, when it is not. If core tracking is ever desired, a dedicated day-type mapping must be created first.
+
+**Status:** LOCKED. Removed in commit `51d923e`.

@@ -1,15 +1,17 @@
 # Gym App PRD v2.0 (Complete Redesign)
 
-Version: 2.0 (rev 4)
-Date: 2026-04-17 | rev 2: 2026-04-18 | rev 3: 2026-05-30 | rev 4: 2026-06-06
+Version: 2.0 (rev 5)
+Date: 2026-04-17 | rev 2: 2026-04-18 | rev 3: 2026-05-30 | rev 4: 2026-06-06 | rev 5: 2026-06-10
 Scope: UI, data model, scheduler, equipment
 Base: `docs/nutrition-pwa-prd-v1.1-2026-02-24.md` (shipped state)
 Replaces: gym-side contracts in v1.1 sections 3, 7. Nutrition scope in v1.1/v1.2 is unchanged.
 Status: Partially shipped. See Section 0a for current build state.
 
+Rev 5 changes: P1-1 (wake lock) and P1-6 (water tracking) removed from scope. Weekly minimum sets override (Section 3.3) implemented. Migration head advanced to 0032.
+
 ---
 
-## 0a) Current Build State (2026-06-06)
+## 0a) Current Build State (2026-06-10)
 
 ### Shipped (in production)
 
@@ -23,22 +25,46 @@ Status: Partially shipped. See Section 0a for current build state.
 | cardio_type field | migration 0027 | `plan_sessions.cardio_type` column added |
 | Program redesign (core exercises) | migration 0026 | Cable Crunch, Hanging Knee Raise, Pallof Press added; user_preference_score seeded |
 | Session page controller fix | commit `5617958` | `setSessionMinutes` functional update prevents cardioType field loss |
-| Deployment | Netlify (`deepakgupta5`) | Not Render. CI on GitHub Actions. |
+| Load computation (top set + back-off) | commit `5e9c0df` | Section 4.4 implemented in `src/lib/scheduler/v2/load.ts`; bodyweight exercises get `bodyweight_seed` rationale code |
+| Progression visibility | commit `cd816aa` | Section 7 rationale_text + rationale_code colored display in ExerciseCard + DeltaBadge in TodayHeroCard |
+| /today hero + day type override | commit `9b2a56b` | Section 6.1 TodayHeroCard with force-regen + day type override |
+| Weekly minimum sets override (Section 3.3) | commit `a4b5f9f` | Wednesday gate + large-deficit (>50%) exception; `selectDayType` reads `v_weekly_muscle_volume` |
+| `forbidden_day_types` filter | commit `a4b5f9f` | Belt-and-suspenders filter in `candidatesForSlot`; loaded from DB per exercise |
+| `backoff_percent` typo fix | commit `a4b5f9f` | Was `(1-0.9)=0.1`; corrected to `BACK_OFF_PERCENT=0.9` in code; backfilled in migration 0032 |
+| Bodyweight 0 lb fix | commit `a4b5f9f` | `computeLoad` detects `uses_bodyweight`; ExerciseCard renders "Bodyweight" (teal) at 0 lb |
+| `roundToIncrement` replaces `roundTo5` | commit `a4b5f9f` | Supports 2.5 lb increments (OHP/cable) |
+| Network safety -- session logger (P1-11) | commit `3b8c2d1` | 5 bare `fetch` calls in `useSessionLoggerController.ts` wrapped with try/catch |
+| Skip All confirm modal (P1-3) | commit `3b8c2d1` | Confirmation modal with exercise count warning before `skipAllExercises` fires |
+| Dashboard empty state (P1-4) | commit `f3c7188` | Card + CTAs when no active training block |
+| Session error CTAs (P1-5) | commit `f3c7188` | Actionable cards replace bare h1 for "Profile not found" and "No active block" |
+| Settings deload always visible (P2-8) | commit `f3c7188` | Deload section renders even with 0 upcoming sessions; placeholder text shown |
+| N+1 bulk UPDATE (P2-9) | commit `66685ae` | Per-exercise UPDATE loop replaced with single VALUES CTE query in POST /api/logs/set |
+| Body stats 365-day cap (P2-12) | commit `66685ae` | `body_stats_daily` scoped to `date >= current_date - interval '365 days'` |
+| Nutrition error codes + date format (P2-13/14) | commit `66685ae` | `mapErrorCode()` + `isoToDmy()` in NutritionHistoryClient and NutritionTrendsClient |
+| RLS + indexes + view fix | migration 0032 | RLS on `planned_workouts` + `muscle_exposures`; `v_last_top_set_per_exercise` set_type filter; `idx_set_logs_top_set` + `idx_plan_sessions_user_date_type` |
+| Settings network safety | commit `51d923e` | `patchExercise`/`saveOverride`/`toggleDeload` bare fetches wrapped; loading state no longer sticks on network error |
+| Deployment | Netlify (`deepakgupta5`) | Not Render. CI on GitHub Actions. Vercel kept as secondary. |
 
-### Migration HEAD: 0028
+### Migration HEAD: 0032
 
 ### Not yet shipped (from original PRD spec)
 
-| Component | Section | Status |
+| Component | Section | Notes |
 |---|---|---|
-| Load computation (top set + back-off) | Section 4.4 | Not implemented; currently uses `next_target_load` forward-copy |
-| Progression visibility ("up 5 lb" rationale text) | Section 7 | Not implemented |
-| Equipment diversity / rotation rules | Section 3.4 | Not implemented in scheduler |
-| `/today` hero + day type override | Section 6.1 | Not implemented |
-| Dashboard weekly volume bars | Section 6.3 | Not implemented |
-| Settings -- exercise preferences, load increment override | Section 6.5 | Not implemented |
-| `/api/plan/regenerate` endpoint | Section 8.1 | Not implemented |
-| Deload rule | Section 4.5 | Not implemented |
+| Dashboard weekly volume bars | Section 6.3 | Not implemented; sparklines exist but no per-muscle-group volume bars |
+| /api/muscle-volume endpoint | Section 8.1 | Not implemented; `v_weekly_muscle_volume` view exists but no public GET endpoint |
+| Settings frequency override | Section 6.5 | Not implemented (target sessions per week, default 4) |
+| Deload auto-trigger rule | Section 4.5 | Manual deload toggle exists; auto-trigger (>max weekly sets or >=6 sessions/7 days) not implemented |
+| Equipment rotation rule (week-over-week) | Section 3.4 | Per-session diversity enforced; week-over-week same-equipment exclusion not enforced |
+| /history muscle-group filter | Section 6.4 | Session-type filter exists; muscle-group filter not implemented |
+| Warm-up set logging | Section 11.6 | `is_warmup` flag not implemented |
+
+### Removed from scope (rev 5)
+
+| Item | Reason |
+|---|---|
+| P1-1 Wake lock (screen-on during session) | Not needed; single-user PWA on iOS keeps screen on during active interaction |
+| P1-6 Water tracking | Out of scope for gym app; nutrition side handles hydration if needed |
 
 ---
 

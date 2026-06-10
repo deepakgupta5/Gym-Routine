@@ -1,6 +1,6 @@
 # Gym App Audit Document
 
-Generated: 2026-04-21. Last executed: 2026-04-21 (all items resolved).
+Generated: 2026-04-21. Last executed: 2026-06-10 (Wave 7 audit).
 Severity: CRITICAL > HIGH > MEDIUM > LOW.
 
 ---
@@ -121,6 +121,29 @@ No test runs SQL against a real PostgreSQL schema. All DB tests mock `client.que
 | Q4 | `plan/today/route.ts` missing error handler | CLOSED - added |
 | Q5 | `v2/select.ts` secondary role allows primary-tagged exercises | ACCEPTED - intentional design; comment added inline |
 | Q6 | `EXERCISE_META_FALLBACK` 130-line hardcoded map | ACCEPTED - needed as DB fallback; remove when all exercises have DB metadata |
+
+---
+
+---
+
+## Wave 7 Audit -- 2026-06-10
+
+Scope: W1-W6 changes (commits a4b5f9f, f3c7188, 66685ae, 1779e43). All findings verified against file contents.
+Result: 2 BLOCKERs fixed, 4 WARNINGs fixed, 5 NOTEs documented. 139/139 tests pass, 0 TS errors post-fix.
+
+| ID | File | Approx Line | Severity | Finding | Resolution |
+|---|---|---|---|---|---|
+| W7-1 | constants.ts + select.ts | -- | WARN | `core: 6` in `WEEKLY_MIN_SETS` is dead -- no day type mapping exists for core; can never trigger override | FIXED -- removed `core` from constant; comment added explaining omission (commit `51d923e`) |
+| W7-2 | select.ts | ~186 | NOTE | `forbidden_day_types` typed as `string[]`, `dayType` is `V2DayType` -- type widening is implicit; typos in DB values not caught by TS | No code change; acceptable risk for now. If day types expand, add assertion in `loadV2Exercises` |
+| W7-3 | index.ts | ~109 | WARN | `loadWeeklyMuscleVolume` had no try/catch; DB error propagated uncaught, surfacing as 500 in HTTP handler | FIXED -- wrapped in try/catch; returns empty Map on error (pure rotation fallback) (commit `51d923e`) |
+| W7-4 | load.ts + types.ts | ~20 | WARN | `LoadResult.bodyweight_mode` computed but not stored in `V2SelectedExercise` or used in UI | NO ACTION -- ExerciseCard re-derives equivalent logic from `uses_bodyweight && top_set_target_load_lb === 0`; see D013 |
+| W7-5 | load.ts | 8, 65 | NOTE | `roundTo5` still exported and used for seed path only | Confirmed correct; no stray calls remain |
+| W7-6 | route.ts (set) | ~453 | NOTE | Bulk UPDATE VALUES CTE `::uuid` cast for `block_id` -- verified correct; `!week_in_block` falsy check safe (schema CHECK 1-8 prohibits 0) | No change needed |
+| W7-7 | settings/page.tsx | ~197, ~163, ~226 | BLOCKER | `patchExercise`, `saveOverride`, `toggleDeload` -- bare `fetch` calls; loading state sticks on network rejection; buttons disabled until page reload | FIXED -- try/catch wrapping all three; loading state reset on network error (commit `51d923e`) |
+| W7-8 | NutritionHistoryClient.tsx + NutritionTrendsClient.tsx | ~62, ~94 | WARN | Bare `fetch` calls; network rejection swallowed by `void fn()`; spinner never clears | FIXED -- try/catch added in both; `setError("No connection...")` + `setLoading(false)` on catch (commit `51d923e`) |
+| W7-9 | migration 0032 | 110 | NOTE | `DROP INDEX IF EXISTS public.uq_plan_sessions_identity` -- verified safe; index was orphaned by constraint added in 0023 | Correct as written |
+| W7-10 | dashboard/page.tsx | ~96 | NOTE | 365-day hard cap on `body_stats_daily` silently truncates data for long-term users; no UI indication | Accepted; documented in tracker as future work. Cap is a render-perf guard, not a data retention decision |
+| W7-11 | v2Scheduler.test.ts | ~209, missing | WARN | (a) Back-off assertion used `roundTo5` not `roundToIncrement` -- silent wrong expected value for 2.5lb increments; (b) no tests for `forbidden_day_types`; (c) no tests for bodyweight `computeLoad` paths | FIXED -- assertion updated; 6 new tests added: bodyweight_seed, bodyweight_reps, weight-belt path, 2.5lb increment, forbidden_day_types integration (commit `51d923e`) |
 
 ---
 

@@ -220,3 +220,77 @@
 2. Cloudflare Full (strict) + Netlify: always provision Netlify cert via gray-cloud window before re-enabling proxy. (L14)
 3. Netlify domain detach != DNS zone deletion -- must delete zone separately to fully release domain for another account. (L15)
 4. `.netlify/state.json` holds the local project-to-site link and must be manually updated after site migration. (L16)
+
+---
+
+## Session: 2026-06-10 (W1-W7 gap closure)
+
+### L17 -- Non-ASCII characters block commit hooks even in comments [UNIVERSAL]
+
+**Problem:** Hook C19 blocks U+2500 (box-drawing dash), U+00A7 (section sign), U+25B2/25BC (triangle arrows), and other non-ASCII codepoints in any file touched by a commit. Comments using decorative dashes (e.g., `// --- section ---` written with U+2500 instead of U+002D) triggered the block mid-edit.
+
+**Fix:** Use ASCII alternatives everywhere. For horizontal rules in comments: `---` (U+002D x3). For section symbols in doc prose: write "Section" in full.
+
+**Pattern:** Before adding any comment with decorative characters, verify all characters are plain ASCII (U+0020-U+007E). If copy-pasting from another document or IDE auto-completion, run `grep -P '[^\x00-\x7F]'` on the file before committing.
+
+[UNIVERSAL]
+
+---
+
+### L18 -- Test volume map must be "satisfied" for pure rotation tests [UNIVERSAL]
+
+**Problem:** When `selectDayType` was updated to accept `weeklyVolume: Map<string, number>`, existing pure-rotation tests broke because passing `new Map()` (empty) set ALL muscles to 0 sets -- a massive deficit on every muscle. This triggered the Wednesday override gate (dayOfWeek >= 3 was true for the test date), causing every pure-rotation test to return a deficit-driven day type rather than the expected rotation result.
+
+**Fix:** Created `satisfiedVolume` fixture with all muscles at their exact minimums. Pure rotation tests use `satisfiedVolume`; override tests use `volumeWith(overrides)` to target specific deficits.
+
+**Pattern:** When adding volume/state parameters to a selection function, pre-existing tests must be updated with a "neutral" fixture that does not activate any new branch. Empty maps and zero values are almost never neutral for functions that check "is X below threshold."
+
+[UNIVERSAL]
+
+---
+
+### L19 -- N+1 UPDATE loops in per-row processing -> single VALUES CTE [UNIVERSAL]
+
+**Problem:** `POST /api/logs/set` iterated over `topRows` and fired one `UPDATE plan_exercises ... WHERE exercise_id = $X` per row. For a typical set log with 3 exercises, this is 3 sequential queries inside a transaction. Under load (or future multi-exercise batch logging), this becomes O(n) writes.
+
+**Fix:** Collected all `(nextLoad, blockId, afterWeek, exerciseId)` tuples into a Map (deduplicating by `(blockId, exerciseId)`), then issued a single `WITH upd AS (VALUES ...) UPDATE plan_exercises FROM upd WHERE ...`.
+
+**Pattern:** Any loop of the form `for (const row of rows) { await client.query("UPDATE ...", [row.x]) }` inside a transaction is an N+1 write. Replace with a VALUES CTE. Dedup by the natural key first; last writer wins is usually the correct semantics (same as the original sequential loop).
+
+[UNIVERSAL]
+
+---
+
+### L20 -- Bare fetch calls leave loading state stuck on network rejection [UNIVERSAL]
+
+**Problem:** In settings page, `patchExercise`, `saveOverride`, and `toggleDeload` each set a loading state flag before calling `await fetch(...)`, then reset it after. If the network rejected the request (offline, DNS failure), the `fetch` promise threw before any cleanup ran. The loading state was never reset: buttons remained disabled until page reload.
+
+**Same pattern in nutrition clients:** `NutritionHistoryClient.loadHistory` and `NutritionTrendsClient.loadTrends` had bare `fetch` calls; rejection was swallowed by `void fn()`, spinner never cleared.
+
+**Fix:** Wrap every `fetch` call in `try { res = await fetch(...) } catch { resetLoadingState(); setError("No connection..."); return; }`.
+
+**Pattern:** EVERY state-setting async function that calls `fetch` must have a try/catch that resets the loading state on network failure. The pattern `setSaving(true); await fetch(...)` without try/catch is a bug waiting for the user to go offline. The session logger (`useSessionLoggerController.ts`) already did this correctly -- audit all other client components to match.
+
+[UNIVERSAL]
+
+---
+
+### L21 -- Dead constant entries create false confidence in enforcement coverage [UNIVERSAL]
+
+**Problem:** `core: 6` in `WEEKLY_MIN_SETS` implied the scheduler enforced a minimum of 6 core sets/week. It did not: the override loop in `selectDayType` only acts on muscles that have entries in `MUSCLE_TO_DAY_TYPES`. Core had no mapping, so the entry was silently ignored.
+
+**Fix:** Removed `core` from `WEEKLY_MIN_SETS`. Added a comment explaining why core is omitted.
+
+**Pattern:** Constants that define enforcement thresholds (minimums, limits, windows) must only contain entries that are actually enforced by the code consuming them. An unenforced constant entry is actively misleading -- it suggests coverage that does not exist. When adding a threshold constant, immediately write the code that reads it, or do not add the constant.
+
+[UNIVERSAL]
+
+---
+
+### Universal lessons from this session
+
+1. Non-ASCII characters (box-drawing, section sign, arrows) block commit hooks -- use ASCII-only comments. Verify with `grep -P '[^\x00-\x7F]'` before committing. (L17)
+2. Test fixtures for refactored multi-arg functions must include a "neutral" state that does not activate new branches. Empty/zero maps are almost never neutral. (L18)
+3. N+1 UPDATE loops inside transactions -> VALUES CTE; dedup by natural key, last writer wins. (L19)
+4. Every `await fetch()` preceded by `setLoading(true)` or similar must be wrapped in try/catch that resets state on network error. Bare fetch = stuck UI on offline. (L20)
+5. Constants that define enforcement thresholds must only contain entries actually consumed by code. Dead entries imply coverage that does not exist. (L21)
