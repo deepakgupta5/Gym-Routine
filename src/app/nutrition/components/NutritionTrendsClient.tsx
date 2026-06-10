@@ -91,10 +91,17 @@ export default function NutritionTrendsClient() {
     const from = isoDaysAgo(29);
     const to = today;
 
-    const [weekRes, historyRes] = await Promise.all([
-      fetch(`/api/nutrition/week?weekStart=${weekStart}`),
-      fetch(`/api/nutrition/history?from=${from}&to=${to}&page=1&pageSize=90`),
-    ]);
+    let weekRes: Response, historyRes: Response;
+    try {
+      [weekRes, historyRes] = await Promise.all([
+        fetch(`/api/nutrition/week?weekStart=${weekStart}`),
+        fetch(`/api/nutrition/history?from=${from}&to=${to}&page=1&pageSize=90`),
+      ]);
+    } catch {
+      setError("No connection -- check network and refresh.");
+      setLoading(false);
+      return;
+    }
 
     const weekJson = (await weekRes.json().catch(() => null)) as WeekResponse | { error?: string } | null;
     const historyJson = (await historyRes.json().catch(() => null)) as HistoryResponse | { error?: string } | null;

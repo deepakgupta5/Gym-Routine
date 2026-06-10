@@ -163,11 +163,18 @@ export default function SettingsPage() {
     setSaving(true);
     setError(null);
     setSuccess(null);
-    const res = await fetch("/api/nutrition/profile", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tdee_override: nextValue }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/nutrition/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tdee_override: nextValue }),
+      });
+    } catch {
+      setSaving(false);
+      setError("No connection -- check network and try again.");
+      return;
+    }
     const json = (await res.json().catch(() => null)) as ProfileResponse | { error?: string } | null;
     if (!res.ok || !json || !("profile" in json)) {
       setSaving(false);
@@ -196,11 +203,18 @@ export default function SettingsPage() {
   async function patchExercise(exercise_id: number, patch: Partial<Omit<ExerciseSetting, "exercise_id" | "name" | "muscle_primary">>) {
     setPendingExId(exercise_id);
     setExError(null);
-    const res = await fetch("/api/plan/exercise-settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ exercise_id, ...patch }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/plan/exercise-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exercise_id, ...patch }),
+      });
+    } catch {
+      setPendingExId(null);
+      setExError("No connection -- check network and try again.");
+      return;
+    }
     const json = (await res.json().catch(() => null)) as { exercise?: ExerciseSetting; error?: string } | null;
     setPendingExId(null);
     if (!res.ok || !json?.exercise) {
@@ -224,11 +238,17 @@ export default function SettingsPage() {
   // ─── Deload handler ──────────────────────────────────────────────────────────
   async function toggleDeload(session: UpcomingSession) {
     setDeloadSaving(session.plan_session_id);
-    const res = await fetch("/api/plan/toggle-deload", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: session.plan_session_id, is_deload: !session.is_deload }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/plan/toggle-deload", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: session.plan_session_id, is_deload: !session.is_deload }),
+      });
+    } catch {
+      setDeloadSaving(null);
+      return;
+    }
     setDeloadSaving(null);
     if (res.ok) {
       setUpcomingSessions((prev) =>

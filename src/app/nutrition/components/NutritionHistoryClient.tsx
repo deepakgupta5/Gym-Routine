@@ -58,8 +58,15 @@ export default function NutritionHistoryClient() {
     setLoading(true);
     setError(null);
 
-    const qs = new URLSearchParams({ from, to, page: "1", pageSize: "30" });
-    const res = await fetch(`/api/nutrition/history?${qs.toString()}`);
+    let res: Response;
+    try {
+      const qs = new URLSearchParams({ from, to, page: "1", pageSize: "30" });
+      res = await fetch(`/api/nutrition/history?${qs.toString()}`);
+    } catch {
+      setError("No connection -- check network and tap Refresh.");
+      setLoading(false);
+      return;
+    }
     const json = (await res.json().catch(() => null)) as NutritionHistoryResponse | { error?: string } | null;
 
     if (!res.ok || !json || ("error" in json && json.error)) {

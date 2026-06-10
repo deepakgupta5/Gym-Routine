@@ -110,13 +110,18 @@ async function loadWeeklyMuscleVolume(
   client: PoolClient,
   userId: string
 ): Promise<Map<string, number>> {
-  const res = await client.query<{ muscle_primary: string; weekly_sets: number }>(
-    `select muscle_primary, weekly_sets
-     from v_weekly_muscle_volume
-     where user_id = $1`,
-    [userId]
-  );
-  return new Map(res.rows.map((r) => [r.muscle_primary, Number(r.weekly_sets)]));
+  try {
+    const res = await client.query<{ muscle_primary: string; weekly_sets: number }>(
+      `select muscle_primary, weekly_sets
+       from v_weekly_muscle_volume
+       where user_id = $1`,
+      [userId]
+    );
+    return new Map(res.rows.map((r) => [r.muscle_primary, Number(r.weekly_sets)]));
+  } catch {
+    // View missing or query error -- fall back to empty map (pure rotation)
+    return new Map();
+  }
 }
 
 async function loadRecentV2DayTypes(

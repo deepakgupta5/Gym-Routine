@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { selectDayType } from "../../src/lib/scheduler/v2/select";
 import { computeLoad, roundTo5 } from "../../src/lib/scheduler/v2/load";
+import { roundToIncrement } from "../../src/lib/engine/progression";
 import type { V2DayType, V2ExerciseRow, V2LastTopSet } from "../../src/lib/scheduler/v2/types";
 import { V2_ROTATION } from "../../src/lib/scheduler/v2/constants";
 
@@ -146,7 +147,49 @@ describe("selectDayType -- under-exposure override", () => {
   });
 });
 
-// ─── roundTo5 ─────────────────────────────────────────────────────────────────
+// --- selectExercisesForSession (forbidden_day_types) -------------------------
+
+import { selectExercisesForSession } from "../../src/lib/scheduler/v2/select";
+
+describe("selectExercisesForSession -- forbidden_day_types", () => {
+  it("never selects an exercise whose forbidden_day_types includes the session day type", () => {
+    // Build a minimal all-exercises pool: one exercise forbidden for push_upper,
+    // one allowed. Both have identical scores/equipment so selection should
+    // always pick the allowed one.
+    const forbidden = makeExercise({
+      exercise_id: 10,
+      name: "Forbidden Push",
+      allowed_day_types: ["push_upper"],
+      forbidden_day_types: ["push_upper"],
+      muscle_primary: "chest",
+      equipment_type: "barbell",
+      suitable_slots: ["primary"],
+    });
+    const allowed = makeExercise({
+      exercise_id: 11,
+      name: "Allowed Push",
+      allowed_day_types: ["push_upper"],
+      forbidden_day_types: [],
+      muscle_primary: "chest",
+      equipment_type: "barbell",
+      suitable_slots: ["primary"],
+    });
+
+    const result = selectExercisesForSession({
+      dayType: "push_upper",
+      all: [forbidden, allowed],
+      recentExerciseIds: new Set(),
+      lastTopSets: new Map(),
+      userId: "user-test",
+      isoDate: WED,
+    });
+
+    const selectedIds = result.map((r) => r.exercise.exercise_id);
+    expect(selectedIds).not.toContain(10); // forbidden exercise must never appear
+  });
+});
+
+// --- roundTo5 ----------------------------------------------------------------
 
 describe("roundTo5", () => {
   it("rounds to nearest 5", () => {
@@ -206,7 +249,8 @@ describe("computeLoad", () => {
 
   it("computes back-off load at 90% for primary (useBackOff=true)", () => {
     const result = computeLoad(makeExercise(), "primary", undefined);
-    expect(result.backOffLoad).toBe(roundTo5(result.topSetLoad * 0.9));
+    // Use roundToIncrement to match the implementation (load_increment_lb=5 default)
+    expect(result.backOffLoad).toBe(roundToIncrement(result.topSetLoad * 0.9, 5));
   });
 
   it("uses straight sets for accessory (backOffLoad = topSetLoad)", () => {
@@ -221,5 +265,36 @@ describe("computeLoad", () => {
       makeLastTopSet({ last_load: 5, last_reps: 1 }) // below min -> regress
     );
     expect(result.topSetLoad).toBeGreaterThanOrEqual(0);
+  });
+
+  it("bodyweight: no prior history -> load=0, code=bodyweight_seed, bodyweight_mode=true", () => {
+    const ex = makeExercise({ uses_bodyweight: true, seed_load_lb: 0 });
+    const result = computeLoad(ex, "primary", undefined);
+    expect(result.topSetLoad).toBe(0);
+    expect(result.rationale_code).toBe("bodyweight_seed");
+    expect(result.bodyweight_mode).toBe(true);
+  });
+
+  it("bodyweight: prior load=0, reps in range -> rep-only hold, code=bodyweight_reps", () => {
+    const ex = makeExercise({ uses_bodyweight: true, seed_load_lb: 0 });
+    const result = computeLoad(ex, "primary", makeLastTopSet({ last_load: 0, last_reps: 12 }));
+    expect(result.topSetLoad).toBe(0);
+    expect(result.rationale_code).toBe("bodyweight_reps");
+    expect(result.bodyweight_mode).toBe(true);
+  });
+
+  it("bodyweight: prior load>0 (e.g. weight belt) -> normal progression applies, bodyweight_mode=false", () => {
+    const ex = makeExercise({ uses_bodyweight: true, seed_load_lb: 0, load_increment_lb: 5 });
+    const result = computeLoad(ex, "primary", makeLastTopSet({ last_load: 25, last_reps: 13 }));
+    // last_reps 13 = repsMax for primary -> progress by 5
+    expect(result.topSetLoad).toBe(30);
+    expect(result.rationale_code).toBe("progression");
+    expect(result.bodyweight_mode).toBe(false);
+  });
+
+  it("back-off uses roundToIncrement with 2.5 lb increment (e.g. OHP)", () => {
+    const ex = makeExercise({ load_increment_lb: 2.5, seed_load_lb: 95 });
+    const result = computeLoad(ex, "primary", undefined);
+    expect(result.backOffLoad).toBe(roundToIncrement(result.topSetLoad * 0.9, 2.5));
   });
 });

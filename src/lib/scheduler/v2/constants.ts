@@ -76,7 +76,10 @@ export const PRESCRIPTION: Record<V2SlotRole, {
 // Back-off percentage for compound sets (PRD Section 2.2)
 export const BACK_OFF_PERCENT = 0.9;
 
-// Weekly minimum sets per muscle group (PRD Section 3.3)
+// Weekly minimum sets per muscle group (PRD Section 3.3).
+// Only muscles that are mapped in MUSCLE_TO_DAY_TYPES (select.ts) should
+// be listed here. Core is intentionally omitted: it has no dedicated day
+// type in the 5-day rotation so it can never trigger an override.
 export const WEEKLY_MIN_SETS: Record<string, number> = {
   quads: 12,
   hamstrings: 10,
@@ -87,7 +90,6 @@ export const WEEKLY_MIN_SETS: Record<string, number> = {
   biceps: 8,
   triceps: 8,
   calves: 8,
-  core: 6,
 };
 
 // Equipment category groups for diversity enforcement (PRD Section 3.4)
