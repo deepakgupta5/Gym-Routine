@@ -36,6 +36,23 @@ function defaultSetType(role: ExerciseView["role"]): SelectableSetType {
   return role === "accessory" ? "accessory" : "straight";
 }
 
+/**
+ * Determine the set_type to write to set_logs for a v2 exercise.
+ *
+ * v2 primary/secondary exercises use the top-set + back-off scheme:
+ *   set 1 = "top"     (heaviest, used for progression tracking)
+ *   set 2+ = "backoff" (90% of top-set load, higher reps)
+ * v1 exercises (top_set_target_load_lb === null) always use "straight".
+ * Accessories always use "accessory".
+ */
+function v2SetType(ex: ExerciseView, setIndex: number): LoggedSetType {
+  if (ex.role === "accessory") return "accessory";
+  if (ex.top_set_target_load_lb !== null) {
+    return setIndex === 1 ? "top" : "backoff";
+  }
+  return "straight";
+}
+
 function toSelectableSetType(setType: LoggedSetType): SelectableSetType {
   return setType === "accessory" ? "accessory" : "straight";
 }
@@ -166,7 +183,7 @@ export function useSessionLoggerController({
         targeted_primary_muscle: ex.targeted_primary_muscle,
         targeted_secondary_muscle: ex.targeted_secondary_muscle,
         role: ex.role,
-        set_type: defaultSetType(ex.role),
+        set_type: v2SetType(ex, setIndex),
         set_index: setIndex,
         load,
         reps,
@@ -182,9 +199,20 @@ export function useSessionLoggerController({
       return;
     }
 
+    // After logging set 1 of a v2 primary/secondary exercise, switch the
+    // load prefill to back_off_target_load_lb so the user doesn't have to
+    // manually lower the weight for sets 2 and 3.
+    const nextLoad =
+      setIndex === 1 &&
+      ex.top_set_target_load_lb !== null &&
+      ex.back_off_target_load_lb !== null &&
+      ex.back_off_target_load_lb !== ex.top_set_target_load_lb
+        ? String(ex.back_off_target_load_lb)
+        : form.load;
+
     setEntryForms((prev) => ({
       ...prev,
-      [ex.exercise_id]: { ...prev[ex.exercise_id], reps: "", rpe: "", notes: "" },
+      [ex.exercise_id]: { ...prev[ex.exercise_id], load: nextLoad, reps: "", rpe: "", notes: "" },
     }));
 
     setActiveTimer({

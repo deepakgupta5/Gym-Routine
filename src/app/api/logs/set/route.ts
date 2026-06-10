@@ -361,7 +361,13 @@ export async function POST(req: Request) {
       await recomputeWeeklyRollup(client, userId, weekStart);
     }
 
-    const topRows = inserted.filter((r) => r.is_primary || r.set_type === "top");
+    // Write to top_set_history only for actual top sets, not back-off sets.
+    // v2 exercises send set_type="top" for set 1 and "backoff" for sets 2-3.
+    // v1 exercises send set_type="straight" and rely on is_primary to identify
+    // top-set rows (since they don't distinguish set types).
+    const topRows = inserted.filter(
+      (r) => r.set_type === "top" || (r.set_type === "straight" && r.is_primary)
+    );
     if (topRows.length > 0) {
       const sessionMap = new Map<string, SessionLookupRow>();
       const sessionIds = Array.from(
