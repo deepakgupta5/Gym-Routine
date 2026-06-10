@@ -4,12 +4,12 @@ Single source of truth for gym app state. Update every session.
 
 ---
 
-## Status Snapshot -- 2026-06-08 (updated)
+## Status Snapshot -- 2026-06-09 (updated)
 
 **Deployment:** Netlify (`deepakgupta5`), site `gym-routine-app.netlify.app` -- green
-**GitHub HEAD:** `bb821b3` (ops docs update)
+**GitHub HEAD:** `de1639e` (fix rotation stuck on hinge_lower)
 **CI:** Green (128 tests)
-**Migration HEAD:** 0030
+**Migration HEAD:** 0031
 **Build:** `npm run build` / `.next` / `@netlify/plugin-nextjs`
 
 ---
@@ -49,12 +49,14 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-06 | migration 0029 | Fix SECURITY DEFINER on v_weekly_muscle_volume + v_last_top_set_per_exercise; purge today's stale session |
 | 2026-06-08 | commit `6a7cdf5` | Fix exercise repeat root cause: reduce no-repeat window from 7 to 2 days (INC-011) |
 | 2026-06-08 | migration 0030 | Purge today + future unperformed sessions so they regenerate with 2-day window |
+| 2026-06-09 | commit `de1639e` | Fix rotation stuck on hinge_lower: ORDER BY date ASC LIMIT 10 was reading 10 oldest sessions; changed to DESC LIMIT 1 (INC-012) |
+| 2026-06-09 | migration 0031 | Enum values no-op + purge all unperformed sessions to reset rotation |
 
 ---
 
 ## Data Model
 
-**Migration HEAD:** 0029
+**Migration HEAD:** 0031
 **Key tables:** `plan_sessions`, `plan_exercises`, `set_logs`, `exercises`, `body_stats_daily`
 **Key fields on exercises:** `suitable_slots`, `allowed_day_types`, `user_preference_score`, `role`
 **Key fields on plan_sessions:** `cardio_type`, `performed_at`, `cardio_saved_at`
@@ -75,6 +77,7 @@ Single source of truth for gym app state. Update every session.
 | G2 | No "rationale text" on exercise cards | PRD Section 7 not built | Open |
 | G3 | Equipment diversity not enforced | Scheduler does not check equipment_type across slots | Open |
 | G4 | Exercise repeat | CLOSED -- migration 0030 run 2026-06-09, INC-011 resolved | Closed |
+| G5 | Rotation stuck on hinge_lower | CLOSED -- ORDER BY ASC LIMIT 10 read 10 oldest sessions; fixed DESC LIMIT 1 + migration 0031, INC-012 resolved 2026-06-09 | Closed |
 
 ---
 

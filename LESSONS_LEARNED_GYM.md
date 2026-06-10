@@ -155,3 +155,4 @@
 7. PostgreSQL views bypass RLS by default -- always add `WITH (security_invoker = on)` on Supabase.
 8. Purge migrations must explicitly check whether today's date is in scope, not just strictly future dates.
 9. No-repeat window must be shorter than the rotation period; otherwise the pool is always exhausted and scoring penalties are useless (L11).
+10. SQL ORDER BY direction determines which end of LIMIT is kept -- ASC LIMIT N gives the N oldest rows, DESC LIMIT N gives the N newest. A query meant to find the "most recent" must use DESC. Always state the intent in a comment next to ORDER BY. (L12, INC-012) [UNIVERSAL]

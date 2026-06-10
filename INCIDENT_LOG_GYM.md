@@ -127,6 +127,30 @@ The -200 recency penalty in `scoreOne()` only prevents repeats when FRESH exerci
 
 ---
 
+## INC-012 -- v2 rotation stuck on hinge_lower for every session (2026-06-09)
+
+**Severity:** P1 (plan completely broken; wrong muscle groups every day)
+**Detected:** User reported all 5 days showing hinge/lower exercises only (no push, pull, squat)
+**Resolved:** Commit `de1639e` + migration 0031, 2026-06-09
+
+**Root cause:**
+`loadRecentV2DayTypes` in `src/lib/scheduler/v2/index.ts` used:
+```sql
+ORDER BY date ASC LIMIT 10
+```
+This returns the **10 oldest** v2 sessions, not the most recent. `selectDayType` reads `recentV2DayTypes[length-1]` (last element), which with ASC ordering is the 10th-oldest session -- not the most recent one.
+
+The v2 scheduler launched 2026-04-18. Sessions ran correctly for the first 10 sessions (push_upper, squat_lower, pull_upper, hinge_lower, full_body cycle). Session 10 was `pull_upper` (index 2 in V2_ROTATION). From session 11 onwards, `LIMIT 10 ASC` always returned the same 10 oldest sessions with `pull_upper` as the last element. `selectDayType` permanently returned `hinge_lower` (index 3 = next after pull_upper). Every session generated since has been `hinge_lower`.
+
+**Fix:**
+- `index.ts`: changed query to `ORDER BY date DESC LIMIT 1` -- always fetches the single most-recent v2 session. `selectDayType` only needs `recentV2DayTypes[length-1]`; with a 1-element DESC array that's index 0 = most recent.
+- Migration 0031 Part A: idempotent enum value additions (no-ops; all 5 v2 values confirmed present).
+- Migration 0031 Part B: deletes ALL unperformed sessions with no logged sets, clearing the stale hinge_lower pile. Next generation correctly advances from the last performed session type.
+
+**Prevention:** See L12 in LESSONS_LEARNED_GYM.md.
+
+---
+
 ## INC-001 to INC-003 (pre-2026-05-30)
 
 Pre-dating this tracker. See `docs/release-signoff-2026-02-24.md` for v1.1 sprint hardening issues.
