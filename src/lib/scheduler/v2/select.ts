@@ -9,29 +9,105 @@ import {
   FULL_BODY_SLOT_ORIGIN,
   PRESCRIPTION,
   EQUIPMENT_GROUPS,
+  WEEKLY_MIN_SETS,
 } from "./constants";
 import { computeLoad } from "./load";
 
-// ─── Day type selection ────────────────────────────────────────────────────────
+// --- Day type selection -------------------------------------------------------
 
 /**
- * Select the next v2 day type given recent session history.
+ * Which day types primarily accumulate sets for each tracked muscle.
+ * Used by selectDayType to map a volume deficit back to a day type override.
  *
- * Priority (PRD Section 4.2):
- * 1. Continue the rotation from the last performed v2 day type.
- * 2. If no v2 history, start at rotation index 0 (push_upper).
- *
- * Under-exposure priority (past Wednesday) is a TODO for a future phase.
+ * Notes:
+ * - glutes appears in both lower day types (trained on squat AND hinge days).
+ * - calves are accessory work on squat days.
+ * - core is omitted: trained as accessories in every session, not a useful
+ *   override signal (it would always be under minimum relative to 5-day volume).
  */
-export function selectDayType(
-  recentV2DayTypes: V2DayType[]
-): V2DayType {
-  if (recentV2DayTypes.length === 0) return V2_ROTATION[0];
+const MUSCLE_TO_DAY_TYPES: Partial<Record<string, V2DayType[]>> = {
+  chest:      ["push_upper"],
+  shoulders:  ["push_upper"],
+  triceps:    ["push_upper"],
+  back:       ["pull_upper"],
+  biceps:     ["pull_upper"],
+  quads:      ["squat_lower"],
+  hamstrings: ["hinge_lower"],
+  glutes:     ["squat_lower", "hinge_lower"],
+  calves:     ["squat_lower"],
+};
 
+/** Pure rotation: advance one step from the last performed v2 day type. */
+function pureRotation(recentV2DayTypes: V2DayType[]): V2DayType {
+  if (recentV2DayTypes.length === 0) return V2_ROTATION[0];
   const last = recentV2DayTypes[recentV2DayTypes.length - 1];
   const lastIdx = V2_ROTATION.indexOf(last);
   if (lastIdx === -1) return V2_ROTATION[0];
   return V2_ROTATION[(lastIdx + 1) % V2_ROTATION.length];
+}
+
+/**
+ * Select the next v2 day type given recent session history and this week's
+ * muscle volume (PRD Sections 4.2 + 3.3).
+ *
+ * Logic:
+ * 1. Compute per-day-type deficit totals from v_weekly_muscle_volume vs
+ *    WEEKLY_MIN_SETS. Track the largest single-muscle deficit as a fraction
+ *    of its minimum.
+ * 2. If no deficits -> pure rotation (no change to normal behavior).
+ * 3. Gate: override fires if EITHER:
+ *      a. It is Wednesday or later in the week (dayOfWeek >= 3, or Sunday = 0),
+ *      b. OR any single muscle is more than 50% below its minimum (large-deficit
+ *         exception -- fires regardless of day of week, e.g. after 3+ skips).
+ * 4. Override: pick the day type with the highest total accumulated deficit.
+ *    Tiebreak: alphabetical for determinism.
+ *
+ * @param recentV2DayTypes  - last performed v2 day type(s); only [last] is used
+ * @param weeklyVolume      - map from muscle_primary to sets logged in last 7 days
+ * @param isoDate           - target date (YYYY-MM-DD) used for day-of-week gate
+ */
+export function selectDayType(
+  recentV2DayTypes: V2DayType[],
+  weeklyVolume: Map<string, number>,
+  isoDate: string,
+): V2DayType {
+  // 1. Compute deficit per day type
+  const deficitByDayType = new Map<V2DayType, number>();
+  let largestDeficitFraction = 0;
+
+  for (const [muscle, minSets] of Object.entries(WEEKLY_MIN_SETS)) {
+    const dayTypes = MUSCLE_TO_DAY_TYPES[muscle];
+    if (!dayTypes) continue; // core + unmapped muscles -- skip
+
+    const actual = weeklyVolume.get(muscle) ?? 0;
+    const deficit = Math.max(0, minSets - actual);
+    if (deficit === 0) continue;
+
+    const fraction = deficit / minSets;
+    if (fraction > largestDeficitFraction) largestDeficitFraction = fraction;
+
+    for (const dt of dayTypes) {
+      deficitByDayType.set(dt, (deficitByDayType.get(dt) ?? 0) + deficit);
+    }
+  }
+
+  // 2. No deficits -> pure rotation
+  if (deficitByDayType.size === 0) return pureRotation(recentV2DayTypes);
+
+  // 3. Gate check
+  //    UTCDay: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+  //    "past Wednesday" = Wed through Sat, plus Sunday (end of rolling week)
+  const dayOfWeek = new Date(isoDate).getUTCDay();
+  const pastWednesday = dayOfWeek === 0 || dayOfWeek >= 3;
+  const largeDeficit = largestDeficitFraction > 0.5; // >50% of minimum is missing
+
+  if (!pastWednesday && !largeDeficit) return pureRotation(recentV2DayTypes);
+
+  // 4. Override: highest total-deficit day type wins; alphabetical tiebreak
+  const [overrideDayType] = [...deficitByDayType.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+
+  return overrideDayType;
 }
 
 // ─── Deterministic selection ───────────────────────────────────────────────────

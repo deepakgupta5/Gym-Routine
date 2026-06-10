@@ -105,6 +105,19 @@ async function loadLastTopSets(
   );
 }
 
+async function loadWeeklyMuscleVolume(
+  client: PoolClient,
+  userId: string
+): Promise<Map<string, number>> {
+  const res = await client.query<{ muscle_primary: string; weekly_sets: number }>(
+    `select muscle_primary, weekly_sets
+     from v_weekly_muscle_volume
+     where user_id = $1`,
+    [userId]
+  );
+  return new Map(res.rows.map((r) => [r.muscle_primary, Number(r.weekly_sets)]));
+}
+
 async function loadRecentV2DayTypes(
   client: PoolClient,
   userId: string,
@@ -232,8 +245,11 @@ export async function ensureWorkoutPlanForDateV2(
   if (forcedDayType) {
     dayType = forcedDayType;
   } else {
-    const recentDayTypes = await loadRecentV2DayTypes(client, userId, isoDate);
-    dayType = selectDayType(recentDayTypes);
+    const [recentDayTypes, weeklyVolume] = await Promise.all([
+      loadRecentV2DayTypes(client, userId, isoDate),
+      loadWeeklyMuscleVolume(client, userId),
+    ]);
+    dayType = selectDayType(recentDayTypes, weeklyVolume, isoDate);
   }
 
   // 2. Load exercises and recent history

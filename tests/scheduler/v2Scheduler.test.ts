@@ -37,40 +37,111 @@ function makeLastTopSet(overrides: Partial<V2LastTopSet> = {}): V2LastTopSet {
   };
 }
 
-// ─── selectDayType ────────────────────────────────────────────────────────────
+// --- selectDayType -----------------------------------------------------------
 
-describe("selectDayType", () => {
+// Arbitrary mid-week date (Wednesday) for gate tests
+const WED = "2026-06-10"; // getUTCDay() = 3
+// Monday -- before Wednesday gate
+const MON = "2026-06-08"; // getUTCDay() = 1
+
+// All muscles satisfied at their exact WEEKLY_MIN_SETS targets -- no override fires.
+const satisfiedVolume = new Map([
+  ["chest", 12], ["shoulders", 12], ["triceps", 8],
+  ["back", 14],  ["biceps", 8],
+  ["quads", 12], ["glutes", 12],
+  ["hamstrings", 10], ["calves", 8],
+  ["core", 6],
+]);
+
+// Build a volume map with all muscles satisfied EXCEPT the ones in `overrides`.
+function volumeWith(overrides: Record<string, number>): Map<string, number> {
+  return new Map([...satisfiedVolume, ...Object.entries(overrides)]);
+}
+
+describe("selectDayType -- pure rotation (no deficits)", () => {
   it("starts at push_upper when no history", () => {
-    expect(selectDayType([])).toBe("push_upper");
+    expect(selectDayType([], satisfiedVolume, WED)).toBe("push_upper");
   });
 
   it("advances to next in rotation after push_upper", () => {
-    expect(selectDayType(["push_upper"])).toBe("squat_lower");
+    expect(selectDayType(["push_upper"], satisfiedVolume, WED)).toBe("squat_lower");
   });
 
   it("advances correctly through full rotation", () => {
     const results: V2DayType[] = [];
     let history: V2DayType[] = [];
     for (let i = 0; i < V2_ROTATION.length * 2; i++) {
-      const next = selectDayType(history);
+      const next = selectDayType(history, satisfiedVolume, WED);
       results.push(next);
       history = [...history, next];
     }
-    // After one full rotation, the second cycle must equal the first
+    // Second cycle must equal first
     expect(results.slice(0, V2_ROTATION.length)).toEqual(results.slice(V2_ROTATION.length));
   });
 
   it("wraps around after full_body back to push_upper", () => {
-    expect(selectDayType(["push_upper", "squat_lower", "pull_upper", "hinge_lower", "full_body"])).toBe("push_upper");
+    expect(
+      selectDayType(
+        ["push_upper", "squat_lower", "pull_upper", "hinge_lower", "full_body"],
+        satisfiedVolume,
+        WED
+      )
+    ).toBe("push_upper");
   });
 
   it("only considers the last entry, not all history", () => {
-    // Even if history contains many entries, only the last one drives the next pick
-    expect(selectDayType(["push_upper", "squat_lower", "pull_upper"])).toBe("hinge_lower");
+    expect(selectDayType(["push_upper", "squat_lower", "pull_upper"], satisfiedVolume, WED)).toBe("hinge_lower");
   });
 
   it("resets to push_upper if last entry is an unrecognised type", () => {
-    expect(selectDayType(["unknown_type" as V2DayType])).toBe("push_upper");
+    expect(selectDayType(["unknown_type" as V2DayType], satisfiedVolume, WED)).toBe("push_upper");
+  });
+});
+
+describe("selectDayType -- under-exposure override", () => {
+  it("overrides to pull_upper on Wednesday when back is under minimum", () => {
+    // back min=14, logged=4 => deficit 10; all other muscles satisfied.
+    // Rotation from squat_lower would give pull_upper; override independently picks it too.
+    // Use hinge_lower last so rotation would give full_body -- confirms override fires.
+    const volume = volumeWith({ back: 4 });
+    expect(selectDayType(["hinge_lower"], volume, WED)).toBe("pull_upper");
+  });
+
+  it("does not override on Monday when deficit fraction <= 50%", () => {
+    // back min=14, logged=8 => deficit=6, fraction=0.43 (<50%)
+    // Monday is before Wednesday gate, large-deficit exception does not apply.
+    // Rotation from hinge_lower -> full_body (pure rotation).
+    const volume = volumeWith({ back: 8 });
+    expect(selectDayType(["hinge_lower"], volume, MON)).toBe("full_body");
+  });
+
+  it("fires override on Monday when any deficit > 50% (large-deficit exception)", () => {
+    // back min=14, logged=0 => deficit=14, fraction=1.0 (>50%) => gate lifted.
+    // pull_upper total deficit = back(14) + biceps(8) = 22.
+    // All other muscles satisfied, so pull_upper is the only deficient day type.
+    const volume = volumeWith({ back: 0, biceps: 0 });
+    expect(selectDayType(["hinge_lower"], volume, MON)).toBe("pull_upper");
+  });
+
+  it("picks highest total-deficit day type when multiple are under minimum", () => {
+    // push_upper deficit: chest(12-0=12) + shoulders(12-0=12) + triceps(8-0=8) = 32
+    // pull_upper deficit: back(14-4=10) + biceps(8-0=8) = 18
+    // push_upper wins
+    const volume = volumeWith({ chest: 0, shoulders: 0, triceps: 0, back: 4, biceps: 0 });
+    expect(selectDayType(["hinge_lower"], volume, WED)).toBe("push_upper");
+  });
+
+  it("uses alphabetical tiebreak when two day types have equal deficit", () => {
+    // push_upper deficit: chest=12 => 12
+    // pull_upper deficit: back=12 => 12 (tie)
+    // alphabetical: pull_upper < push_upper => pull_upper wins tiebreak
+    const volume = volumeWith({ chest: 0, back: 2 }); // back deficit=12, chest deficit=12
+    expect(selectDayType(["hinge_lower"], volume, WED)).toBe("pull_upper");
+  });
+
+  it("returns to pure rotation once all muscles meet minimum", () => {
+    // rotation from squat_lower -> pull_upper
+    expect(selectDayType(["squat_lower"], satisfiedVolume, WED)).toBe("pull_upper");
   });
 });
 
