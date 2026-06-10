@@ -156,3 +156,67 @@
 8. Purge migrations must explicitly check whether today's date is in scope, not just strictly future dates.
 9. No-repeat window must be shorter than the rotation period; otherwise the pool is always exhausted and scoring penalties are useless (L11).
 10. SQL ORDER BY direction determines which end of LIMIT is kept -- ASC LIMIT N gives the N oldest rows, DESC LIMIT N gives the N newest. A query meant to find the "most recent" must use DESC. Always state the intent in a comment next to ORDER BY. (L12, INC-012) [UNIVERSAL]
+
+---
+
+## Session: 2026-06-10
+
+### L13 -- Netlify DNS zone can be orphaned while Cloudflare holds actual NS records [UNIVERSAL]
+
+**Problem:** Netlify showed "Pending DNS verification" even after domain was detached from old site. Root cause: the Netlify DNS zone for `autonomybridge.com` existed on `deepak-gupta5` but the domain registrar nameservers were pointing to Cloudflare (`asa.ns.cloudflare.com`, `vicente.ns.cloudflare.com`). The Netlify DNS zone was completely unused -- DNS traffic never hit it.
+
+**Discovery:** `dig NS autonomybridge.com +short` revealed Cloudflare NS records, not Netlify's (`p02.nsone.net`). The Netlify zone had 0 records.
+
+**Fix:** Deleted the orphaned Netlify DNS zone via API. DNS control stays in Cloudflare.
+
+**Pattern:** Always `dig NS <domain>` before assuming DNS is Netlify-managed. A Netlify DNS zone existing in the UI does not mean the domain is pointed at it. The registrar nameservers are the ground truth.
+
+[UNIVERSAL]
+
+---
+
+### L14 -- Cloudflare Full (strict) + Netlify requires provisioning cert before re-enabling proxy [UNIVERSAL]
+
+**Problem:** Netlify SSL "DNS verification failed" with Cloudflare proxy active. Cloudflare Full (strict) mode verifies that the origin cert hostname matches the custom domain. With proxy active, Netlify sees Cloudflare's IPs instead of its own and can't provision the Let's Encrypt cert.
+
+**Fix sequence:**
+1. Turn Cloudflare records to DNS-only (gray cloud) -- domain resolves to `75.2.60.5` (Netlify's load balancer).
+2. Netlify "Retry DNS verification" -- sees `75.2.60.5`, provisions cert for `autonomybridge.com`.
+3. Re-enable Cloudflare proxy (orange cloud) -- Full (strict) now valid since cert covers the custom domain.
+
+**Pattern:** When using Cloudflare proxy + Netlify custom domain + Full (strict) SSL, always provision the Netlify cert first via a temporary gray-cloud window. Do not re-enable the proxy until Netlify shows "Certificate active."
+
+[UNIVERSAL]
+
+---
+
+### L15 -- Netlify cross-account site migration requires DNS zone deletion, not just domain detach [CAMPAIGN-SPECIFIC]
+
+**Problem:** After detaching `www.autonomybridge.com` from the old site, adding the domain to the new site still failed with "already managed by Netlify DNS on another team." The domain was freed from the site but the DNS zone ownership remained on the old account.
+
+**Fix:** Deleted the DNS zone (`DELETE /api/v1/dns_zones/<zone_id>`) from the old account. This released the domain fully, allowing the new account to claim it.
+
+**Pattern:** Netlify domain ownership has two layers: (1) the site-level custom_domain field, (2) the account-level DNS zone. A domain detach only removes layer 1. To fully free a domain for another account, also delete the DNS zone if one exists.
+
+[CAMPAIGN-SPECIFIC]
+
+---
+
+### L16 -- .netlify/state.json must be updated after site migration [UNIVERSAL]
+
+**Problem:** After migrating gym app to new Netlify site, `.netlify/state.json` still held the old site ID (`36697ac0-bfea-4e2d-a2f4-6b43703b6dbb`). CLI commands (`netlify env:list`, `netlify deploy`, `netlify logs`) would operate on the deleted/wrong site.
+
+**Fix:** Updated `siteId` in `.netlify/state.json` to the new site ID (`f16ac1c7-3a1b-4e22-a39f-bc4855f18360`). Verified with `netlify status` showing correct Admin URL and project ID.
+
+**Pattern:** `.netlify/state.json` is gitignored and holds the local project-to-site link. Any time a Netlify site is recreated or migrated, this file must be manually updated. It does not update automatically when you re-authenticate.
+
+[UNIVERSAL]
+
+---
+
+### Universal lessons from this session
+
+1. `dig NS <domain>` is the ground truth for DNS control -- a Netlify DNS zone in the UI doesn't mean the domain points to it. (L13)
+2. Cloudflare Full (strict) + Netlify: always provision Netlify cert via gray-cloud window before re-enabling proxy. (L14)
+3. Netlify domain detach != DNS zone deletion -- must delete zone separately to fully release domain for another account. (L15)
+4. `.netlify/state.json` holds the local project-to-site link and must be manually updated after site migration. (L16)

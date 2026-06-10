@@ -35,9 +35,14 @@
 
 **Rationale:** Netlify free tier sufficient for single-user app. `@netlify/plugin-nextjs` handles Next.js 15 App Router correctly. Render was the original backend host (now removed per the session that shut down the keep-alive workflow).
 
-**Old account (`deepak-gupta5`):** Deprecated. Delete old sites once new account confirmed stable.
+**Old account (`deepak-gupta5`):** DECOMMISSIONED 2026-06-10 -- 0 sites remaining.
 
-**Status:** ACTIVE. Pending: env vars on new account, delete old sites.
+**Final site inventory on `deepakgupta5`:**
+- `exerciseplanning` (gym app, site ID f16ac1c7) -- `exerciseplanning.netlify.app`
+- `meal-planner-deepak` -- `meal-planner-deepak.netlify.app`
+- `autonomybridgenetlify` -- `www.autonomybridge.com` (Cloudflare + Let's Encrypt via Netlify)
+
+**Status:** LOCKED. Migration complete 2026-06-10. See D010.
 
 ---
 
@@ -109,6 +114,26 @@
 - Keep 7-day window, add more exercises to each day type. Rejected: exercises must match user equipment; arbitrary additions degrade plan quality.
 
 **Status:** LOCKED. Implemented in commit `6a7cdf5`. Migration 0030 purges stale sessions.
+
+---
+
+## D010 -- Netlify account consolidation: deepak-gupta5 decommissioned (2026-06-10)
+
+**Decision:** Migrate all three sites (gym app, meal planner, autonomybridge) to `deepakgupta5` account and decommission `deepak-gupta5`.
+
+**Rationale:** `deepak-gupta5` (deepak@autonomybridge.com) had separate login credentials from `deepakgupta5` (deepakgupta5@gmail.com, GitHub OAuth). Consolidating to one account eliminates split-auth friction and ensures `netlify` CLI always operates on the correct account.
+
+**Migration steps executed:**
+1. Detached `www.autonomybridge.com` from old site via API PATCH.
+2. Deleted orphaned Netlify DNS zone (was unused -- actual DNS is Cloudflare with `asa.ns.cloudflare.com`/`vicente.ns.cloudflare.com`).
+3. Created `autonomybridgenetlify` site on `deepakgupta5` from same GitHub repo (`deepakgupta5/autonomy-bridge-web`).
+4. Temporarily set Cloudflare A + CNAME records to DNS-only (gray cloud) so Netlify could provision Let's Encrypt cert for `autonomybridge.com`.
+5. Re-enabled Cloudflare proxy (orange cloud) -- Full (strict) SSL mode now valid since Netlify cert covers the custom domain.
+6. Confirmed `meal-planner-deepak` and `exerciseplanning` already on `deepakgupta5`; renamed mealplanweekly -> meal-planner-deepak.
+7. Re-ran `netlify login` on CLI to authenticate `deepakgupta5@gmail.com`.
+8. Updated `.netlify/state.json` in gym app from old site ID (36697ac0) to `f16ac1c7-3a1b-4e22-a39f-bc4855f18360`.
+
+**Status:** LOCKED.
 
 ---
 

@@ -4,13 +4,15 @@ Single source of truth for gym app state. Update every session.
 
 ---
 
-## Status Snapshot -- 2026-06-09 (updated)
+## Status Snapshot -- 2026-06-10 (updated)
 
-**Deployment:** Netlify (`deepakgupta5`), site `gym-routine-app.netlify.app` -- green
-**GitHub HEAD:** `9b2a56b` (PRD 6.1 today hero day-type override + force-regen)
+**Deployment:** Netlify (`deepakgupta5`), site `exerciseplanning.netlify.app` -- green
+**GitHub HEAD:** `d2c92b5` (tracker close G2/G3/G5 + PRD 6.1 + 7 shipped)
 **CI:** Green (128 tests)
 **Migration HEAD:** 0031
 **Build:** `npm run build` / `.next` / `@netlify/plugin-nextjs`
+**Netlify site ID:** `f16ac1c7-3a1b-4e22-a39f-bc4855f18360` (exerciseplanning, deepakgupta5)
+**CLI auth:** `deepakgupta5@gmail.com` (deepakgupta5 account)
 
 ---
 
@@ -18,7 +20,7 @@ Single source of truth for gym app state. Update every session.
 
 | Priority | Item | Notes |
 |---|---|---|
-| P1 | Delete old Netlify sites on `deepak-gupta5` | gym-routine-app (36697ac0) + meal-planner-deepak (2c69b0f8); new account confirmed working |
+| P1 | Delete old Netlify sites on `deepak-gupta5` | DONE -- 2026-06-10; deepak-gupta5 has 0 sites; all 3 apps on deepakgupta5; CLI re-auth'd |
 | P3 | Implement top-set + back-off load computation | DONE -- 2026-06-09 |
 | P3 | Progression visibility ("up 5 lb" rationale) | DONE -- 2026-06-09 (rationale_text + rationale_code colors in ExerciseCard + TodayHeroCard) |
 | P4 | Equipment diversity / rotation rules | PRD Section 3.4; CONFIRMED already implemented (EQUIPMENT_GROUPS + requiredEquipmentTypes()) |
@@ -54,6 +56,7 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-09 | commit `5e9c0df` | Complete PRD 4.4 top-set + back-off logging flow: auto-switch load after set 1, correct set_type in DB, fix top_set_history filter |
 | 2026-06-09 | commit `cd816aa` | PRD Section 7 progression visibility: rationale_text format + colored rationale in ExerciseCard + DeltaBadge in TodayHeroCard |
 | 2026-06-09 | commit `9b2a56b` | PRD Section 6.1 today hero + day type override: force-regen API, forcedDayType scheduler param, TodayHeroCard client component with More Actions panel |
+| 2026-06-10 | ops | Netlify account consolidation: autonomybridge + gym + meal-planner all migrated to deepakgupta5; deepak-gupta5 decommissioned (0 sites); CLI re-auth'd; .netlify/state.json updated; Cloudflare SSL Full (strict) restored |
 
 ---
 
@@ -86,6 +89,6 @@ Single source of truth for gym app state. Update every session.
 
 ## Next Session Checklist
 
-- [ ] Delete old Netlify sites on `deepak-gupta5` (gym-routine-app 36697ac0 + meal-planner-deepak 2c69b0f8)
 - [ ] Future: PRD Section 4.5 deload rule
 - [ ] Future: PRD Section 7 sparklines ("vs last time" sparklines)
+- [ ] Future: adaptive day-type selection (PRD Section 4.2) -- requires v_weekly_muscle_volume
