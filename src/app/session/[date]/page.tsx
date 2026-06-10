@@ -46,6 +46,7 @@ type ExerciseRow = {
   name: string;
   alt_1_name: string | null;
   alt_2_name: string | null;
+  uses_bodyweight: boolean;
   // v2 fields
   top_set_target_load_lb: string | number | null;
   top_set_target_reps: number | null;
@@ -299,6 +300,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               e.movement_pattern,
               alt1.name as alt_1_name,
               alt2.name as alt_2_name,
+              coalesce(e.uses_bodyweight, false) as uses_bodyweight,
               pe.top_set_target_load_lb,
               pe.top_set_target_reps,
               pe.back_off_target_load_lb,
@@ -335,6 +337,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       next_target_load: toNullableNumber(row.next_target_load),
       alt_1_name: row.alt_1_name ?? null,
       alt_2_name: row.alt_2_name ?? null,
+      uses_bodyweight: row.uses_bodyweight === true,
       // v2 fields - null for legacy sessions
       top_set_target_load_lb: toNullableNumber(row.top_set_target_load_lb),
       top_set_target_reps: row.top_set_target_reps === null ? null : Number(row.top_set_target_reps),

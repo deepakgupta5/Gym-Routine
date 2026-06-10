@@ -18,6 +18,7 @@ function makeExercise(overrides: Partial<V2ExerciseRow> = {}): V2ExerciseRow {
     uses_bodyweight: false,
     seed_load_lb: 135,
     allowed_day_types: ["push_upper"],
+    forbidden_day_types: [],
     suitable_slots: ["primary", "secondary"],
     user_preference_score: 0,
     load_increment_lb: 5,

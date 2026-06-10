@@ -2,8 +2,9 @@
 
 import type { V2ExerciseRow, V2LastTopSet, V2SlotRole } from "./types";
 import { PRESCRIPTION, BACK_OFF_PERCENT } from "./constants";
+import { roundToIncrement } from "@/lib/engine/progression";
 
-/** Round a load value to the nearest 5 lb. */
+/** Round a load value to the nearest 5 lb (used for seed values only). */
 export function roundTo5(lb: number): number {
   return Math.round(lb / 5) * 5;
 }
@@ -15,19 +16,29 @@ export interface LoadResult {
   backOffReps: number;
   rationale_code: string;
   rationale_text: string;
+  /** True when the exercise is bodyweight -- render "Bodyweight" not "0 lb" in the UI. */
+  bodyweight_mode: boolean;
 }
 
 /**
  * Compute the load prescription for a single exercise slot.
  *
  * Algorithm (PRD Section 4.4):
- * - If no prior history: use seed_load_lb (or 0 for bodyweight exercises)
- * - If prior hit repsMax or above: add load_increment_lb
- * - If prior missed repsMin: subtract load_increment_lb
- * - Otherwise: hold load, beat the rep count
+ * - Bodyweight exercises: topSetLoad = 0 (represents added load only).
+ *   When prior load is 0 (bodyweight baseline), progression is rep-only --
+ *   no load increment applied until the user explicitly adds external weight.
+ * - No prior history (non-bodyweight): use seed_load_lb rounded to nearest 5;
+ *   0 if no seed.
+ * - Prior hit repsMax or above: add load_increment_lb (rounded to increment).
+ * - Prior missed repsMin: subtract load_increment_lb.
+ * - Otherwise: hold load.
+ *
+ * Rounding: progression and regression steps use roundToIncrement() so that
+ * exercises with a 2.5 lb increment (e.g. OHP, cable) are not silently rounded
+ * to the nearest 5. Seed values still use roundTo5 for a clean starting point.
  *
  * For primary and secondary slots (useBackOff=true):
- *   back_off_load = round_to_5(top_set_load * 0.90)
+ *   back_off_load = roundToIncrement(top_set_load * 0.90, increment)
  * For accessory slots (straight sets):
  *   back_off_load = top_set_load
  */
@@ -38,29 +49,43 @@ export function computeLoad(
 ): LoadResult {
   const p = PRESCRIPTION[role];
   const increment = exercise.load_increment_lb || 5;
+  const isBodyweight = exercise.uses_bodyweight === true;
 
   let topSetLoad: number;
   let rationale_code: string;
   let rationale_text: string;
 
   if (!prior) {
-    topSetLoad = roundTo5(Math.max(0, exercise.seed_load_lb ?? 0));
-    rationale_code = "seed_only";
-    rationale_text = `${topSetLoad} lb, new exercise`;
+    if (isBodyweight) {
+      // Bodyweight seed: 0 added load. Beat reps to earn added weight.
+      topSetLoad = 0;
+      rationale_code = "bodyweight_seed";
+      rationale_text = "Bodyweight -- beat reps to earn added load";
+    } else {
+      topSetLoad = roundTo5(Math.max(0, exercise.seed_load_lb ?? 0));
+      rationale_code = "seed_only";
+      rationale_text = `${topSetLoad} lb, new exercise`;
+    }
   } else {
     const prevLoad = Number(prior.last_load);
     const prevReps = Number(prior.last_reps);
 
-    if (prevReps >= p.repsMax) {
-      topSetLoad = roundTo5(prevLoad + increment);
+    if (isBodyweight && prevLoad === 0) {
+      // Bodyweight rep-only progression: hold load at 0 until user logs
+      // a non-zero load (i.e. adds a weight belt/vest).
+      topSetLoad = 0;
+      rationale_code = "bodyweight_reps";
+      rationale_text = `Bodyweight -- beat reps (${prevReps} last time)`;
+    } else if (prevReps >= p.repsMax) {
+      topSetLoad = roundToIncrement(prevLoad + increment, increment);
       rationale_code = "progression";
       rationale_text = `${topSetLoad} lb, up ${increment} lb (${prevLoad} lb x ${prevReps} last time)`;
     } else if (prevReps < p.repsMin) {
-      topSetLoad = roundTo5(Math.max(0, prevLoad - increment));
+      topSetLoad = roundToIncrement(Math.max(0, prevLoad - increment), increment);
       rationale_code = "regression";
       rationale_text = `${topSetLoad} lb, down ${increment} lb (${prevLoad} lb x ${prevReps} last time)`;
     } else {
-      topSetLoad = roundTo5(prevLoad);
+      topSetLoad = roundToIncrement(prevLoad, increment);
       rationale_code = "hold";
       rationale_text = `${topSetLoad} lb, hold (${prevReps} reps last time, beat it)`;
     }
@@ -70,7 +95,7 @@ export function computeLoad(
   topSetLoad = Math.max(0, topSetLoad);
 
   const backOffLoad = p.useBackOff
-    ? roundTo5(Math.max(0, topSetLoad * BACK_OFF_PERCENT))
+    ? roundToIncrement(Math.max(0, topSetLoad * BACK_OFF_PERCENT), increment)
     : topSetLoad;
 
   return {
@@ -80,5 +105,6 @@ export function computeLoad(
     backOffReps: p.backOffReps,
     rationale_code,
     rationale_text,
+    bodyweight_mode: isBodyweight && topSetLoad === 0,
   };
 }

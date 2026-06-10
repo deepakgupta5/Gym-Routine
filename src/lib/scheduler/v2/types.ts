@@ -21,6 +21,7 @@ export interface V2ExerciseRow {
   uses_bodyweight: boolean;
   seed_load_lb: number | null;
   allowed_day_types: string[];
+  forbidden_day_types: string[]; // belt-and-suspenders: exclude even if allowed_day_types passes
   suitable_slots: string[]; // from migration 0019: primary, secondary, accessory
   user_preference_score: number;
   load_increment_lb: number;

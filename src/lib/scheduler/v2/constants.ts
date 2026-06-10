@@ -100,5 +100,7 @@ export const EQUIPMENT_GROUPS = [
 // Session blueprint version written on v2 sessions
 export const V2_BLUEPRINT_VERSION = 2;
 
-// Recency window: exclude exercises used as primary/secondary within this many days
-export const NO_REPEAT_DAYS = 7;
+// NOTE: exercise recency exclusion uses a 2-day window (not 7) per D009 in
+// DECISION_LOG_GYM.md. The previous NO_REPEAT_DAYS = 7 constant was removed
+// because it contradicted the live SQL (interval '2 days') and misled future
+// developers. The window is expressed directly in loadRecentPrimaryExerciseIds.

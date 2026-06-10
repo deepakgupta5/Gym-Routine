@@ -182,6 +182,8 @@ function candidatesForSlot(
   };
 
   const dayTypeFilter = (e: V2ExerciseRow) => {
+    // Belt-and-suspenders: explicitly forbidden overrides allowed
+    if (e.forbidden_day_types.includes(dayType)) return false;
     if (dayType !== "full_body") {
       return e.allowed_day_types.includes(dayType);
     }

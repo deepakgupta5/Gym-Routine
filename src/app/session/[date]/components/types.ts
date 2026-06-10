@@ -28,6 +28,7 @@ export type ExerciseView = {
   next_target_load: number | null;
   alt_1_name: string | null;
   alt_2_name: string | null;
+  uses_bodyweight: boolean;
   // v2 fields - null for legacy sessions
   top_set_target_load_lb: number | null;
   top_set_target_reps: number | null;

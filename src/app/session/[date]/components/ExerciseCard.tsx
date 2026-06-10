@@ -151,7 +151,10 @@ export default function ExerciseCard({
             <div className="mt-1 space-y-0.5 text-sm text-gray-300">
               <div>
                 <span className="text-blue-300 font-medium">Top set:</span>{" "}
-                {exercise.top_set_target_reps} reps @ {exercise.top_set_target_load_lb} lb
+                {exercise.top_set_target_reps} reps @{" "}
+                {exercise.uses_bodyweight && exercise.top_set_target_load_lb === 0
+                  ? <span className="font-medium text-teal-300">Bodyweight</span>
+                  : <>{exercise.top_set_target_load_lb} lb</>}
                 {exercise.per_side_reps && <span className="ml-1 text-gray-400">(per side)</span>}
               </div>
               {exercise.back_off_target_load_lb !== null && exercise.back_off_target_load_lb !== exercise.top_set_target_load_lb && (

@@ -2,7 +2,7 @@
 // Called from integration.ts when GYM_V2_ENABLED=true
 
 import type { PoolClient } from "pg";
-import { V2_ROTATION, V2_BLUEPRINT_VERSION, PRESCRIPTION } from "./constants";
+import { V2_ROTATION, V2_BLUEPRINT_VERSION, PRESCRIPTION, BACK_OFF_PERCENT } from "./constants";
 import { selectDayType, selectExercisesForSession } from "./select";
 import type { V2DayType, V2ExerciseRow, V2LastTopSet, V2SelectedExercise } from "./types";
 
@@ -21,6 +21,7 @@ async function loadV2Exercises(client: PoolClient): Promise<V2ExerciseRow[]> {
        coalesce(e.uses_bodyweight, false) as uses_bodyweight,
        e.seed_load_lb,
        coalesce(e.allowed_day_types, ARRAY[]::text[]) as allowed_day_types,
+       coalesce(e.forbidden_day_types, ARRAY[]::text[]) as forbidden_day_types,
        coalesce(e.suitable_slots, ARRAY['primary','secondary','accessory']) as suitable_slots,
        coalesce(e.user_preference_score, 0) as user_preference_score,
        coalesce(e.load_increment_lb, 5) as load_increment_lb,
@@ -204,7 +205,7 @@ async function insertV2Session(
         p.repsMin,
         p.repsMax,
         ex.topSetLoad,              // prescribed_load = top set load
-        p.useBackOff ? (1 - 0.9) : null, // backoff_percent
+        p.useBackOff ? BACK_OFF_PERCENT : null, // backoff_percent
         ex.restSeconds,
         "3-1-1-0",
         ex.topSetLoad,              // next_target_load (same as top set, for v1 compat)
