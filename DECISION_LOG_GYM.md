@@ -195,3 +195,18 @@
 **Rationale:** Dead entries in `WEEKLY_MIN_SETS` create the false impression that core volume is tracked and enforced, when it is not. If core tracking is ever desired, a dedicated day-type mapping must be created first.
 
 **Status:** LOCKED. Removed in commit `51d923e`.
+
+---
+
+## D015 -- Vercel replaces Netlify as active deployment host (2026-06-10)
+
+**Decision:** Switch primary deployment from Netlify (`exerciseplanning.netlify.app`) to Vercel (`deepak-gym-tracker.vercel.app`) effective 2026-06-10.
+
+**Rationale:** Netlify free-tier build minutes exhausted after intensive W1-W7 development cycle. All Netlify deploys after `ae28249f` (before W1-W7) failed with "Skipped due to account credit usage exceeded". `netlify deploy --prod` returns `Forbidden`. Vercel was already connected to the GitHub repo via GitHub integration and has been auto-deploying all pushes successfully. Current Vercel production deploy includes all W1-W7 changes (HEAD `936cf83`). All 6 required env vars are already configured in Vercel.
+
+**Netlify:** Retain site `f16ac1c7` on `deepakgupta5` account. Credits will reset on next billing cycle. Can reinstate as primary at that point if desired.
+
+**Vercel production URL:** `https://deepak-gym-tracker.vercel.app`
+**Vercel project:** `gym-routine` (org: `deepak-guptas-projects-4f1b1c8b`)
+
+**Status:** LOCKED. Effective 2026-06-10.

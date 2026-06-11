@@ -6,13 +6,14 @@ Single source of truth for gym app state. Update every session.
 
 ## Status Snapshot -- 2026-06-10 (updated)
 
-**Deployment:** Netlify (`deepakgupta5`), site `exerciseplanning.netlify.app` -- green
-**GitHub HEAD:** `51d923e` (Wave 7 audit fixes -- 139 tests, 0 TS errors)
+**Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app` -- green (W1-W7 live)
+**Netlify:** BLOCKED -- build credits exhausted (deepakgupta5 account); last successful deploy was ae28249f before W1-W7. Do not use until credits reset.
+**GitHub HEAD:** `936cf83` (Docs: PRD rev 5 + tracker + decisions + lessons + audit)
 **CI:** Green (139 tests)
 **Migration HEAD:** 0032 (applied to production 2026-06-10)
-**Build:** `npm run build` / `.next` / `@netlify/plugin-nextjs`
-**Netlify site ID:** `f16ac1c7-3a1b-4e22-a39f-bc4855f18360` (exerciseplanning, deepakgupta5)
-**CLI auth:** `deepakgupta5@gmail.com` (deepakgupta5 account)
+**Build:** `npm run build` / Next.js / Vercel
+**Vercel project:** `gym-routine` (deepak-guptas-projects-4f1b1c8b), all 6 env vars set
+**Netlify site ID:** `f16ac1c7-3a1b-4e22-a39f-bc4855f18360` (exerciseplanning, deepakgupta5) -- idle
 **PRD:** v2.0 rev 5 (2026-06-10)
 
 ---
