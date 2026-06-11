@@ -6,6 +6,8 @@ import WeekSummary from "./components/WeekSummary";
 import SparklineChart from "./components/SparklineChart";
 import WeightChart from "./components/WeightChart";
 import TodayHeroCard from "./components/TodayHeroCard";
+import MuscleVolumeCard from "./components/MuscleVolumeCard";
+import { WEEKLY_MIN_SETS } from "@/lib/scheduler/v2/constants";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -128,6 +130,22 @@ export default async function DashboardPage() {
 
     const currentRollup = rollups[0] ?? null;
     const previousRollup = rollups[1] ?? null;
+
+    // Weekly muscle volume (rolling 7-day window, for dashboard bars)
+    const muscleVolumeRes = await client.query<{ muscle_primary: string; weekly_sets: number }>(
+      `select muscle_primary, weekly_sets
+       from v_weekly_muscle_volume
+       where user_id = $1`,
+      [userId]
+    );
+    const muscleVolumeMap = new Map(
+      muscleVolumeRes.rows.map((r) => [r.muscle_primary, Number(r.weekly_sets)])
+    );
+    const muscleVolumeRows = Object.entries(WEEKLY_MIN_SETS).map(([muscle, min]) => ({
+      muscle,
+      sets: muscleVolumeMap.get(muscle) ?? 0,
+      min,
+    }));
 
     // Primary lift 1RM series
     const primaryLiftMap = normalizePrimaryLiftMap(profile.primary_lift_map);
@@ -367,6 +385,9 @@ export default async function DashboardPage() {
 
           {/* This Week Summary */}
           <WeekSummary current={currentRollup} previous={previousRollup} />
+
+          {/* Weekly muscle volume bars (PRD Section 6.3) */}
+          <MuscleVolumeCard rows={muscleVolumeRows} />
 
           {/* Primary Lift Progress */}
           {sparklines.length > 0 ? (
