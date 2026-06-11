@@ -43,7 +43,7 @@ export default async function DashboardPage() {
   try {
     // Profile
     const profileRes = await client.query(
-      "select bias_balance, adaptive_enabled, block_id, primary_lift_map from user_profile where user_id = $1",
+      "select bias_balance, adaptive_enabled, block_id, primary_lift_map, coalesce(target_sessions_per_week, 4) as target_sessions_per_week from user_profile where user_id = $1",
       [userId]
     );
 
@@ -130,6 +130,18 @@ export default async function DashboardPage() {
 
     const currentRollup = rollups[0] ?? null;
     const previousRollup = rollups[1] ?? null;
+
+    // Session count for the current ISO week (Mon-Sun) and target from profile
+    const sessionCountRes = await client.query<{ session_count: number }>(
+      `select count(*)::int as session_count
+       from plan_sessions
+       where user_id      = $1
+         and performed_at is not null
+         and date_trunc('week', date::date) = date_trunc('week', current_date)`,
+      [userId]
+    );
+    const sessionCountThisWeek = Number(sessionCountRes.rows[0]?.session_count ?? 0);
+    const targetSessionsPerWeek = Number(profile.target_sessions_per_week ?? 4);
 
     // Weekly muscle volume (rolling 7-day window, for dashboard bars)
     const muscleVolumeRes = await client.query<{ muscle_primary: string; weekly_sets: number }>(
@@ -384,7 +396,12 @@ export default async function DashboardPage() {
           )}
 
           {/* This Week Summary */}
-          <WeekSummary current={currentRollup} previous={previousRollup} />
+          <WeekSummary
+            current={currentRollup}
+            previous={previousRollup}
+            sessionsThisWeek={sessionCountThisWeek}
+            targetSessions={targetSessionsPerWeek}
+          />
 
           {/* Weekly muscle volume bars (PRD Section 6.3) */}
           <MuscleVolumeCard rows={muscleVolumeRows} />

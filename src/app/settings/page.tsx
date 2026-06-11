@@ -98,7 +98,48 @@ export default function SettingsPage() {
   const [upcomingSessions, setUpcomingSessions] = useState<UpcomingSession[]>([]);
   const [deloadSaving, setDeloadSaving] = useState<string | null>(null);
 
-  // ─── Load nutrition ─────────────────────────────────────────────────────────
+  // Training frequency state (PRD Section 6.5)
+  const [targetSessions, setTargetSessions] = useState<number>(4);
+  const [freqLoading, setFreqLoading] = useState(true);
+  const [freqSaving, setFreqSaving] = useState<number | null>(null);
+  const [freqError, setFreqError] = useState<string | null>(null);
+
+  async function loadFrequency() {
+    setFreqLoading(true);
+    setFreqError(null);
+    const res = await fetch("/api/plan/frequency", { cache: "no-store" }).catch(() => null);
+    if (!res || !res.ok) { setFreqLoading(false); return; }
+    const json = (await res.json().catch(() => null)) as { target_sessions_per_week?: number } | null;
+    if (json && typeof json.target_sessions_per_week === "number") {
+      setTargetSessions(json.target_sessions_per_week);
+    }
+    setFreqLoading(false);
+  }
+
+  async function saveFrequency(value: number) {
+    setFreqSaving(value);
+    setFreqError(null);
+    let res: Response;
+    try {
+      res = await fetch("/api/plan/frequency", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_sessions_per_week: value }),
+      });
+    } catch {
+      setFreqSaving(null);
+      setFreqError("No connection -- check network and try again.");
+      return;
+    }
+    if (!res.ok) {
+      setFreqSaving(null);
+      setFreqError("Failed to save frequency setting.");
+      return;
+    }
+    setTargetSessions(value);
+    setFreqSaving(null);
+  }
+
   async function loadNutrition() {
     setLoading(true);
     setError(null);
@@ -149,6 +190,7 @@ export default function SettingsPage() {
     void loadNutrition();
     void loadExercises();
     void loadUpcoming();
+    void loadFrequency();
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -393,7 +435,42 @@ export default function SettingsPage() {
         )}
       </section>
 
-      {/* ── Exercise preferences ── */}
+      {/* Training Frequency (PRD Section 6.5) */}
+      <section className="mb-6 rounded-lg border border-gray-700 bg-gray-900 p-4">
+        <h2 className="mb-1 text-lg font-medium text-gray-100">Training Frequency</h2>
+        <p className="mb-3 text-xs text-gray-500">
+          Target sessions per week. The dashboard uses this to track your weekly session count.
+        </p>
+
+        {freqError && (
+          <div className="mb-3 rounded-lg border border-red-600 bg-red-950/40 p-3 text-sm text-red-200">{freqError}</div>
+        )}
+
+        {freqLoading ? (
+          <p className="text-sm text-gray-400">Loading...</p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-gray-400">Sessions / week:</span>
+            {([3, 4, 5, 6] as const).map((n) => (
+              <button
+                key={n}
+                type="button"
+                disabled={freqSaving !== null}
+                onClick={() => { if (n !== targetSessions) void saveFrequency(n); }}
+                className={`h-9 w-12 rounded-lg border text-sm font-semibold transition-colors disabled:opacity-50 ${
+                  n === targetSessions
+                    ? "border-blue-500 bg-blue-600/20 text-blue-300"
+                    : "border-gray-600 bg-gray-800 text-gray-400 hover:border-gray-500 hover:text-gray-200"
+                } ${freqSaving === n ? "animate-pulse" : ""}`}
+              >
+                {freqSaving === n ? "..." : String(n)}
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Exercise Preferences */}
       <section className="rounded-lg border border-gray-700 bg-gray-900 p-4">
         <h2 className="mb-1 text-lg font-medium text-gray-100">Exercise Preferences</h2>
         <p className="mb-3 text-xs text-gray-500">

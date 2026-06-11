@@ -10,6 +10,8 @@ type RollupRow = {
 type WeekSummaryProps = {
   current: RollupRow | null;
   previous: RollupRow | null;
+  sessionsThisWeek: number;
+  targetSessions: number;
 };
 
 function trend(current: number, previous: number | null) {
@@ -53,14 +55,31 @@ function StatBox({
   );
 }
 
-export default function WeekSummary({ current, previous }: WeekSummaryProps) {
+export default function WeekSummary({ current, previous, sessionsThisWeek, targetSessions }: WeekSummaryProps) {
+  const sessionColor =
+    sessionsThisWeek >= targetSessions
+      ? "text-green-400"
+      : sessionsThisWeek >= targetSessions - 1
+      ? "text-yellow-400"
+      : "text-gray-100";
+
   if (!current) {
     return (
-      <div className="rounded-lg border border-dashed border-gray-700 bg-gray-900/50 p-6 text-center">
-        <p className="text-sm font-medium text-gray-300">No workout data this week yet</p>
-        <p className="mt-1 text-xs text-gray-500">
-          Log a session to start tracking sets, reps, tonnage, and cardio.
-        </p>
+      <div>
+        <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-gray-400">This Week</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          {/* Sessions box always visible even with no rollup */}
+          <div className="rounded-lg border border-gray-700 bg-gray-900 p-3 sm:col-span-1">
+            <div className="text-xs font-medium uppercase tracking-wide text-gray-400">Sessions</div>
+            <div className={`text-2xl font-bold ${sessionColor}`}>
+              {sessionsThisWeek}
+              <span className="text-base text-gray-500"> / {targetSessions}</span>
+            </div>
+          </div>
+          <div className="col-span-1 rounded-lg border border-dashed border-gray-700 bg-gray-900/50 p-3 text-sm text-gray-500 sm:col-span-4 flex items-center">
+            Log a session to start tracking sets, reps, tonnage, and cardio.
+          </div>
+        </div>
       </div>
     );
   }
@@ -70,7 +89,15 @@ export default function WeekSummary({ current, previous }: WeekSummaryProps) {
       <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-gray-400">
         This Week
       </h2>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {/* Sessions vs target */}
+        <div className="rounded-lg border border-gray-700 bg-gray-900 p-3">
+          <div className="text-xs font-medium uppercase tracking-wide text-gray-400">Sessions</div>
+          <div className={`text-2xl font-bold ${sessionColor}`}>
+            {sessionsThisWeek}
+            <span className="text-base text-gray-500"> / {targetSessions}</span>
+          </div>
+        </div>
         <StatBox label="Sets" value={current.total_sets} prev={previous?.total_sets ?? null} />
         <StatBox label="Reps" value={current.total_reps} prev={previous?.total_reps ?? null} />
         <StatBox
