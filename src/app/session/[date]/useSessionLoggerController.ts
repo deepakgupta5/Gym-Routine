@@ -137,8 +137,10 @@ export function useSessionLoggerController({
   }, [logs]);
 
   const doneExercises = useMemo(() => {
-    return exercises.filter((ex) => (logsByExercise.get(ex.exercise_id) || []).length >= ex.prescribed_sets)
-      .length;
+    return exercises.filter((ex) => {
+      const exLogs = logsByExercise.get(ex.exercise_id) || [];
+      return exLogs.filter((l) => !l.is_warmup).length >= ex.prescribed_sets;
+    }).length;
   }, [exercises, logsByExercise]);
 
   useEffect(() => {
@@ -228,6 +230,67 @@ export function useSessionLoggerController({
       totalSeconds: ex.rest_seconds,
     });
 
+    haptic("light");
+    router.refresh();
+  }, [entryForms, logsByExercise, session.plan_session_id, router]);
+
+  const addWarmupSet = useCallback(async function addWarmupSet(ex: ExerciseView) {
+    void initAudio();
+    setError(null);
+    const form = entryForms[ex.exercise_id];
+    const load = Number(form?.load);
+    const reps = Number(form?.reps);
+
+    if (!Number.isFinite(load) || load <= 0 || !Number.isFinite(reps) || reps <= 0) {
+      setError(`Enter valid load and reps for ${ex.name}.`);
+      return;
+    }
+
+    const setIndex = (logsByExercise.get(ex.exercise_id)?.length || 0) + 1;
+    const key = `warmup-${ex.exercise_id}`;
+    setPendingKey(key);
+
+    let res: Response;
+    try {
+      res = await fetch("/api/logs/set", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: session.plan_session_id,
+          exercise_id: ex.exercise_id,
+          movement_pattern: ex.movement_pattern,
+          targeted_primary_muscle: ex.targeted_primary_muscle,
+          targeted_secondary_muscle: ex.targeted_secondary_muscle,
+          role: ex.role,
+          set_type: "straight",
+          set_index: setIndex,
+          load,
+          reps,
+          rpe: form.rpe ? Number(form.rpe) : null,
+          notes: form.notes || null,
+          is_warmup: true,
+        }),
+      });
+    } catch {
+      setPendingKey(null);
+      setError("No connection -- tap Log Warmup again when back online.");
+      return;
+    }
+
+    setPendingKey(null);
+
+    if (!res.ok) {
+      setError(`Failed to save warmup set for ${ex.name}.`);
+      return;
+    }
+
+    // Clear reps after warmup; keep load (user may adjust for working sets)
+    setEntryForms((prev) => ({
+      ...prev,
+      [ex.exercise_id]: { ...prev[ex.exercise_id], reps: "", rpe: "", notes: "" },
+    }));
+
+    // No rest timer for warmup sets
     haptic("light");
     router.refresh();
   }, [entryForms, logsByExercise, session.plan_session_id, router]);
@@ -555,6 +618,7 @@ export function useSessionLoggerController({
     setEditingId,
     setConfirmingDeleteId,
     addSet,
+    addWarmupSet,
     beginEdit,
     saveEdit,
     confirmDelete,

@@ -6,11 +6,10 @@ Single source of truth for gym app state. Update every session.
 
 ## Status Snapshot -- 2026-06-10 (updated)
 
-**Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app` -- green (W1-W7 live)
-**Netlify:** BLOCKED -- build credits exhausted (deepakgupta5 account); last successful deploy was ae28249f before W1-W7. Do not use until credits reset.
-**GitHub HEAD:** `fe2e94a` (W8/W9/W10 in progress)
-**CI:** Green (147 tests)
-**Migration HEAD:** 0032 (applied to production 2026-06-10)
+**Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app`
+**GitHub HEAD:** pending W13 commit
+**CI:** Green (150 tests)
+**Migration HEAD:** 0034 (0033 + 0034 pending application to production)
 **Build:** `npm run build` / Next.js / Vercel
 **Vercel project:** `gym-routine` (deepak-guptas-projects-4f1b1c8b), all 6 env vars set
 **Netlify site ID:** `f16ac1c7-3a1b-4e22-a39f-bc4855f18360` (exerciseplanning, deepakgupta5) -- idle
@@ -27,7 +26,7 @@ Single source of truth for gym app state. Update every session.
 | P3 | Deload auto-trigger rule (PRD Section 4.5) | CLOSED -- W10 (2026-06-10) |
 | P3 | Equipment rotation week-over-week | Per-session diversity enforced; week-over-week not enforced |
 | P4 | Settings frequency override | Target sessions/week (default 4, range 3-6) |
-| P4 | Warm-up set logging | `is_warmup` flag not implemented |
+| P4 | Warm-up set logging | CLOSED -- W13 (2026-06-10) |
 
 ---
 
@@ -65,14 +64,17 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-10 | commit `66685ae` | W5: N+1 bulk UPDATE (P2-9); body_stats 365-day cap (P2-12); nutrition error codes + date format (P2-13/14) |
 | 2026-06-10 | commit `1779e43` | W6: migration 0032 -- RLS on planned_workouts + muscle_exposures; v_last_top_set set_type filter; 2 indexes; backoff_percent backfill; drop orphaned index |
 | 2026-06-10 | commit `51d923e` | W7 audit fixes: settings fetch safety BLOCKER; loadWeeklyMuscleVolume fallback; core removed from WEEKLY_MIN_SETS; 6 new tests; back-off assertion fix |
+| 2026-06-10 | pending | W8: MuscleVolumeCard dashboard bars; W9: /history muscle filter; W10: deload auto-trigger; W11: equipment rotation; W12: settings frequency override |
+| 2026-06-10 | pending | W13: warm-up set logging -- migration 0034 is_warmup, Log Warmup button, excluded from volume/rollup/progression |
 
 ---
 
 ## Data Model
 
-**Migration HEAD:** 0032
+**Migration HEAD:** 0034 (0033 target_sessions_per_week + 0034 is_warmup -- pending production apply)
 **Key tables:** `plan_sessions`, `plan_exercises`, `set_logs`, `exercises`, `body_stats_daily`
 **Key fields on exercises:** `suitable_slots`, `allowed_day_types`, `forbidden_day_types`, `user_preference_score`, `uses_bodyweight`, `load_increment_lb`
+**Key fields on set_logs:** `is_warmup` (BOOLEAN DEFAULT FALSE) -- excludes from volume, weekly rollup, top_set_history, progression
 **Key fields on plan_sessions:** `cardio_type`, `performed_at`, `cardio_saved_at`, `session_blueprint_version`
 **Key views:** `v_weekly_muscle_volume` (rolling 7-day sets per muscle), `v_last_top_set_per_exercise` (most recent top/straight set per exercise)
 **Key indexes (0032):** `idx_set_logs_top_set` (partial, set_index=1), `idx_plan_sessions_user_date_type` (covering)
@@ -108,7 +110,7 @@ Single source of truth for gym app state. Update every session.
 
 ## Next Session Checklist
 
-- [ ] Dashboard weekly volume bars (Section 6.3) -- `v_weekly_muscle_volume` data exists, need UI
-- [ ] /history muscle-group filter
-- [ ] Deload auto-trigger rule (Section 4.5)
+- [ ] **CRITICAL: Apply migrations to production Supabase (SQL editor):**
+  - Migration 0033 (target_sessions_per_week): `ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS target_sessions_per_week SMALLINT NOT NULL DEFAULT 4 CONSTRAINT chk_target_sessions_range CHECK (target_sessions_per_week BETWEEN 3 AND 6);`
+  - Migration 0034 (is_warmup): see `supabase/migrations/0034_is_warmup.sql`
 - [ ] Consider integration test suite (real PostgreSQL container in CI) -- flagged in GYM_APP_AUDIT.md Section 5c

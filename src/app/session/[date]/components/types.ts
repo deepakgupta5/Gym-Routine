@@ -50,6 +50,7 @@ export type SetLogView = {
   reps: number;
   notes: string | null;
   performed_at: string;
+  is_warmup: boolean;
 };
 
 export type TopSetHistoryEntry = {

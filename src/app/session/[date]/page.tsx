@@ -71,6 +71,7 @@ type SetLogRow = {
   reps: number;
   notes: string | null;
   performed_at: string;
+  is_warmup: boolean;
 };
 
 function isValidIsoDate(value: string) {
@@ -389,7 +390,8 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               load::text as load,
               reps,
               notes,
-              performed_at::text as performed_at
+              performed_at::text as performed_at,
+              is_warmup
        from set_logs
        where user_id = $1 and session_id = $2
        order by exercise_id asc, set_index asc, performed_at asc`,

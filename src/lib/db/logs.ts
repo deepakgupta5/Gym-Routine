@@ -52,7 +52,8 @@ export async function recomputeWeeklyRollup(
   }>(
     `select performed_at, load, reps, set_type, targeted_primary_muscle
      from set_logs
-     where user_id = $1 and performed_at >= $2 and performed_at < $3`,
+     where user_id = $1 and performed_at >= $2 and performed_at < $3
+       and is_warmup = FALSE`,
     [userId, start.toISOString(), end.toISOString()]
   );
 

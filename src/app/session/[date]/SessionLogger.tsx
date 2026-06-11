@@ -139,6 +139,7 @@ export default function SessionLogger({
                 controller.setEntryForms((prev) => ({ ...prev, [ex.exercise_id]: next }))
               }
               onAddSet={() => controller.addSet(ex)}
+              onAddWarmupSet={() => controller.addWarmupSet(ex)}
               onSkipExercise={() => controller.skipExercise(ex)}
               isSkippingExercise={controller.pendingKey === `skip-exercise-${ex.exercise_id}`}
               canSkipExercise={exLogs.length === 0}

@@ -41,6 +41,7 @@ type ExerciseCardProps = {
   onSkipTimer: () => void;
   onExtendTimer: () => void;
   onLogButtonRef?: (el: HTMLButtonElement | null) => void;
+  onAddWarmupSet?: () => void;
 };
 
 function roleMeta(role: ExerciseView["role"]) {
@@ -109,10 +110,12 @@ export default function ExerciseCard({
   onSkipTimer,
   onExtendTimer,
   onLogButtonRef,
+  onAddWarmupSet,
 }: ExerciseCardProps) {
   const [detailOpen, setDetailOpen] = useState(false);
   const role = roleMeta(exercise.role);
-  const setCount = logs.length;
+  const workingLogs = logs.filter((l) => !l.is_warmup);
+  const setCount = workingLogs.length;
   const complete = setCount >= exercise.prescribed_sets;
   const isPrefilled = logs.length === 0 && form.load !== "";
   const mostRecentPriorSet = recentTopSets[0] ?? null;
@@ -221,6 +224,16 @@ export default function ExerciseCard({
             onSubmit={onAddSet}
             onLogButtonRef={onLogButtonRef}
           />
+          {exercise.role !== "accessory" && onAddWarmupSet ? (
+            <button
+              type="button"
+              onClick={onAddWarmupSet}
+              disabled={pendingKey === `warmup-${exercise.exercise_id}`}
+              className="min-h-[44px] rounded-lg border border-gray-600 bg-gray-800 px-4 py-2 text-sm font-medium text-gray-400 hover:bg-gray-700 hover:text-gray-200 disabled:opacity-60"
+            >
+              {pendingKey === `warmup-${exercise.exercise_id}` ? "Saving..." : "Log Warmup"}
+            </button>
+          ) : null}
           {canSkipExercise ? (
             <button
               type="button"

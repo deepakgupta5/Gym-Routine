@@ -220,8 +220,8 @@ export async function PUT(
     const biasBalance = profileRes.rows[0]?.bias_balance ?? 0;
     const blockId = profileRes.rows[0]?.block_id ?? null;
 
-    const shouldTrackHistory = Boolean(row.is_primary) || row.set_type === "top";
-    const wasTrackedHistory = Boolean(existing.is_primary) || existing.set_type === "top";
+    const shouldTrackHistory = !row.is_warmup && (Boolean(row.is_primary) || row.set_type === "top");
+    const wasTrackedHistory = !existing.is_warmup && (Boolean(existing.is_primary) || existing.set_type === "top");
 
     if (shouldTrackHistory) {
       let session = null;
@@ -356,7 +356,7 @@ export async function DELETE(
       await recomputeWeeklyRollup(client, userId, weekStart);
     }
 
-    if (existing.is_primary || existing.set_type === "top") {
+    if (!existing.is_warmup && (existing.is_primary || existing.set_type === "top")) {
       await client.query("delete from top_set_history where source_set_log_id = $1", [
         id,
       ]);

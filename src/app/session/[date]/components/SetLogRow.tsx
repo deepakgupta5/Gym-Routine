@@ -9,13 +9,18 @@ type SetLogRowProps = {
 
 export default function SetLogRow({ log, isPR = false, onEdit, onRepeat }: SetLogRowProps) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-700 bg-gray-900 p-3">
+    <div className={`flex items-center justify-between gap-3 rounded-lg border p-3 ${log.is_warmup ? "border-gray-700/60 bg-gray-900/50" : "border-gray-700 bg-gray-900"}`}>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <div className="text-sm font-semibold text-gray-100">
+          <div className={`text-sm font-semibold ${log.is_warmup ? "text-gray-400" : "text-gray-100"}`}>
             {log.load} x {log.reps}
           </div>
-          {isPR && (
+          {log.is_warmup && (
+            <span className="rounded-full border border-gray-600 bg-gray-700/60 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-gray-400">
+              warmup
+            </span>
+          )}
+          {!log.is_warmup && isPR && (
             <span className="rounded-full border border-amber-600 bg-amber-950/60 px-2 py-0.5 text-xs font-semibold text-amber-300">
               New PR!
             </span>

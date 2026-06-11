@@ -40,6 +40,7 @@ type SetLogInput = {
   role?: ExerciseRole;
   is_primary?: boolean;
   is_secondary?: boolean;
+  is_warmup?: boolean;
 };
 
 type ExerciseLookupRow = {
@@ -56,6 +57,7 @@ type InsertedSetRow = {
   set_type: AllowedSetType;
   exercise_id: number;
   is_primary: boolean;
+  is_warmup: boolean;
   load: number;
   reps: number;
 };
@@ -153,6 +155,7 @@ function parseSetLogInput(rawInput: unknown, index: number): SetLogInput {
     role,
     is_primary: optionalBoolean(raw, "is_primary", label),
     is_secondary: optionalBoolean(raw, "is_secondary", label),
+    is_warmup: optionalBoolean(raw, "is_warmup", label),
   };
 }
 
@@ -294,6 +297,7 @@ export async function POST(req: Request) {
         targeted_secondary_muscle,
         is_primary: !!is_primary,
         is_secondary: !!is_secondary,
+        is_warmup: s.is_warmup ?? false,
         set_type: s.set_type,
         set_index: s.set_index,
         load: s.load,
@@ -317,6 +321,7 @@ export async function POST(req: Request) {
         r.targeted_secondary_muscle,
         r.is_primary,
         r.is_secondary,
+        r.is_warmup,
         r.set_type,
         r.set_index,
         r.load,
@@ -325,7 +330,7 @@ export async function POST(req: Request) {
         r.notes
       );
       values.push(
-        `($${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++})`
+        `($${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++})`
       );
     }
 
@@ -333,10 +338,10 @@ export async function POST(req: Request) {
       insert into set_logs
         (user_id, performed_at, session_id, exercise_id, movement_pattern,
          targeted_primary_muscle, targeted_secondary_muscle,
-         is_primary, is_secondary, set_type, set_index, load, reps, rpe, notes)
+         is_primary, is_secondary, is_warmup, set_type, set_index, load, reps, rpe, notes)
       values
         ${values.join(",")}
-      returning id, performed_at, session_id, set_type, exercise_id, is_primary, load, reps
+      returning id, performed_at, session_id, set_type, exercise_id, is_primary, is_warmup, load, reps
     `;
 
     const insertedRes = await client.query(insertSql, params);
@@ -361,12 +366,13 @@ export async function POST(req: Request) {
       await recomputeWeeklyRollup(client, userId, weekStart);
     }
 
-    // Write to top_set_history only for actual top sets, not back-off sets.
+    // Write to top_set_history only for actual top sets, not back-off sets or warm-up sets.
     // v2 exercises send set_type="top" for set 1 and "backoff" for sets 2-3.
     // v1 exercises send set_type="straight" and rely on is_primary to identify
     // top-set rows (since they don't distinguish set types).
+    // Warm-up sets (is_warmup=true) are excluded from history and progression.
     const topRows = inserted.filter(
-      (r) => r.set_type === "top" || (r.set_type === "straight" && r.is_primary)
+      (r) => !r.is_warmup && (r.set_type === "top" || (r.set_type === "straight" && r.is_primary))
     );
     if (topRows.length > 0) {
       const sessionMap = new Map<string, SessionLookupRow>();
