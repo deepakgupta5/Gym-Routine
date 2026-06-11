@@ -9,7 +9,7 @@ Single source of truth for gym app state. Update every session.
 **Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app`
 **GitHub HEAD:** pending W13 commit
 **CI:** Green (150 tests)
-**Migration HEAD:** 0034 (0033 + 0034 pending application to production)
+**Migration HEAD:** 0034 (applied to production 2026-06-10)
 **Build:** `npm run build` / Next.js / Vercel
 **Vercel project:** `gym-routine` (deepak-guptas-projects-4f1b1c8b), all 6 env vars set
 **Netlify site ID:** `f16ac1c7-3a1b-4e22-a39f-bc4855f18360` (exerciseplanning, deepakgupta5) -- idle
@@ -71,7 +71,7 @@ Single source of truth for gym app state. Update every session.
 
 ## Data Model
 
-**Migration HEAD:** 0034 (0033 target_sessions_per_week + 0034 is_warmup -- pending production apply)
+**Migration HEAD:** 0034 (applied to production 2026-06-10)
 **Key tables:** `plan_sessions`, `plan_exercises`, `set_logs`, `exercises`, `body_stats_daily`
 **Key fields on exercises:** `suitable_slots`, `allowed_day_types`, `forbidden_day_types`, `user_preference_score`, `uses_bodyweight`, `load_increment_lb`
 **Key fields on set_logs:** `is_warmup` (BOOLEAN DEFAULT FALSE) -- excludes from volume, weekly rollup, top_set_history, progression
@@ -110,7 +110,4 @@ Single source of truth for gym app state. Update every session.
 
 ## Next Session Checklist
 
-- [ ] **CRITICAL: Apply migrations to production Supabase (SQL editor):**
-  - Migration 0033 (target_sessions_per_week): `ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS target_sessions_per_week SMALLINT NOT NULL DEFAULT 4 CONSTRAINT chk_target_sessions_range CHECK (target_sessions_per_week BETWEEN 3 AND 6);`
-  - Migration 0034 (is_warmup): see `supabase/migrations/0034_is_warmup.sql`
 - [ ] Consider integration test suite (real PostgreSQL container in CI) -- flagged in GYM_APP_AUDIT.md Section 5c
