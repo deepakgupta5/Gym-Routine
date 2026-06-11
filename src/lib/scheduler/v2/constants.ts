@@ -92,6 +92,21 @@ export const WEEKLY_MIN_SETS: Record<string, number> = {
   calves: 8,
 };
 
+// Maximum recoverable volume per muscle group (PRD Section 4.5 deload rule).
+// Exceeding any of these in a rolling 7-day window triggers auto-deload.
+// Set to 2x the minimum effective volume (WEEKLY_MIN_SETS) per D016.
+export const WEEKLY_MAX_SETS: Record<string, number> = {
+  quads:      24, // 2 * 12
+  hamstrings: 20, // 2 * 10
+  glutes:     24, // 2 * 12
+  chest:      24, // 2 * 12
+  back:       28, // 2 * 14
+  shoulders:  24, // 2 * 12
+  biceps:     16, // 2 * 8
+  triceps:    16, // 2 * 8
+  calves:     16, // 2 * 8
+};
+
 // Equipment category groups for diversity enforcement (PRD Section 3.4)
 export const EQUIPMENT_GROUPS = [
   { name: "barbell_family",  types: ["barbell", "specialty_bar"],                         required: true },

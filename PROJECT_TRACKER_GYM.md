@@ -8,8 +8,8 @@ Single source of truth for gym app state. Update every session.
 
 **Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app` -- green (W1-W7 live)
 **Netlify:** BLOCKED -- build credits exhausted (deepakgupta5 account); last successful deploy was ae28249f before W1-W7. Do not use until credits reset.
-**GitHub HEAD:** `936cf83` (Docs: PRD rev 5 + tracker + decisions + lessons + audit)
-**CI:** Green (139 tests)
+**GitHub HEAD:** `fe2e94a` (W8/W9/W10 in progress)
+**CI:** Green (147 tests)
 **Migration HEAD:** 0032 (applied to production 2026-06-10)
 **Build:** `npm run build` / Next.js / Vercel
 **Vercel project:** `gym-routine` (deepak-guptas-projects-4f1b1c8b), all 6 env vars set
@@ -24,7 +24,7 @@ Single source of truth for gym app state. Update every session.
 |---|---|---|
 | P2 | Dashboard weekly volume bars (PRD Section 6.3) | `v_weekly_muscle_volume` view exists; need UI bar chart per muscle group |
 | P2 | /history muscle-group filter | Session-type filter exists; muscle-group filter not implemented |
-| P3 | Deload auto-trigger rule (PRD Section 4.5) | Manual toggle shipped; auto-trigger (>max weekly sets) not implemented |
+| P3 | Deload auto-trigger rule (PRD Section 4.5) | CLOSED -- W10 (2026-06-10) |
 | P3 | Equipment rotation week-over-week | Per-session diversity enforced; week-over-week not enforced |
 | P4 | Settings frequency override | Target sessions/week (default 4, range 3-6) |
 | P4 | Warm-up set logging | `is_warmup` flag not implemented |

@@ -210,3 +210,20 @@
 **Vercel project:** `gym-routine` (org: `deepak-guptas-projects-4f1b1c8b`)
 
 **Status:** LOCKED. Effective 2026-06-10.
+
+---
+
+## D016 -- WEEKLY_MAX_SETS at 2x minimum for deload auto-trigger (2026-06-10)
+
+**Decision:** `WEEKLY_MAX_SETS` for deload auto-trigger (PRD Section 4.5) set to 2x `WEEKLY_MIN_SETS` for each muscle group (quads:24, hamstrings:20, glutes:24, chest:24, back:28, shoulders:24, biceps:16, triceps:16, calves:16). This represents the Maximum Recoverable Volume (MRV) beyond which fatigue accumulation warrants a deload session.
+
+**Rationale:** The threshold of 2x MEV (Minimum Effective Volume) is consistent with mainstream resistance training research (Israetel et al., 2019). Below this threshold, fatigue is normal and expected; above it, performance gains plateau and injury risk increases. Setting the multiplier to exactly 2x provides a round, memorable number and a clear visual boundary in the dashboard (the "high volume" bar zone is 1.5-2x min; deload fires at >2x).
+
+**Auto-trigger conditions (PRD 4.5):**
+- Condition A: any muscle > WEEKLY_MAX_SETS[muscle] in rolling 7-day window
+- Condition B: >= 6 performed sessions in last 7 days
+- Either condition forces next session to full_body with is_deload=true and 80% loads
+
+**Forced day type override (forcedDayType param):** does NOT trigger auto-deload; user explicitly chose a day type via the UI regen flow.
+
+**Status:** LOCKED. Implemented in W10 (2026-06-10).

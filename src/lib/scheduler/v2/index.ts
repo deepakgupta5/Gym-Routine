@@ -2,9 +2,10 @@
 // Called from integration.ts when GYM_V2_ENABLED=true
 
 import type { PoolClient } from "pg";
-import { V2_ROTATION, V2_BLUEPRINT_VERSION, PRESCRIPTION, BACK_OFF_PERCENT } from "./constants";
+import { V2_ROTATION, V2_BLUEPRINT_VERSION, PRESCRIPTION, BACK_OFF_PERCENT, WEEKLY_MAX_SETS } from "./constants";
 import { selectDayType, selectExercisesForSession } from "./select";
 import type { V2DayType, V2ExerciseRow, V2LastTopSet, V2SelectedExercise } from "./types";
+import { roundToIncrement } from "@/lib/engine/progression";
 
 // ─── DB queries ────────────────────────────────────────────────────────────────
 
@@ -124,6 +125,46 @@ async function loadWeeklyMuscleVolume(
   }
 }
 
+// Count performed sessions in the last 7 days (for deload trigger B).
+// Returns 0 on error (safe fallback -- no deload from this condition).
+async function loadRecentSessionCount(
+  client: PoolClient,
+  userId: string
+): Promise<number> {
+  try {
+    const res = await client.query<{ session_count: number }>(
+      `select count(*)::int as session_count
+       from plan_sessions
+       where user_id = $1
+         and performed_at is not null
+         and performed_at >= now() - interval '7 days'`,
+      [userId]
+    );
+    return Number(res.rows[0]?.session_count ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * PRD Section 4.5: auto-deload conditions.
+ *   A: any muscle group exceeds WEEKLY_MAX_SETS in the rolling 7-day window.
+ *   B: >= 6 performed sessions in the last 7 days.
+ * Returns true if either condition fires.
+ * Exported for unit tests.
+ */
+export function shouldAutoDeload(
+  weeklyVolume: Map<string, number>,
+  recentSessionCount: number
+): boolean {
+  if (recentSessionCount >= 6) return true;
+  for (const [muscle, sets] of weeklyVolume) {
+    const max = WEEKLY_MAX_SETS[muscle];
+    if (max !== undefined && sets > max) return true;
+  }
+  return false;
+}
+
 async function loadRecentV2DayTypes(
   client: PoolClient,
   userId: string,
@@ -155,6 +196,9 @@ async function loadRecentV2DayTypes(
 
 // ─── Session insertion ──────────────────────────────────────────────────────────
 
+// Deload load multiplier (PRD Section 4.5).
+const DELOAD_LOAD_FACTOR = 0.8;
+
 async function insertV2Session(
   client: PoolClient,
   params: {
@@ -164,6 +208,7 @@ async function insertV2Session(
     isoDate: string;
     dayType: V2DayType;
     exercises: V2SelectedExercise[];
+    isDeload: boolean;
   }
 ): Promise<string | null> {
   // No transaction here: integration.ts wraps the delete + this call in one
@@ -172,7 +217,7 @@ async function insertV2Session(
     `insert into plan_sessions
       (user_id, block_id, week_in_block, date, session_type,
        is_required, is_deload, cardio_minutes, session_blueprint_version)
-     values ($1, $2, $3, $4, $5, true, false, 0, $6)
+     values ($1, $2, $3, $4, $5, true, $6, 0, $7)
      returning plan_session_id`,
     [
       params.userId,
@@ -180,6 +225,7 @@ async function insertV2Session(
       params.blockWeek,
       params.isoDate,
       params.dayType,
+      params.isDeload,
       V2_BLUEPRINT_VERSION,
     ]
   );
@@ -187,8 +233,26 @@ async function insertV2Session(
   const sessionId = sessionRes.rows[0]?.plan_session_id;
   if (!sessionId) return null;
 
+  // When deloading, reduce all prescribed loads to DELOAD_LOAD_FACTOR (80%)
+  // of the computed targets, rounded to the exercise's own load increment.
+  const factor = params.isDeload ? DELOAD_LOAD_FACTOR : 1.0;
+
   for (const ex of params.exercises) {
-    const p = PRESCRIPTION[ex.role];
+    const p   = PRESCRIPTION[ex.role];
+    const inc = ex.exercise.load_increment_lb ?? 5;
+
+    const topLoad = ex.topSetLoad === 0
+      ? 0  // bodyweight -- 0 stays 0
+      : roundToIncrement(ex.topSetLoad * factor, inc);
+
+    const backLoad = ex.backOffLoad !== null && ex.backOffLoad > 0
+      ? roundToIncrement(ex.backOffLoad * factor, inc)
+      : ex.backOffLoad; // null or 0 unchanged
+
+    const rationaleText = params.isDeload && ex.rationale_text
+      ? `[Deload 80%] ${ex.rationale_text}`
+      : ex.rationale_text;
+
     await client.query(
       `insert into plan_exercises
         (plan_session_id, exercise_id, targeted_primary_muscle, targeted_secondary_muscle,
@@ -209,19 +273,19 @@ async function insertV2Session(
         p.sets,
         p.repsMin,
         p.repsMax,
-        ex.topSetLoad,              // prescribed_load = top set load
-        p.useBackOff ? BACK_OFF_PERCENT : null, // backoff_percent
+        topLoad,                    // prescribed_load = top set load (possibly reduced)
+        p.useBackOff ? BACK_OFF_PERCENT : null,
         ex.restSeconds,
         "3-1-1-0",
-        ex.topSetLoad,              // next_target_load (same as top set, for v1 compat)
-        ex.topSetLoad,              // top_set_target_load_lb
+        topLoad,                    // next_target_load (same as top set, for v1 compat)
+        topLoad,                    // top_set_target_load_lb
         ex.topSetReps,
-        ex.backOffLoad,             // back_off_target_load_lb
+        backLoad,                   // back_off_target_load_lb (possibly reduced)
         ex.backOffReps,
         ex.per_side_reps,
         ex.equipment_variant,
         ex.rationale_code,
-        ex.rationale_text,
+        rationaleText,
       ]
     );
   }
@@ -246,16 +310,23 @@ export async function ensureWorkoutPlanForDateV2(
   blockWeek: number,
   forcedDayType?: V2DayType
 ): Promise<string | null> {
-  // 1. Select day type from rotation (or use the forced override)
+  // 1. Select day type from rotation (or use the forced override).
+  //    Also check auto-deload conditions unless caller forced a day type.
   let dayType: V2DayType;
+  let isDeload = false;
+
   if (forcedDayType) {
+    // Caller explicitly chose a day type (UI regen) -- respect it, skip deload check.
     dayType = forcedDayType;
   } else {
-    const [recentDayTypes, weeklyVolume] = await Promise.all([
+    const [recentDayTypes, weeklyVolume, recentSessionCount] = await Promise.all([
       loadRecentV2DayTypes(client, userId, isoDate),
       loadWeeklyMuscleVolume(client, userId),
+      loadRecentSessionCount(client, userId),
     ]);
-    dayType = selectDayType(recentDayTypes, weeklyVolume, isoDate);
+    isDeload = shouldAutoDeload(weeklyVolume, recentSessionCount);
+    // Auto-deload always uses full_body (PRD Section 4.5).
+    dayType = isDeload ? "full_body" : selectDayType(recentDayTypes, weeklyVolume, isoDate);
   }
 
   // 2. Load exercises and recent history
@@ -278,7 +349,7 @@ export async function ensureWorkoutPlanForDateV2(
 
   if (selected.length === 0) return null;
 
-  // 5. Insert the session
+  // 5. Insert the session (with is_deload flag and optional 80% load reduction)
   return insertV2Session(client, {
     userId,
     blockId,
@@ -286,5 +357,6 @@ export async function ensureWorkoutPlanForDateV2(
     isoDate,
     dayType,
     exercises: selected,
+    isDeload,
   });
 }
