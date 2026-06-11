@@ -173,7 +173,8 @@ function candidatesForSlot(
   slotOrigin: V2DayType | "lower" | null, // used for full_body sub-slot
   recentExerciseIds: Set<number>,
   alreadySelected: V2ExerciseRow[],
-  requiredEquipment: Set<string> | null
+  requiredEquipment: Set<string> | null,
+  recentEquipmentByMuscle: Map<string, Set<string>> // PRD Section 3.4 rotation
 ): V2ExerciseRow[] {
   const slotRoleFilter = (e: V2ExerciseRow) => {
     if (role === "primary") return e.suitable_slots.includes("primary");
@@ -211,11 +212,22 @@ function candidatesForSlot(
       !selectedIds.has(e.exercise_id)
   );
 
-  // Exclude exercises used recently (no-repeat rule applies to all roles)
+  // Exclude exercises used recently (no-repeat rule applies to all roles).
   {
     const filtered = candidates.filter((e) => !recentExerciseIds.has(e.exercise_id));
-    // Only apply the no-repeat filter if it doesn't empty the pool
+    // Only apply the no-repeat filter if it doesn't empty the pool.
     if (filtered.length > 0) candidates = filtered;
+  }
+
+  // PRD Section 3.4 equipment rotation: for each muscle_primary, exclude
+  // exercises whose equipment_type was used for that muscle in the last 14 days.
+  // Soft-exclusion: only applied when the pool remains non-empty afterward.
+  if (recentEquipmentByMuscle.size > 0) {
+    const rotated = candidates.filter((e) => {
+      const usedTypes = recentEquipmentByMuscle.get(e.muscle_primary);
+      return !usedTypes || !usedTypes.has(e.equipment_type);
+    });
+    if (rotated.length > 0) candidates = rotated;
   }
 
   // Apply equipment constraint if binding
@@ -288,13 +300,15 @@ export interface SelectionInput {
   dayType: V2DayType;
   all: V2ExerciseRow[];
   recentExerciseIds: Set<number>;
+  /** PRD Section 3.4: equipment used per muscle_primary in last 14 days */
+  recentEquipmentByMuscle: Map<string, Set<string>>;
   lastTopSets: Map<number, V2LastTopSet>;
   userId: string;
   isoDate: string;
 }
 
 export function selectExercisesForSession(input: SelectionInput): V2SelectedExercise[] {
-  const { dayType, all, recentExerciseIds, lastTopSets, userId, isoDate } = input;
+  const { dayType, all, recentExerciseIds, recentEquipmentByMuscle, lastTopSets, userId, isoDate } = input;
 
   const slotCount = SLOT_COUNT[dayType];
   const slotRoles = SLOT_ROLES[dayType];
@@ -318,22 +332,25 @@ export function selectExercisesForSession(input: SelectionInput): V2SelectedExer
       slotOrigin,
       recentExerciseIds,
       selectedExercises,
-      requiredEquipment
+      requiredEquipment,
+      recentEquipmentByMuscle    // PRD 3.4: week-over-week equipment rotation
     );
 
     if (candidates.length === 0) {
-      // Relax no-repeat constraint as fallback, but keep the recency penalty in
-      // scoring so recently-used exercises are deprioritised within the expanded pool.
-      // This prevents core exercises (high user_preference_score) from winning
-      // every session when the strict 7-day pool is exhausted for a day type.
+      // Relax no-repeat + equipment-rotation constraints as fallback.
+      // Keep the recency penalty in scoring so recently-used exercises are
+      // deprioritised within the expanded pool. This prevents core exercises
+      // (high user_preference_score) from winning every session when the strict
+      // 2-day pool is exhausted for a day type.
       candidates = candidatesForSlot(
         all,
         dayType,
         role,
         slotOrigin,
-        new Set(), // no hard exclusions -- pool is fully open
+        new Set(),     // no hard exercise exclusions
         selectedExercises,
-        requiredEquipment
+        requiredEquipment,
+        new Map()      // no equipment-rotation exclusions in fallback
       );
     }
 

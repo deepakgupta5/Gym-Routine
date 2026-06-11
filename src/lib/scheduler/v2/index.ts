@@ -125,6 +125,45 @@ async function loadWeeklyMuscleVolume(
   }
 }
 
+/**
+ * Load which equipment types were used for each muscle_primary in the last
+ * 14 days (rolling window). Used to enforce the week-over-week equipment
+ * rotation rule (PRD Section 3.4): for the same muscle group, consecutive
+ * weeks must not use the same equipment_type as the most-recent session.
+ *
+ * Source: set_logs (actually performed sets), not plan_exercises, so that
+ * unperformed planned sessions don't block equipment choices.
+ * Returns an empty Map on DB error (safe fallback = no rotation filter).
+ */
+async function loadLastEquipmentByMuscle(
+  client: PoolClient,
+  userId: string,
+  isoDate: string
+): Promise<Map<string, Set<string>>> {
+  try {
+    const res = await client.query<{ muscle_primary: string; equipment_type: string }>(
+      `select distinct e.muscle_primary, e.equipment_type
+       from set_logs    sl
+       join exercises   e  on e.exercise_id = sl.exercise_id
+       where sl.user_id      = $1
+         and sl.performed_at >= $2::date - interval '14 days'
+         and sl.performed_at <  $2::date
+         and e.muscle_primary  is not null
+         and e.equipment_type  is not null`,
+      [userId, isoDate]
+    );
+    const result = new Map<string, Set<string>>();
+    for (const row of res.rows) {
+      const set = result.get(row.muscle_primary) ?? new Set<string>();
+      set.add(row.equipment_type);
+      result.set(row.muscle_primary, set);
+    }
+    return result;
+  } catch {
+    return new Map(); // fallback: no rotation filter applied
+  }
+}
+
 // Count performed sessions in the last 7 days (for deload trigger B).
 // Returns 0 on error (safe fallback -- no deload from this condition).
 async function loadRecentSessionCount(
@@ -329,9 +368,12 @@ export async function ensureWorkoutPlanForDateV2(
     dayType = isDeload ? "full_body" : selectDayType(recentDayTypes, weeklyVolume, isoDate);
   }
 
-  // 2. Load exercises and recent history
-  const allExercises = await loadV2Exercises(client);
-  const recentExerciseIds = await loadRecentPrimaryExerciseIds(client, userId, isoDate);
+  // 2. Load exercises, recent history, and equipment rotation data in parallel
+  const [allExercises, recentExerciseIds, recentEquipmentByMuscle] = await Promise.all([
+    loadV2Exercises(client),
+    loadRecentPrimaryExerciseIds(client, userId, isoDate),
+    loadLastEquipmentByMuscle(client, userId, isoDate),
+  ]);
 
   // 3. Load last top sets for load computation
   const exerciseIds = allExercises.map((e) => e.exercise_id);
@@ -342,6 +384,7 @@ export async function ensureWorkoutPlanForDateV2(
     dayType,
     all: allExercises,
     recentExerciseIds,
+    recentEquipmentByMuscle,
     lastTopSets,
     userId,
     isoDate,

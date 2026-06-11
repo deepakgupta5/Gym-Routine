@@ -180,6 +180,7 @@ describe("selectExercisesForSession -- forbidden_day_types", () => {
       dayType: "push_upper",
       all: [forbidden, allowed],
       recentExerciseIds: new Set(),
+      recentEquipmentByMuscle: new Map(),
       lastTopSets: new Map(),
       userId: "user-test",
       isoDate: WED,
@@ -187,6 +188,94 @@ describe("selectExercisesForSession -- forbidden_day_types", () => {
 
     const selectedIds = result.map((r) => r.exercise.exercise_id);
     expect(selectedIds).not.toContain(10); // forbidden exercise must never appear
+  });
+});
+
+// --- selectExercisesForSession -- equipment rotation (PRD Section 3.4) -------
+
+describe("selectExercisesForSession -- equipment rotation", () => {
+  // Build a minimal pool: two chest primary exercises that differ only in
+  // equipment_type (barbell vs dumbbell). Both allowed for push_upper.
+  function makeChestExercise(id: number, equipment: string): V2ExerciseRow {
+    return makeExercise({
+      exercise_id: id,
+      name: `Chest ${equipment}`,
+      allowed_day_types: ["push_upper"],
+      forbidden_day_types: [],
+      muscle_primary: "chest",
+      equipment_type: equipment,
+      suitable_slots: ["primary"],
+      seed_load_lb: 135,
+    });
+  }
+
+  it("primary slot picks the non-recently-used equipment type", () => {
+    const barbell  = makeChestExercise(20, "barbell");
+    const dumbbell = makeChestExercise(21, "dumbbell");
+
+    // Barbell was used for chest in the last 14 days
+    const recentEquipmentByMuscle = new Map([
+      ["chest", new Set(["barbell"])],
+    ]);
+
+    const result = selectExercisesForSession({
+      dayType: "push_upper",
+      all: [barbell, dumbbell],
+      recentExerciseIds: new Set(),
+      recentEquipmentByMuscle,
+      lastTopSets: new Map(),
+      userId: "user-test",
+      isoDate: WED,
+    });
+
+    // The primary slot (result[0]) should prefer dumbbell over barbell.
+    // Later slots may fall back to barbell (only 2 exercises in this minimal pool)
+    // because soft-exclusion yields when no alternative exists.
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0].exercise.exercise_id).toBe(21); // dumbbell selected for primary
+    expect(result[0].exercise.equipment_type).toBe("dumbbell");
+  });
+
+  it("falls back to using the recent equipment if no other option exists", () => {
+    const barbell = makeChestExercise(22, "barbell");
+
+    // Only barbell available for chest, but barbell was used recently
+    const recentEquipmentByMuscle = new Map([
+      ["chest", new Set(["barbell"])],
+    ]);
+
+    const result = selectExercisesForSession({
+      dayType: "push_upper",
+      all: [barbell],
+      recentExerciseIds: new Set(),
+      recentEquipmentByMuscle,
+      lastTopSets: new Map(),
+      userId: "user-test",
+      isoDate: WED,
+    });
+
+    const selectedIds = result.map((r) => r.exercise.exercise_id);
+    // Soft exclusion: barbell chest still selected because no alternative exists
+    expect(selectedIds).toContain(22);
+  });
+
+  it("does not filter muscles not in recentEquipmentByMuscle", () => {
+    const barbell  = makeChestExercise(23, "barbell");
+    const dumbbell = makeChestExercise(24, "dumbbell");
+
+    // No chest entry in the map at all
+    const result = selectExercisesForSession({
+      dayType: "push_upper",
+      all: [barbell, dumbbell],
+      recentExerciseIds: new Set(),
+      recentEquipmentByMuscle: new Map(), // empty -- no restrictions
+      lastTopSets: new Map(),
+      userId: "user-test",
+      isoDate: WED,
+    });
+
+    // Both are eligible; either can be selected (no rotation filter)
+    expect(result.length).toBeGreaterThan(0);
   });
 });
 
