@@ -10,6 +10,13 @@ export default function MorePage() {
 
       <div className="grid gap-3">
         <Link
+          href="/analytics"
+          className="rounded-lg border border-blue-800 bg-blue-900/20 p-4 text-sm text-blue-200 active:opacity-80"
+        >
+          Training Analytics
+        </Link>
+
+        <Link
           href="/history"
           className="rounded-lg border border-gray-700 bg-gray-800 p-4 text-sm text-gray-100 active:opacity-80"
         >
