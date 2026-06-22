@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# Gym-App repo-local pre-commit hook (tracked via core.hooksPath=.githooks).
+# Two BLOCK checks on STAGED content only. Stdlib-only, fast.
+#
+# CHECK A (GYM L9): a staged migration *.sql with a CREATE [OR REPLACE] VIEW
+#   statement that lacks `security_invoker = on` in the SAME statement bypasses
+#   RLS (PostgreSQL views default to SECURITY DEFINER). BLOCK.
+# CHECK B (GYM L3): a staged netlify.toml containing `ignore = "exit 0"` forces
+#   "no content change -> skip" on every deploy, silently stopping deploys. BLOCK.
+#
+# Escape hatch: SKIP_GYM_PRECOMMIT=1 git commit ...
+set -u
+
+if [ "${SKIP_GYM_PRECOMMIT:-}" = "1" ]; then
+  echo "pre-commit: SKIP_GYM_PRECOMMIT=1 set -- bypassing GYM checks." >&2
+  exit 0
+fi
+
+# Staged file list (Added/Copied/Modified/Renamed -- not Deleted).
+staged="$(git diff --cached --name-only --diff-filter=ACMR)"
+[ -z "$staged" ] && exit 0
+
+fail=0
+
+# Read staged content for a path from the index (not the working tree).
+staged_content() { git show ":$1" 2>/dev/null; }
+
+# ---- CHECK A: GYM L9 -- Supabase view without security_invoker = on ----
+# Collect staged *.sql migrations and hand the list to one Python pass. Python
+# reads each file's STAGED content itself via `git show :<path>` (avoids any
+# stdin collision with the script heredoc). macOS default python3 is stdlib-only.
+sql_files=""
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  case "$f" in
+    *.sql) sql_files="$sql_files$f
+" ;;
+  esac
+done <<EOF
+$staged
+EOF
+
+if [ -n "$sql_files" ]; then
+  printf '%s' "$sql_files" | python3 -c '
+import re, subprocess, sys
+
+create_view_re = re.compile(r"\bcreate\b(?:\s+or\s+replace)?\s+view\b", re.I)
+invoker_re = re.compile(r"security_invoker\s*=\s*on", re.I)
+name_re = re.compile(r"\bcreate\b(?:\s+or\s+replace)?\s+view\s+([^\s(]+)", re.I)
+
+bad = 0
+for path in sys.stdin.read().splitlines():
+    path = path.strip()
+    if not path:
+        continue
+    try:
+        sql = subprocess.check_output(["git", "show", ":" + path],
+                                      text=True, stderr=subprocess.DEVNULL)
+    except subprocess.CalledProcessError:
+        continue
+    # Strip block (/* */) and line (-- ) comments so commented-out DDL/prose
+    # do not trigger false positives.
+    sql = re.sub(r"/\*.*?\*/", " ", sql, flags=re.S)
+    sql = re.sub(r"--[^\n]*", " ", sql)
+    # Each statement (split on ;) that creates a view must carry security_invoker.
+    for stmt in sql.split(";"):
+        if create_view_re.search(stmt) and not invoker_re.search(stmt):
+            m = name_re.search(stmt)
+            name = m.group(1) if m else "<unknown>"
+            sys.stderr.write(
+                "pre-commit BLOCK (GYM L9): %s -- view %s created WITHOUT "
+                "security_invoker.\n" % (path, name))
+            bad = 1
+if bad:
+    sys.stderr.write(
+        "  A SECURITY DEFINER view bypasses RLS: any user sees ALL rows.\n"
+        "  Add `WITH (security_invoker = on)` to the view definition.\n")
+    sys.exit(1)
+sys.exit(0)
+'
+  if [ $? -ne 0 ]; then
+    fail=1
+  fi
+fi
+
+# ---- CHECK B: GYM L3 -- netlify.toml ignore = "exit 0" ----
+# L3: `ignore = "exit 0"` tells Netlify "nothing changed, skip" on EVERY deploy,
+# silently stopping deployments. Block it.
+if printf '%s\n' "$staged" | grep -qx 'netlify.toml'; then
+  ntoml="$(staged_content 'netlify.toml')"
+  # Match ignore = "exit 0" tolerating whitespace and single/double quotes.
+  if printf '%s' "$ntoml" | grep -Eq 'ignore[[:space:]]*=[[:space:]]*["'"'"']exit[[:space:]]+0["'"'"']'; then
+    echo "pre-commit BLOCK (GYM L3): netlify.toml has ignore = \"exit 0\"." >&2
+    echo "  This forces 'no content change -> skip' on every deploy, silently" >&2
+    echo "  stopping all future deployments. Remove the ignore line." >&2
+    fail=1
+  fi
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo "pre-commit: blocked. Bypass with SKIP_GYM_PRECOMMIT=1 if intentional." >&2
+  exit 1
+fi
+exit 0
