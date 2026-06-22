@@ -103,11 +103,23 @@ export function selectDayType(
 
   if (!pastWednesday && !largeDeficit) return pureRotation(recentV2DayTypes);
 
-  // 4. Override: highest total-deficit day type wins; alphabetical tiebreak
-  const [overrideDayType] = [...deficitByDayType.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  // 4. Override: highest total-deficit day type wins; alphabetical tiebreak.
+  //    Never repeat the immediately previous day type: one session cannot close
+  //    a rolling-7-day volume deficit, so the override would loop indefinitely
+  //    (e.g. push_upper on consecutive days because chest is still under minimum).
+  //    Filter it out first; if no other deficit candidate exists, fall back to
+  //    pure rotation to keep variety.
+  const lastDayType =
+    recentV2DayTypes.length > 0
+      ? recentV2DayTypes[recentV2DayTypes.length - 1]
+      : null;
 
-  return overrideDayType;
+  const overrideCandidates = [...deficitByDayType.entries()]
+    .filter(([dt]) => dt !== lastDayType)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+  if (overrideCandidates.length === 0) return pureRotation(recentV2DayTypes);
+  return overrideCandidates[0][0];
 }
 
 // ─── Deterministic selection ───────────────────────────────────────────────────

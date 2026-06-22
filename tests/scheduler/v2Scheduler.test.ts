@@ -146,6 +146,40 @@ describe("selectDayType -- under-exposure override", () => {
     // rotation from squat_lower -> pull_upper
     expect(selectDayType(["squat_lower"], satisfiedVolume, WED)).toBe("pull_upper");
   });
+
+  it("never repeats the last day type even if it has the highest deficit", () => {
+    // Reproduces the Jun 16/17 real-world bug: push_upper was last, push muscles
+    // are still under minimum (1 session never fills a week's quota), so the
+    // override would naively return push_upper again.  The fix must pick the
+    // next-best deficit day type instead.
+    //
+    // push_upper deficit: chest(12)+shoulders(12)+triceps(8) = 32  <-- highest
+    // pull_upper deficit: back(14)+biceps(8) = 22
+    // Last session: push_upper => push_upper must be excluded from candidates.
+    // Expected: pull_upper (second-highest deficit), not push_upper.
+    const volume = volumeWith({ chest: 0, shoulders: 0, triceps: 0, back: 0, biceps: 0 });
+    expect(selectDayType(["push_upper"], volume, WED)).toBe("pull_upper");
+  });
+
+  it("falls back to pure rotation when no other day type has a deficit", () => {
+    // Only push_upper muscles are under minimum, but push_upper was just done.
+    // No other day type has a deficit => override cannot fire => pure rotation.
+    // pure rotation from push_upper -> squat_lower.
+    const volume = volumeWith({ chest: 0, shoulders: 0, triceps: 0 });
+    expect(selectDayType(["push_upper"], volume, WED)).toBe("squat_lower");
+  });
+
+  it("picks second-highest deficit when last day type is the top candidate", () => {
+    // pull_upper deficit: back(14)+biceps(8)=22  <-- highest
+    // push_upper deficit: chest(12)+shoulders(12)+triceps(8)=32  wait no
+    // Let's set: pull_upper deficit = 22, push_upper deficit = 18 (second)
+    // Last session: pull_upper => pull_upper excluded => push_upper wins.
+    const volume = volumeWith({ back: 0, biceps: 0, chest: 6, shoulders: 6, triceps: 0 });
+    // pull_upper: back(14)+biceps(8)=22
+    // push_upper: chest(6)+shoulders(6)+triceps(8)=20
+    // pull_upper is highest but is last => pick push_upper (second)
+    expect(selectDayType(["pull_upper"], volume, WED)).toBe("push_upper");
+  });
 });
 
 // --- selectExercisesForSession (forbidden_day_types) -------------------------
