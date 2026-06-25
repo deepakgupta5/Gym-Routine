@@ -227,3 +227,15 @@
 **Forced day type override (forcedDayType param):** does NOT trigger auto-deload; user explicitly chose a day type via the UI regen flow.
 
 **Status:** LOCKED. Implemented in W10 (2026-06-10).
+
+---
+
+## D017 -- Extend UPPER_PUSH_PRIMARY_ROTATION to include vertical push (shoulder press) exercises (2026-06-25)
+
+**Decision:** Add exercise IDs 15 (Dumbbell Shoulder Press) and 16 (Machine Shoulder Press) to `UPPER_PUSH_PRIMARY_ROTATION` in `src/lib/engine/constants.ts`, expanding the catalog from `[9, 10, 11]` to `[9, 10, 11, 15, 16]`. Also update `user_profile.primary_lift_map.UPPER_PUSH = 16` (via SQL) to immediately track the exercise currently assigned as primary.
+
+**Rationale:** The v2 scheduler assigns exercises based on `allowed_day_types` and `suitable_slots`; exercises 15 and 16 have `allowed_day_types = ['push_upper']` and `suitable_slots = ['primary', ...]`, so they can be (and are) selected as primary in push_upper sessions. The dashboard's Primary Lifts sparkline queries `top_set_history` only for exercise IDs in `UPPER_PUSH_PRIMARY_ROTATION`. With 15 and 16 absent from the catalog, all shoulder press top sets were invisible on the dashboard. The catalog must mirror the full set of exercises the dynamic scheduler can select as primary. Future block rotations using `rotatePrimaryLiftMap` will now cycle through the expanded catalog including shoulder press alternatives.
+
+**Supersedes:** n/a. Cross-ref: INC-014.
+
+**Status:** LOCKED. Commit `47bb6f8`, 2026-06-25.

@@ -294,3 +294,36 @@
 3. N+1 UPDATE loops inside transactions -> VALUES CTE; dedup by natural key, last writer wins. (L19)
 4. Every `await fetch()` preceded by `setLoading(true)` or similar must be wrapped in try/catch that resets state on network error. Bare fetch = stuck UI on offline. (L20)
 5. Constants that define enforcement thresholds must only contain entries actually consumed by code. Dead entries imply coverage that does not exist. (L21)
+
+---
+
+## Session: 2026-06-25
+
+### L22 -- Adding a new set type requires auditing all downstream index computations [CAMPAIGN-SPECIFIC]
+
+**Problem:** Warmup sets (W13) were added to `useSessionLoggerController.ts` without updating the set-index computation in `addSet`. `setIndex = logsByExercise.get(exerciseId).length + 1` counted ALL logs including warmup. `v2SetType(ex, setIndex)` checks `setIndex === 1` to identify the top set. After logging 1 warmup, the first working set got `setIndex = 2`, was classified as "backoff," and no `top_set_history` entry was written. Backoff load prefill (gated on the same `setIndex === 1` condition) also never fired. The feature appeared to work (sets were saved) but progression tracking was silently broken.
+
+**Fix:** Introduced `workingSetIndex = allLogsForEx.filter(l => !l.is_warmup).length + 1` for v2 set-type classification and backoff prefill. Raw `setIndex` (all sets) retained for the `set_index` DB column.
+
+**Pattern:** When adding any new set variant (warmup, feeder, reload), grep the entire session controller for every computation that counts or indexes logs. Any counter that assumes homogeneous sets must be split into a filtered (working-only) counter and a raw (all-sets) counter, applied in the right place. A feature that saves data is not sufficient validation -- confirm that downstream classification also handles the new variant.
+
+[CAMPAIGN-SPECIFIC]
+
+---
+
+### L23 -- Static tracking catalogs drift silently when dynamic selectors expand [UNIVERSAL]
+
+**Problem:** `UPPER_PUSH_PRIMARY_ROTATION = [9, 10, 11]` (horizontal push / chest) was the hardcoded catalog for the Primary Lifts dashboard sparkline. The v2 scheduler uses `allowed_day_types` and `suitable_slots` to pick exercises; shoulder press exercises (IDs 15, 16) were valid primary candidates for push_upper sessions. The two systems were built separately and never compared: the scheduler expanded, the catalog did not. All shoulder press top sets were silently invisible on the dashboard. The user had to manually notice stale "Current" dates to surface the bug.
+
+**Fix:** Added IDs 15 and 16 to `UPPER_PUSH_PRIMARY_ROTATION`; updated `primary_lift_map.UPPER_PUSH = 16` in DB directly.
+
+**Pattern:** Any static list that "mirrors" what a dynamic system can select is a dual-maintenance point. Every time the dynamic system gains new candidates (new exercises, new day-type assignments, new suitable_slots), the static list must be updated too -- or the consumer silently stops covering the new cases. To prevent this: (1) at review time for any change to exercise `allowed_day_types` or `suitable_slots`, explicitly check whether any static rotation catalog must be updated; (2) consider replacing static catalogs with queries that derive the trackable set from the same exercise attributes the scheduler uses, so the two stay in sync automatically.
+
+[UNIVERSAL]
+
+---
+
+### Universal lessons from this session
+
+1. When adding a new set variant (warmup, feeder, reload), every downstream index computation must be split into filtered (working-only) vs. raw (all-sets) as appropriate. "Saves correctly" is not sufficient validation. (L22)
+2. Static tracking catalogs that "mirror" a dynamic selector's candidate set are dual-maintenance points. Every expansion of the dynamic selector requires an explicit audit of every dependent catalog. Replace static mirrors with derived queries where feasible. (L23)

@@ -2,6 +2,38 @@
 
 ---
 
+## INC-014 -- Primary Lifts sparkline never tracked shoulder press as primary (2026-06-25)
+
+**Severity:** P2 (UX: dashboard chart showed stale data; no data loss)
+**Detected:** User noticed "Current: Jun 18" for Upper Push after logging a push_upper session today
+**Resolved:** Commit `47bb6f8` + Supabase SQL update, 2026-06-25
+
+**Root cause:**
+`UPPER_PUSH_PRIMARY_ROTATION = [9, 10, 11]` (Flat DB Press, Incline DB Press, Chest Press Machine -- all horizontal push / chest) was the sole catalog for the Primary Lifts dashboard sparkline. The v2 scheduler independently assigns exercises based on `allowed_day_types` and `suitable_slots`; exercises 15 (Dumbbell Shoulder Press) and 16 (Machine Shoulder Press) both have `allowed_day_types = ['push_upper']` and `suitable_slots = ['primary', ...]`, so the scheduler legitimately selects them as primary in push_upper sessions. The sparkline queries `top_set_history` only for exercise IDs in the rotation catalog, so shoulder press top sets were silently invisible on the dashboard regardless of how many sessions were logged. The two systems (dynamic scheduler, static catalog) were never synced after the v2 scheduler expanded the candidate pool.
+
+**Fix:**
+- `src/lib/engine/constants.ts`: `UPPER_PUSH_PRIMARY_ROTATION = [9, 10, 11, 15, 16]`
+- `user_profile`: `primary_lift_map.UPPER_PUSH = 16` (SQL: `jsonb_set` on UPPER_PUSH key)
+
+**Prevention:** See L23 in LESSONS_LEARNED_GYM.md.
+
+---
+
+## INC-013 -- Warmup sets broke v2 top-set classification and backoff prefill (2026-06-25)
+
+**Severity:** P2 (data integrity: top_set_history not written, next_target_load not updated; no irreversible data loss)
+**Detected:** Investigation of "UI not refreshed" complaint; warmup feature (W13) had been added without auditing downstream index consumers
+**Resolved:** Commit `3f9b25e`, 2026-06-25
+
+**Root cause:**
+`addSet` in `useSessionLoggerController.ts` computed `setIndex = logsByExercise.get(exerciseId).length + 1` where `logsByExercise` includes ALL logs (warmup + working). `v2SetType(ex, setIndex)` checks `setIndex === 1` to classify the top set. After logging 1 warmup set, the first working set got `setIndex = 2`, returning `"backoff"` instead of `"top"`. Cascading effects: (1) API route excluded non-top rows from `top_set_history` insert, so progression history was not recorded; (2) `next_target_load` update for future sessions was gated on `workingSetIndex === 1` -- never triggered; (3) backoff prefill (90% of top-set load) never fired.
+
+**Fix:** Introduced `workingSetIndex = allLogsForEx.filter(l => !l.is_warmup).length + 1` for `v2SetType` and backoff prefill. Raw `setIndex` (all sets) kept for the `set_index` DB column.
+
+**Prevention:** See L22 in LESSONS_LEARNED_GYM.md.
+
+---
+
 ## INC-004 -- Same accessory exercises repeating every session (2026-05-30)
 
 **Severity:** P2 (UX broken; no data loss)
