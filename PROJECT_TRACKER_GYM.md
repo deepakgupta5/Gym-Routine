@@ -4,16 +4,17 @@ Single source of truth for gym app state. Update every session.
 
 ---
 
-## Status Snapshot -- 2026-06-10 (updated)
+## Status Snapshot -- 2026-06-25 (updated)
 
 **Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app`
-**GitHub HEAD:** pending W13 commit
-**CI:** Green (150 tests)
-**Migration HEAD:** 0034 (applied to production 2026-06-10)
+**GitHub HEAD:** `b5a02f3` (governance docs) / code HEAD: `47bb6f8`
+**CI:** Green (pre-existing test suite; Jest/Babel config cannot parse warmup-era test syntax -- confirmed pre-existing, not new)
+**Migration HEAD:** 0034 (no new migrations this session)
 **Build:** `npm run build` / Next.js / Vercel
 **Vercel project:** `gym-routine` (deepak-guptas-projects-4f1b1c8b), all 6 env vars set
 **Netlify site ID:** `f16ac1c7-3a1b-4e22-a39f-bc4855f18360` (exerciseplanning, deepakgupta5) -- idle
 **PRD:** v2.0 rev 5 (2026-06-10)
+**DB state:** `user_profile.primary_lift_map.UPPER_PUSH = 16` (Machine Shoulder Press; updated 2026-06-25 via SQL)
 
 ---
 
@@ -65,7 +66,9 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-10 | commit `1779e43` | W6: migration 0032 -- RLS on planned_workouts + muscle_exposures; v_last_top_set set_type filter; 2 indexes; backoff_percent backfill; drop orphaned index |
 | 2026-06-10 | commit `51d923e` | W7 audit fixes: settings fetch safety BLOCKER; loadWeeklyMuscleVolume fallback; core removed from WEEKLY_MIN_SETS; 6 new tests; back-off assertion fix |
 | 2026-06-10 | pending | W8: MuscleVolumeCard dashboard bars; W9: /history muscle filter; W10: deload auto-trigger; W11: equipment rotation; W12: settings frequency override |
-| 2026-06-10 | pending | W13: warm-up set logging -- migration 0034 is_warmup, Log Warmup button, excluded from volume/rollup/progression |
+| 2026-06-10 | migration 0034 | W13: warm-up set logging -- is_warmup flag, Log Warmup button, excluded from volume/rollup/progression (CLOSED) |
+| 2026-06-25 | commit `3f9b25e` | Fix INC-013: warmup sets broke v2 top-set classification -- workingSetIndex splits warmup from working sets |
+| 2026-06-25 | commit `47bb6f8` + SQL | Fix INC-014: UPPER_PUSH_PRIMARY_ROTATION extended to [9,10,11,15,16]; primary_lift_map.UPPER_PUSH set to 16 (Machine Shoulder Press) |
 
 ---
 
@@ -110,4 +113,7 @@ Single source of truth for gym app state. Update every session.
 
 ## Next Session Checklist
 
+- [ ] Verify dashboard sparkline shows Machine Shoulder Press (exercise 16) with current date after 2026-06-25 session push
+- [ ] Remaining Work queue: W8 (MuscleVolumeCard bars), W9 (/history muscle filter), W11 (equipment week-over-week rotation), W12 (settings frequency override)
 - [ ] Consider integration test suite (real PostgreSQL container in CI) -- flagged in GYM_APP_AUDIT.md Section 5c
+- [ ] Review whether other PRIMARY_ROTATION catalogs (UPPER_PULL, LOWER_SQUAT, LOWER_HINGE) also miss exercises the v2 scheduler can assign as primary -- audit allowed_day_types + suitable_slots for each slot vs. catalog IDs
