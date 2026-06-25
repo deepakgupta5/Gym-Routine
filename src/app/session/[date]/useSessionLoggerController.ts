@@ -171,7 +171,11 @@ export function useSessionLoggerController({
       return;
     }
 
-    const setIndex = (logsByExercise.get(ex.exercise_id)?.length || 0) + 1;
+    const allLogsForEx = logsByExercise.get(ex.exercise_id) || [];
+    const setIndex = allLogsForEx.length + 1;
+    // v2 set-type classification must ignore warmup sets -- the "top" set is
+    // the first WORKING set, not the first set overall.
+    const workingSetIndex = allLogsForEx.filter((l) => !l.is_warmup).length + 1;
     const key = `add-${ex.exercise_id}`;
     setPendingKey(key);
 
@@ -187,7 +191,7 @@ export function useSessionLoggerController({
           targeted_primary_muscle: ex.targeted_primary_muscle,
           targeted_secondary_muscle: ex.targeted_secondary_muscle,
           role: ex.role,
-          set_type: v2SetType(ex, setIndex),
+          set_type: v2SetType(ex, workingSetIndex),
           set_index: setIndex,
           load,
           reps,
@@ -208,11 +212,11 @@ export function useSessionLoggerController({
       return;
     }
 
-    // After logging set 1 of a v2 primary/secondary exercise, switch the
-    // load prefill to back_off_target_load_lb so the user doesn't have to
-    // manually lower the weight for sets 2 and 3.
+    // After logging working set 1 of a v2 primary/secondary exercise, switch
+    // the load prefill to back_off_target_load_lb. Use workingSetIndex (not
+    // setIndex) so warmup sets don't shift the transition point.
     const nextLoad =
-      setIndex === 1 &&
+      workingSetIndex === 1 &&
       ex.top_set_target_load_lb !== null &&
       ex.back_off_target_load_lb !== null &&
       ex.back_off_target_load_lb !== ex.top_set_target_load_lb
