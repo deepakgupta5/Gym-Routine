@@ -1,14 +1,14 @@
-<!-- DOC-STATUS: LIVE; SYNCED: INC-018 / D020 / L25 / 2026-06-30 (session closed) -->
+<!-- DOC-STATUS: LIVE; SYNCED: INC-018 / D020 / L25 / 2026-06-30; reconciled 2026-06-30 (W8/W9/W12 closed) -->
 # PROJECT_TRACKER_GYM.md
 
 Single source of truth for gym app state. Update every session.
 
 ---
 
-## Status Snapshot -- 2026-06-30 (updated)
+## Status Snapshot -- 2026-06-30 (reconciled)
 
 **Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app`
-**GitHub HEAD:** `af96cd6` (INC-018 equipment rotation window fix)
+**GitHub HEAD:** `f7c3c4b` (tracker: close W8/W9/W12; push verified)
 **CI:** Green (pre-existing test suite; Jest/Babel config cannot parse warmup-era test syntax -- confirmed pre-existing, not new)
 **Migration HEAD:** 0035 (suitable_slots fix for isolation exercises; apply in Supabase)
 **Build:** `npm run build` / Next.js / Vercel
@@ -27,7 +27,7 @@ Single source of truth for gym app state. Update every session.
 | P2 | /history muscle-group filter | CLOSED -- W9 (2026-06-10) commit `5ea9fc9` |
 | P3 | Deload auto-trigger rule (PRD Section 4.5) | CLOSED -- W10 (2026-06-10) |
 | P3 | Equipment rotation week-over-week | CLOSED -- D020 (2026-06-30): 7-day window now enforces week-over-week; per-session diversity via EQUIPMENT_GROUPS already enforced |
-| P4 | Settings frequency override | Target sessions/week (default 4, range 3-6) |
+| P4 | Settings frequency override | CLOSED -- W12 (2026-06-10) commit `535c1d3` |
 | P4 | Warm-up set logging | CLOSED -- W13 (2026-06-10) |
 
 ---
