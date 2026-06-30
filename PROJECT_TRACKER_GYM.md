@@ -135,11 +135,11 @@ Single source of truth for gym app state. Update every session.
 ## Next Session Start
 
 **Repo:** `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App`
-**HEAD:** `0dd0bb9` (CI green -- 2026-06-30)
-**Migration HEAD:** 0035 (in repo; apply to Supabase if not yet done)
+**HEAD:** `3dba776` (CI green -- migration 0035 applied and verified 2026-06-30)
+**Migration HEAD:** 0035 (applied to Supabase production 2026-06-30, verified)
 **Live URL:** `https://deepak-gym-tracker.vercel.app`
-**ALL W8-W13 CLOSED** -- PRD feature backlog is fully shipped. Migration 0035 applied and verified 2026-06-30.
-**Next work:** no open items. Options: (1) integration test suite (real PostgreSQL container in CI -- see GYM_APP_AUDIT.md Section 5c), (2) new PRD feature.
+**State:** ALL W8-W13 CLOSED; no pending DB actions; no open feature items.
+**Next work options:** (1) integration test suite -- real PostgreSQL container in CI (see `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App/GYM_APP_AUDIT.md` Section 5c); (2) new PRD feature.
 
 ## Open Work Queue
 
