@@ -82,7 +82,7 @@ Single source of truth for gym app state. Update every session.
 
 ## Data Model
 
-**Migration HEAD:** 0035 (in repo; apply to Supabase -- see pending user action below)
+**Migration HEAD:** 0035 (applied to Supabase production 2026-06-30)
 **Key tables:** `plan_sessions`, `plan_exercises`, `set_logs`, `exercises`, `body_stats_daily`
 **Key fields on exercises:** `suitable_slots`, `allowed_day_types`, `forbidden_day_types`, `user_preference_score`, `uses_bodyweight`, `load_increment_lb`
 **Key fields on set_logs:** `is_warmup` (BOOLEAN DEFAULT FALSE) -- excludes from volume, weekly rollup, top_set_history, progression
@@ -130,7 +130,7 @@ Single source of truth for gym app state. Update every session.
 - [x] INC-018: RESOLVED -- equipment rotation window 14->7 days; run DELETE SQL below before next session
 - [x] G11: RESOLVED -- migration 0035 restricts suitable_slots for exercises 8,19-24
 
-**PENDING user action (run in Supabase):** migration 0035 SQL at `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App/supabase/migrations/0035_fix_suitable_slots_isolation_exercises.sql`. Applies suitable_slots restrictions for exercises 8,19-24 AND purges unperformed future sessions. Run it in the Supabase SQL editor. The INC-018 DELETE was already run; only the UPDATE statements remain.
+**Migration 0035 applied 2026-06-30:** suitable_slots verified in Supabase -- ex 8,19 -> {secondary,accessory}; ex 20-24 -> {accessory}. Future unperformed sessions purged. No pending DB actions.
 
 ## Next Session Start
 
@@ -138,8 +138,8 @@ Single source of truth for gym app state. Update every session.
 **HEAD:** `0dd0bb9` (CI green -- 2026-06-30)
 **Migration HEAD:** 0035 (in repo; apply to Supabase if not yet done)
 **Live URL:** `https://deepak-gym-tracker.vercel.app`
-**ALL W8-W13 CLOSED** -- PRD feature backlog is fully shipped. Open item: apply migration 0035 to Supabase production (suitable_slots fix for isolation exercises 8,19-24; purges unperformed future sessions).
-**Next work:** no open feature items. Options: (1) apply migration 0035 in Supabase, (2) integration test suite (real PostgreSQL container in CI -- see GYM_APP_AUDIT.md Section 5c), (3) new PRD feature.
+**ALL W8-W13 CLOSED** -- PRD feature backlog is fully shipped. Migration 0035 applied and verified 2026-06-30.
+**Next work:** no open items. Options: (1) integration test suite (real PostgreSQL container in CI -- see GYM_APP_AUDIT.md Section 5c), (2) new PRD feature.
 
 ## Open Work Queue
 
