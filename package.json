@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run tests/engine tests/adaptive tests/api tests/scheduler",
+    "test:integration": "vitest run tests/integration",
     "smoke:render": "node scripts/smoke-render.mjs",
     "test:ci": "vitest run tests/engine tests/adaptive tests/api tests/scheduler"
   },

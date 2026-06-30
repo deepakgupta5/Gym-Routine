@@ -24,3 +24,45 @@ jobs:
       - run: npm ci
       - run: npm run test:ci
       - run: npm run build
+
+  integration_tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      SUPABASE_DB_URL: "postgresql://ci:ci@localhost:5432/ci"
+      SINGLE_USER_ID: "00000000-0000-0000-0000-000000000001"
+      APP_PASSCODE_HASH: "$2b$10$abcdefghijklmnopqrstuv123456789012345678901234567890"
+      COOKIE_SIGNING_SECRET: "ci-cookie-signing-secret"
+      ADMIN_SECRET: "ci-admin-secret"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install PostgreSQL client
+        run: sudo apt-get install -y postgresql-client
+      - name: Bootstrap Supabase stubs (auth schema, anon/authenticated roles)
+        run: psql "$SUPABASE_DB_URL" -f scripts/ci-pg-bootstrap.sql
+      - name: Apply all migrations
+        run: |
+          for f in $(ls supabase/migrations/*.sql | sort); do
+            echo "Applying $f"
+            psql "$SUPABASE_DB_URL" -f "$f"
+          done
+      - name: Run integration tests
+        run: npm run test:integration
