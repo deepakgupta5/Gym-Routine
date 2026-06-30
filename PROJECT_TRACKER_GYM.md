@@ -4,10 +4,10 @@ Single source of truth for gym app state. Update every session.
 
 ---
 
-## Status Snapshot -- 2026-06-25 (updated)
+## Status Snapshot -- 2026-06-30 (updated)
 
 **Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app`
-**GitHub HEAD:** `b5a02f3` (governance docs) / code HEAD: `47bb6f8`
+**GitHub HEAD:** `36cbf17` (INC-015 deload fix)
 **CI:** Green (pre-existing test suite; Jest/Babel config cannot parse warmup-era test syntax -- confirmed pre-existing, not new)
 **Migration HEAD:** 0034 (no new migrations this session)
 **Build:** `npm run build` / Next.js / Vercel
@@ -69,6 +69,8 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-10 | migration 0034 | W13: warm-up set logging -- is_warmup flag, Log Warmup button, excluded from volume/rollup/progression (CLOSED) |
 | 2026-06-25 | commit `3f9b25e` | Fix INC-013: warmup sets broke v2 top-set classification -- workingSetIndex splits warmup from working sets |
 | 2026-06-25 | commit `47bb6f8` + SQL | Fix INC-014: UPPER_PUSH_PRIMARY_ROTATION extended to [9,10,11,15,16]; primary_lift_map.UPPER_PUSH set to 16 (Machine Shoulder Press) |
+| 2026-06-30 | commit `36cbf17` | Fix INC-015: deload triggers too aggressively -- session threshold 6->8, WEEKLY_MAX_SETS 2x->3x |
+| 2026-06-30 | SQL pending (user) | Fix INC-016: Barbell Deadlift 405 lb wrong data -- inspect set_logs for exercise 7, UPDATE offending row |
 
 ---
 
@@ -113,7 +115,9 @@ Single source of truth for gym app state. Update every session.
 
 ## Next Session Checklist
 
+- [ ] INC-015 SQL: run `DELETE FROM plan_sessions WHERE performed_at IS NULL AND date > CURRENT_DATE AND session_blueprint_version = 2` to force-regen deload sessions
+- [ ] INC-016: run inspection SQL (in INCIDENT_LOG_GYM.md INC-016), identify bad 405 lb row, UPDATE to correct load, confirm next deadlift session shows correct prescribed weight
 - [ ] Verify dashboard sparkline shows Machine Shoulder Press (exercise 16) with current date after 2026-06-25 session push
+- [ ] Audit other PRIMARY_ROTATION catalogs (UPPER_PULL, LOWER_SQUAT, LOWER_HINGE) vs v2 scheduler allowed_day_types + suitable_slots -- may have same drift as UPPER_PUSH did before INC-014
 - [ ] Remaining Work queue: W8 (MuscleVolumeCard bars), W9 (/history muscle filter), W11 (equipment week-over-week rotation), W12 (settings frequency override)
 - [ ] Consider integration test suite (real PostgreSQL container in CI) -- flagged in GYM_APP_AUDIT.md Section 5c
-- [ ] Review whether other PRIMARY_ROTATION catalogs (UPPER_PULL, LOWER_SQUAT, LOWER_HINGE) also miss exercises the v2 scheduler can assign as primary -- audit allowed_day_types + suitable_slots for each slot vs. catalog IDs

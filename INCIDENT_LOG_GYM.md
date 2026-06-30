@@ -2,6 +2,61 @@
 
 ---
 
+## INC-016 -- Barbell Deadlift prescribed at wrong load (405 lb) due to incorrect set_logs entry (2026-06-30)
+
+**Severity:** P2 (data integrity: load prescription wrong; no irreversible data loss)
+**Detected:** User reported deadlift showing 405 lb as prescribed load; seed_load_lb = 115 lb, so load must come from v_last_top_set_per_exercise history. User confirmed 405 lb is incorrect.
+**Status:** OPEN -- awaiting SQL inspection + corrective UPDATE
+
+**Root cause (provisional):**
+`v_last_top_set_per_exercise` returns the most recent `set_logs` row where `set_index = 1 AND set_type IN ('top', 'straight')` for exercise 7. That row has `load = 405`. With `seed_load_lb = 115` and `load_increment_lb = 5`, linear progression over 27 sessions yields a max of ~250 lb; 405 lb cannot have been reached through normal progression and represents a manual data entry error.
+
+**Fix:**
+Run inspection SQL, identify the row with wrong load, UPDATE to correct value.
+
+```sql
+-- Step 1: inspect full deadlift top-set history (spot where 405 lb appeared)
+SELECT sl.id, sl.performed_at::date AS date, sl.load, sl.reps, sl.set_type
+FROM set_logs sl
+JOIN plan_exercises pe ON pe.id = sl.plan_exercise_id
+WHERE pe.exercise_id = 7
+  AND sl.is_warmup = false
+  AND sl.set_index = 1
+ORDER BY sl.performed_at ASC;
+
+-- Step 2: correct the offending row (replace <id> and <correct_load>)
+UPDATE set_logs SET load = <correct_load> WHERE id = '<id>';
+```
+
+After the UPDATE, `v_last_top_set_per_exercise` will return the corrected value on the next session generation. No migration needed.
+
+---
+
+## INC-015 -- Auto-deload triggering every session, producing 3-exercise full_body days (2026-06-30)
+
+**Severity:** P2 (UX broken: all sessions generated as full_body with 3 slots instead of 5)
+**Detected:** User reported week shifted from 5 exercises/day to 3 exercises/day; next week also showing 3
+**Resolved:** Commit `36cbf17`, 2026-06-30
+
+**Root cause (dual):**
+A. **Session-count condition (condition B)**: `shouldAutoDeload()` fires if `recentSessionCount >= 6` in rolling 7-day window. A 4-session/week user whose sessions cluster at a calendar-week boundary (e.g. 4 sessions at end of week N + 3 at start of week N+1) accumulates 7 sessions in the rolling window -- exceeding the threshold even though no overtraining has occurred.
+B. **Volume condition (condition A)**: `WEEKLY_MAX_SETS` was set to 2x `WEEKLY_MIN_SETS` per D016. After INC-014 extended `UPPER_PUSH_PRIMARY_ROTATION` to include shoulder press exercises, each push_upper session accumulates more shoulder sets. The 24-set cap was reached after 2 push_upper sessions in 7 days.
+
+**Fix:**
+- `src/lib/scheduler/v2/index.ts`: session-count threshold raised from 6 to 8.
+- `src/lib/scheduler/v2/constants.ts`: all `WEEKLY_MAX_SETS` raised from 2x to 3x `WEEKLY_MIN_SETS`.
+
+**SQL required (user action):**
+```sql
+DELETE FROM plan_sessions
+WHERE performed_at IS NULL
+  AND date > CURRENT_DATE
+  AND session_blueprint_version = 2;
+```
+Deletes pre-generated deload sessions so they regenerate as the correct 5-exercise day type.
+
+---
+
 ## INC-014 -- Primary Lifts sparkline never tracked shoulder press as primary (2026-06-25)
 
 **Severity:** P2 (UX: dashboard chart showed stale data; no data loss)
