@@ -432,13 +432,13 @@ describe("shouldAutoDeload", () => {
     expect(shouldAutoDeload(emptyVolume, 0)).toBe(false);
   });
 
-  it("returns false when all muscles are below their max and session count < 6", () => {
+  it("returns false when all muscles are below their max and session count < 8", () => {
     const volume = new Map([
       ["chest",      WEEKLY_MAX_SETS.chest - 1],
       ["back",       WEEKLY_MAX_SETS.back  - 1],
       ["shoulders",  WEEKLY_MAX_SETS.shoulders - 1],
     ]);
-    expect(shouldAutoDeload(volume, 5)).toBe(false);
+    expect(shouldAutoDeload(volume, 7)).toBe(false);
   });
 
   it("fires condition A when any muscle exceeds its WEEKLY_MAX_SETS", () => {
@@ -453,16 +453,16 @@ describe("shouldAutoDeload", () => {
     expect(shouldAutoDeload(volume, 0)).toBe(false);
   });
 
-  it("fires condition B when session count reaches 6", () => {
-    expect(shouldAutoDeload(emptyVolume, 6)).toBe(true);
+  it("fires condition B when session count reaches 8", () => {
+    expect(shouldAutoDeload(emptyVolume, 8)).toBe(true);
   });
 
-  it("fires condition B when session count exceeds 6", () => {
-    expect(shouldAutoDeload(emptyVolume, 7)).toBe(true);
+  it("fires condition B when session count exceeds 8", () => {
+    expect(shouldAutoDeload(emptyVolume, 9)).toBe(true);
   });
 
-  it("does not fire when session count is exactly 5", () => {
-    expect(shouldAutoDeload(emptyVolume, 5)).toBe(false);
+  it("does not fire when session count is exactly 7", () => {
+    expect(shouldAutoDeload(emptyVolume, 7)).toBe(false);
   });
 
   it("ignores muscle keys not in WEEKLY_MAX_SETS (e.g. conditioning)", () => {
