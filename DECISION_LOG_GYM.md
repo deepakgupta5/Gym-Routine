@@ -1,3 +1,4 @@
+<!-- DOC-STATUS: LOG; SYNCED: D020 / 2026-06-30 -->
 # DECISION_LOG_GYM.md
 
 ---

@@ -1,3 +1,4 @@
+<!-- DOC-STATUS: FROZEN; generated 2026-04-21; last executed 2026-06-10 (Wave 7 audit) -->
 # Gym App Audit Document
 
 Generated: 2026-04-21. Last executed: 2026-06-10 (Wave 7 audit).

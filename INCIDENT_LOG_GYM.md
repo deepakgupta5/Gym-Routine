@@ -1,3 +1,4 @@
+<!-- DOC-STATUS: LOG; SYNCED: INC-018 / 2026-06-30 -->
 # INCIDENT_LOG_GYM.md
 
 ---

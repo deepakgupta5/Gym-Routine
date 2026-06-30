@@ -1,3 +1,4 @@
+<!-- DOC-STATUS: LIVE; SYNCED: D020 / 2026-06-30 -->
 # Gym Routine
 
 Single-user Next.js training planner with auth gate, deterministic block generation, workout logging, weekly rollups, and adaptive body-stat inputs.
@@ -77,11 +78,13 @@ The smoke test verifies:
 - `/api/admin/health` including current-block counts
 - optional `/api/admin/retention`
 
-## Retention Cron on Render
+## Deployment
 
-If your Render deployment already exists, configure a daily cron job that calls:
+Deployed on Vercel (D015, 2026-06-10). Project: `gym-routine` (deepak-guptas-projects-4f1b1c8b).
+Live URL: `https://deepak-gym-tracker.vercel.app`
 
-- `POST /api/admin/retention`
-- header: `x-admin-secret: <ADMIN_SECRET>`
+## Retention Cron
 
-Suggested schedule: daily in UTC during low-traffic hours.
+A daily call to `POST /api/admin/retention` with header `x-admin-secret: <ADMIN_SECRET>` cleans
+stale sessions. Configure as a Vercel cron job or external scheduler. Suggested schedule: daily
+during UTC low-traffic hours.

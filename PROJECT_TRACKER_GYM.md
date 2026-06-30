@@ -1,3 +1,4 @@
+<!-- DOC-STATUS: LIVE; SYNCED: INC-018 / D020 / L25 / 2026-06-30 -->
 # PROJECT_TRACKER_GYM.md
 
 Single source of truth for gym app state. Update every session.
@@ -25,7 +26,7 @@ Single source of truth for gym app state. Update every session.
 | P2 | Dashboard weekly volume bars (PRD Section 6.3) | `v_weekly_muscle_volume` view exists; need UI bar chart per muscle group |
 | P2 | /history muscle-group filter | Session-type filter exists; muscle-group filter not implemented |
 | P3 | Deload auto-trigger rule (PRD Section 4.5) | CLOSED -- W10 (2026-06-10) |
-| P3 | Equipment rotation week-over-week | Per-session diversity enforced; week-over-week not enforced |
+| P3 | Equipment rotation week-over-week | CLOSED -- D020 (2026-06-30): 7-day window now enforces week-over-week; per-session diversity via EQUIPMENT_GROUPS already enforced |
 | P4 | Settings frequency override | Target sessions/week (default 4, range 3-6) |
 | P4 | Warm-up set logging | CLOSED -- W13 (2026-06-10) |
 
@@ -131,6 +132,6 @@ Single source of truth for gym app state. Update every session.
 
 - [ ] W8: MuscleVolumeCard dashboard bars (PRD Section 6.3) -- P2
 - [ ] W9: /history muscle-group filter -- P2
-- [ ] W11: equipment week-over-week rotation (per-session diversity already enforced; per-week not yet) -- P3
+- [x] W11: equipment week-over-week rotation -- CLOSED by D020 (INC-018 fix, 7-day window)
 - [ ] W12: settings frequency override (target sessions/week, default 4, range 3-6) -- P4
 - [ ] Consider integration test suite (real PostgreSQL container in CI) -- flagged in GYM_APP_AUDIT.md Section 5c

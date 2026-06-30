@@ -1,3 +1,4 @@
+<!-- DOC-STATUS: LOG; SYNCED: L25 / 2026-06-30 -->
 # LESSONS_LEARNED_GYM.md
 
 ---
