@@ -2,6 +2,29 @@
 
 ---
 
+## INC-017 -- PRIMARY_ROTATION catalog drift: Lat Pulldown, Assisted Pull-Up, Pull-Up, Back Squat missing (2026-06-30)
+
+**Severity:** P2 (dashboard sparkline silently misses assigned primaries; same INC-014 pattern)
+**Detected:** Systematic audit of all four rotation catalogs post INC-014
+**Resolved:** Commit (this session)
+
+**Root cause:**
+Same pattern as INC-014. The v2 scheduler independently picks exercises for primary slots using `allowed_day_types` and `suitable_slots`. The rotation catalogs in `constants.ts` were never updated when new exercises (26-44) were added in migration 0020/0026. Four exercises were legitimately assignable as primary but absent from their catalogs:
+- 17 (Lat Pulldown), 18 (Assisted Pull-Up), 28 (Pull-Up): can be pull_upper primary (`allowed_day_types=['pull_upper',...]`, suitable_slots includes 'primary')
+- 26 (Back Squat): can be squat_lower primary (`suitable_slots=['primary','secondary']`)
+- LOWER_HINGE catalog [5,7,6] was clean -- no gaps.
+
+**Side issue (logged, not fixed):** exercises 19 (Barbell Curl), 23 (Rear Delt Fly Machine), 24 (Standing Calf Raise) have default `suitable_slots=['primary','secondary','accessory']` so the scheduler CAN assign them as primaries. They are isolation/accessory exercises and should be restricted. Requires a new migration -- flagged as G11.
+
+**Fix:**
+- `UPPER_PULL_PRIMARY_ROTATION = [12, 13, 14, 17, 18, 28]`
+- `LOWER_SQUAT_PRIMARY_ROTATION = [1, 2, 4, 3, 26]`
+- No DB update needed: existing `primary_lift_map` values remain valid in the extended catalogs.
+
+**Prevention:** See L24 in LESSONS_LEARNED_GYM.md.
+
+---
+
 ## INC-016 -- Barbell Deadlift prescribed at wrong load (405 lb) due to incorrect set_logs entry (2026-06-30)
 
 **Severity:** P2 (data integrity: load prescription wrong; no irreversible data loss)

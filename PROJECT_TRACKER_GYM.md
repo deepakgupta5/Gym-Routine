@@ -70,7 +70,8 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-25 | commit `3f9b25e` | Fix INC-013: warmup sets broke v2 top-set classification -- workingSetIndex splits warmup from working sets |
 | 2026-06-25 | commit `47bb6f8` + SQL | Fix INC-014: UPPER_PUSH_PRIMARY_ROTATION extended to [9,10,11,15,16]; primary_lift_map.UPPER_PUSH set to 16 (Machine Shoulder Press) |
 | 2026-06-30 | commit `36cbf17` | Fix INC-015: deload triggers too aggressively -- session threshold 6->8, WEEKLY_MAX_SETS 2x->3x |
-| 2026-06-30 | SQL pending (user) | Fix INC-016: Barbell Deadlift 405 lb wrong data -- inspect set_logs for exercise 7, UPDATE offending row |
+| 2026-06-30 | SQL pending (user) | Fix INC-016: Barbell Deadlift 405 lb wrong data -- stale plan_exercises row cleared by INC-015 DELETE |
+| 2026-06-30 | commit (this session) | Fix INC-017: UPPER_PULL catalog +17,18,28; LOWER_SQUAT catalog +26 (Back Squat) |
 
 ---
 
@@ -97,6 +98,8 @@ Single source of truth for gym app state. Update every session.
 ---
 
 ## Known Gaps / Bugs (Open)
+
+| G11 | Exercises 19 (Barbell Curl), 23 (Rear Delt Fly Machine), 24 (Standing Calf Raise) have default suitable_slots=['primary','secondary','accessory'] -- can be assigned as primary in pull_upper/squat_lower/hinge_lower sessions incorrectly. Requires migration to restrict suitable_slots. | OPEN |
 
 | ID | Description | Status |
 |---|---|---|
