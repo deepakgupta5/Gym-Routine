@@ -94,17 +94,18 @@ export const WEEKLY_MIN_SETS: Record<string, number> = {
 
 // Maximum recoverable volume per muscle group (PRD Section 4.5 deload rule).
 // Exceeding any of these in a rolling 7-day window triggers auto-deload.
-// Set to 2x the minimum effective volume (WEEKLY_MIN_SETS) per D016.
+// Raised to 3x WEEKLY_MIN_SETS (from 2x in D016): 2x triggered too aggressively
+// for 4-session/week users with Machine Shoulder Press as push primary.
 export const WEEKLY_MAX_SETS: Record<string, number> = {
-  quads:      24, // 2 * 12
-  hamstrings: 20, // 2 * 10
-  glutes:     24, // 2 * 12
-  chest:      24, // 2 * 12
-  back:       28, // 2 * 14
-  shoulders:  24, // 2 * 12
-  biceps:     16, // 2 * 8
-  triceps:    16, // 2 * 8
-  calves:     16, // 2 * 8
+  quads:      36, // 3 * 12
+  hamstrings: 30, // 3 * 10
+  glutes:     36, // 3 * 12
+  chest:      36, // 3 * 12
+  back:       42, // 3 * 14
+  shoulders:  36, // 3 * 12
+  biceps:     24, // 3 * 8
+  triceps:    24, // 3 * 8
+  calves:     24, // 3 * 8
 };
 
 // Equipment category groups for diversity enforcement (PRD Section 3.4)

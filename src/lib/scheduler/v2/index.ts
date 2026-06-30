@@ -196,7 +196,9 @@ export function shouldAutoDeload(
   weeklyVolume: Map<string, number>,
   recentSessionCount: number
 ): boolean {
-  if (recentSessionCount >= 6) return true;
+  // Threshold raised from 6 to 8: a 4-session/week user with a rolling window
+  // spanning two calendar weeks can show 7-8 sessions at peak overlap.
+  if (recentSessionCount >= 8) return true;
   for (const [muscle, sets] of weeklyVolume) {
     const max = WEEKLY_MAX_SETS[muscle];
     if (max !== undefined && sets > max) return true;
