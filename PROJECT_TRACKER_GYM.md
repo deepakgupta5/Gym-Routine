@@ -1,4 +1,4 @@
-<!-- DOC-STATUS: LIVE; SYNCED: INC-018 / D020 / L25 / 2026-06-30 -->
+<!-- DOC-STATUS: LIVE; SYNCED: INC-018 / D020 / L25 / 2026-06-30 (session closed) -->
 # PROJECT_TRACKER_GYM.md
 
 Single source of truth for gym app state. Update every session.
@@ -128,10 +128,20 @@ Single source of truth for gym app state. Update every session.
 - [x] INC-018: RESOLVED -- equipment rotation window 14->7 days; run DELETE SQL below before next session
 - [x] G11: RESOLVED -- migration 0035 restricts suitable_slots for exercises 8,19-24
 
-**PENDING user action (run in Supabase):** migration 0035 SQL at `supabase/migrations/0035_fix_suitable_slots_isolation_exercises.sql`. Also run the embedded DELETE to clear pre-generated sessions so they regenerate with corrected suitable_slots.
+**PENDING user action (run in Supabase):** migration 0035 SQL at `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App/supabase/migrations/0035_fix_suitable_slots_isolation_exercises.sql`. Applies suitable_slots restrictions for exercises 8,19-24 AND purges unperformed future sessions. Run it in the Supabase SQL editor. The INC-018 DELETE was already run; only the UPDATE statements remain.
 
-- [ ] W8: MuscleVolumeCard dashboard bars (PRD Section 6.3) -- P2
+## Next Session Start
+
+**Repo:** `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App`
+**HEAD:** `bdad407` (CI green -- 2026-06-30)
+**Migration HEAD:** 0035 (in repo; apply to Supabase before next session work)
+**Live URL:** `https://deepak-gym-tracker.vercel.app`
+**First action:** confirm migration 0035 applied, then start W8 (MuscleVolumeCard bars, `v_weekly_muscle_volume` view exists; need bar chart per muscle in dashboard, PRD Section 6.3).
+
+## Open Work Queue
+
+- [ ] W8: MuscleVolumeCard dashboard bars (PRD Section 6.3) -- P2 -- NEXT
 - [ ] W9: /history muscle-group filter -- P2
 - [x] W11: equipment week-over-week rotation -- CLOSED by D020 (INC-018 fix, 7-day window)
 - [ ] W12: settings frequency override (target sessions/week, default 4, range 3-6) -- P4
-- [ ] Consider integration test suite (real PostgreSQL container in CI) -- flagged in GYM_APP_AUDIT.md Section 5c
+- [ ] Consider integration test suite (real PostgreSQL container in CI) -- flagged in `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App/GYM_APP_AUDIT.md` Section 5c
