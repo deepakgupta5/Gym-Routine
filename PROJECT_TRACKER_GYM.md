@@ -7,9 +7,9 @@ Single source of truth for gym app state. Update every session.
 ## Status Snapshot -- 2026-06-30 (updated)
 
 **Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app`
-**GitHub HEAD:** `36cbf17` (INC-015 deload fix)
+**GitHub HEAD:** `af96cd6` (INC-018 equipment rotation window fix)
 **CI:** Green (pre-existing test suite; Jest/Babel config cannot parse warmup-era test syntax -- confirmed pre-existing, not new)
-**Migration HEAD:** 0034 (no new migrations this session)
+**Migration HEAD:** 0035 (suitable_slots fix for isolation exercises; apply in Supabase)
 **Build:** `npm run build` / Next.js / Vercel
 **Vercel project:** `gym-routine` (deepak-guptas-projects-4f1b1c8b), all 6 env vars set
 **Netlify site ID:** `f16ac1c7-3a1b-4e22-a39f-bc4855f18360` (exerciseplanning, deepakgupta5) -- idle
@@ -69,9 +69,11 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-10 | migration 0034 | W13: warm-up set logging -- is_warmup flag, Log Warmup button, excluded from volume/rollup/progression (CLOSED) |
 | 2026-06-25 | commit `3f9b25e` | Fix INC-013: warmup sets broke v2 top-set classification -- workingSetIndex splits warmup from working sets |
 | 2026-06-25 | commit `47bb6f8` + SQL | Fix INC-014: UPPER_PUSH_PRIMARY_ROTATION extended to [9,10,11,15,16]; primary_lift_map.UPPER_PUSH set to 16 (Machine Shoulder Press) |
-| 2026-06-30 | commit `36cbf17` | Fix INC-015: deload triggers too aggressively -- session threshold 6->8, WEEKLY_MAX_SETS 2x->3x |
-| 2026-06-30 | SQL pending (user) | Fix INC-016: Barbell Deadlift 405 lb wrong data -- stale plan_exercises row cleared by INC-015 DELETE |
-| 2026-06-30 | commit (this session) | Fix INC-017: UPPER_PULL catalog +17,18,28; LOWER_SQUAT catalog +26 (Back Squat) |
+| 2026-06-30 | commit `36cbf17` | Fix INC-015: deload triggers too aggressively -- session threshold 6->8, WEEKLY_MAX_SETS 2x->3x (D018, D019) |
+| 2026-06-30 | CASCADE DELETE | Fix INC-016: Barbell Deadlift 405 lb wrong data -- stale plan_exercises row cleared by INC-015 DELETE; RESOLVED |
+| 2026-06-30 | commit `717daa5` | Fix INC-017: UPPER_PULL catalog +17,18,28; LOWER_SQUAT catalog +26 (Back Squat) |
+| 2026-06-30 | commit `af96cd6` | Fix INC-018: equipment rotation window 14->7 days -- barbell-hamstrings blocked for full hinge cycle (D020) |
+| 2026-06-30 | migration 0035 | Fix G11: suitable_slots restricted for isolation exercises 8,19-24; purges future unperformed sessions |
 
 ---
 
@@ -85,11 +87,12 @@ Single source of truth for gym app state. Update every session.
 **Key views:** `v_weekly_muscle_volume` (rolling 7-day sets per muscle), `v_last_top_set_per_exercise` (most recent top/straight set per exercise)
 **Key indexes (0032):** `idx_set_logs_top_set` (partial, set_index=1), `idx_plan_sessions_user_date_type` (covering)
 
-**suitable_slots assignments (post-0028):**
+**suitable_slots assignments (post-0035):**
 - `['primary','secondary']` -- exercises 26 (Back Squat), 28 (Pull-Up)
-- `['secondary','accessory']` -- exercises 27, 29-34, 38, 40
-- `['accessory']` -- exercises 35-37, 39, 41-42
+- `['secondary','accessory']` -- exercises 8 (Seated Leg Curl), 19 (Barbell Curl); exercises 27, 29-34, 38, 40
+- `['accessory']` -- exercises 20-24 (isolation arms/shoulders/calves); exercises 35-37, 39, 41-42
 - Core exercises (43 Cable Crunch, 44 Hanging Knee Raise, 25 Pallof Press): fixed in 0026
+- Compounds 1-7, 9-18: default ['primary','secondary','accessory'] (correct -- all valid primaries)
 
 **WEEKLY_MIN_SETS (Section 3.3, in constants.ts):**
 - quads:12, hamstrings:10, glutes:12, chest:12, back:14, shoulders:12, biceps:8, triceps:8, calves:8
@@ -99,7 +102,7 @@ Single source of truth for gym app state. Update every session.
 
 ## Known Gaps / Bugs (Open)
 
-| G11 | Exercises 19 (Barbell Curl), 23 (Rear Delt Fly Machine), 24 (Standing Calf Raise) have default suitable_slots=['primary','secondary','accessory'] -- can be assigned as primary in pull_upper/squat_lower/hinge_lower sessions incorrectly. Requires migration to restrict suitable_slots. | OPEN |
+| G11 | Exercises 8,19-24 had default suitable_slots=['primary','secondary','accessory'] -- could be assigned as primary. Fixed in migration 0035: 8+19 -> ['secondary','accessory']; 20-24 -> ['accessory']. | CLOSED -- migration 0035 |
 
 | ID | Description | Status |
 |---|---|---|
@@ -118,9 +121,16 @@ Single source of truth for gym app state. Update every session.
 
 ## Next Session Checklist
 
-- [ ] INC-015 SQL: run `DELETE FROM plan_sessions WHERE performed_at IS NULL AND date > CURRENT_DATE AND session_blueprint_version = 2` to force-regen deload sessions
-- [ ] INC-016: run inspection SQL (in INCIDENT_LOG_GYM.md INC-016), identify bad 405 lb row, UPDATE to correct load, confirm next deadlift session shows correct prescribed weight
-- [ ] Verify dashboard sparkline shows Machine Shoulder Press (exercise 16) with current date after 2026-06-25 session push
-- [ ] Audit other PRIMARY_ROTATION catalogs (UPPER_PULL, LOWER_SQUAT, LOWER_HINGE) vs v2 scheduler allowed_day_types + suitable_slots -- may have same drift as UPPER_PUSH did before INC-014
-- [ ] Remaining Work queue: W8 (MuscleVolumeCard bars), W9 (/history muscle filter), W11 (equipment week-over-week rotation), W12 (settings frequency override)
+- [x] INC-015: RESOLVED -- session threshold 6->8, WEEKLY_MAX_SETS 3x, DELETE SQL clears deload sessions
+- [x] INC-016: RESOLVED -- 405 lb was stale plan_exercises data, cleared by INC-015 CASCADE DELETE
+- [x] INC-017: RESOLVED -- UPPER_PULL +17,18,28; LOWER_SQUAT +26 in constants.ts
+- [x] INC-018: RESOLVED -- equipment rotation window 14->7 days; run DELETE SQL below before next session
+- [x] G11: RESOLVED -- migration 0035 restricts suitable_slots for exercises 8,19-24
+
+**PENDING user action (run in Supabase):** migration 0035 SQL at `supabase/migrations/0035_fix_suitable_slots_isolation_exercises.sql`. Also run the embedded DELETE to clear pre-generated sessions so they regenerate with corrected suitable_slots.
+
+- [ ] W8: MuscleVolumeCard dashboard bars (PRD Section 6.3) -- P2
+- [ ] W9: /history muscle-group filter -- P2
+- [ ] W11: equipment week-over-week rotation (per-session diversity already enforced; per-week not yet) -- P3
+- [ ] W12: settings frequency override (target sessions/week, default 4, range 3-6) -- P4
 - [ ] Consider integration test suite (real PostgreSQL container in CI) -- flagged in GYM_APP_AUDIT.md Section 5c

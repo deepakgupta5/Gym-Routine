@@ -2,6 +2,37 @@
 
 ---
 
+## INC-018 -- Equipment rotation 14-day window blocked Barbell Deadlift for entire hinge cycle (2026-06-30)
+
+**Severity:** P2 (UX: deadlift and RDL invisible for ~14 days after any hinge session; scheduler silently replaces them with Hip Thrust every cycle)
+**Detected:** User reported Barbell Deadlift absent from next 8 days of sessions after INC-015 fix confirmed working
+**Resolved:** Commit `af96cd6`, 2026-06-30
+
+**Root cause:**
+`loadLastEquipmentByMuscle()` in `index.ts` queries `set_logs` for distinct `(muscle_primary, equipment_type)` pairs in the last 14 days. After any hinge session that included Barbell Deadlift (exercise 7, equipment_type='barbell', muscle_primary='hamstrings'), the next 14 days had `recentEquipmentByMuscle.get('hamstrings') = {'barbell'}`.
+
+The equipment rotation filter then excluded ALL barbell-hamstrings exercises from candidate pools. Both Barbell Deadlift (7) and Romanian Deadlift (5) are barbell+hamstrings. The only remaining hinge primary candidate was Hip Thrust (6), which has `muscle_primary='glutes'` (not 'hamstrings'), so it was not excluded.
+
+The soft-exclusion fallback (`if (rotated.length > 0) candidates = rotated`) did NOT fire because the filtered pool still contained Hip Thrust (glutes) and Standing Calf Raise (calves). These non-hamstring exercises kept the pool non-empty, so the barbell-hamstrings exclusion was applied for the full 14 days.
+
+At 4 sessions/week, hinge_lower recurs every ~9 calendar days. A 14-day window guaranteed that both deadlift and RDL were excluded from the entire next hinge cycle.
+
+**Fix:**
+Reduced `interval '14 days'` to `interval '7 days'` in `loadLastEquipmentByMuscle()`. PRD Section 3.4 says "week-over-week equipment rotation" -- 7 days IS one week. At 4/week the same day type recurs every ~9 days, so a 7-day window expires before the next hinge session and barbell-hamstrings exercises are available again in time.
+
+**SQL required (user action):**
+```sql
+DELETE FROM plan_sessions
+WHERE performed_at IS NULL
+  AND date > CURRENT_DATE
+  AND session_blueprint_version = 2;
+```
+Pre-generated sessions used the 14-day window. Delete them to force regeneration.
+
+**See also:** L24 (equipment rotation window calibration lesson)
+
+---
+
 ## INC-017 -- PRIMARY_ROTATION catalog drift: Lat Pulldown, Assisted Pull-Up, Pull-Up, Back Squat missing (2026-06-30)
 
 **Severity:** P2 (dashboard sparkline silently misses assigned primaries; same INC-014 pattern)
@@ -29,29 +60,17 @@ Same pattern as INC-014. The v2 scheduler independently picks exercises for prim
 
 **Severity:** P2 (data integrity: load prescription wrong; no irreversible data loss)
 **Detected:** User reported deadlift showing 405 lb as prescribed load; seed_load_lb = 115 lb, so load must come from v_last_top_set_per_exercise history. User confirmed 405 lb is incorrect.
-**Status:** OPEN -- awaiting SQL inspection + corrective UPDATE
+**Status:** RESOLVED -- stale plan_exercises row cleared as collateral of INC-015 DELETE CASCADE, 2026-06-30
 
-**Root cause (provisional):**
-`v_last_top_set_per_exercise` returns the most recent `set_logs` row where `set_index = 1 AND set_type IN ('top', 'straight')` for exercise 7. That row has `load = 405`. With `seed_load_lb = 115` and `load_increment_lb = 5`, linear progression over 27 sessions yields a max of ~250 lb; 405 lb cannot have been reached through normal progression and represents a manual data entry error.
+**Root cause (confirmed):**
+The 405 lb was NOT in `set_logs`. User-provided CSV of all deadlift top-set logs (27 rows, 2026-02-21 to 2026-06-27) shows loads 30-60 lb; no row reaches 405 lb.
+
+The 405 lb was stored in `plan_exercises.top_set_target_load_lb` -- the prescribed load written at session generation time. A pre-existing plan session generated under old app logic (before v2 scheduler progression) contained a stale 405 lb target. The `v_last_top_set_per_exercise` view reads from `set_logs` (actual performed sets) and is not affected. The display the user saw was pulling from the plan_exercises prescribed load column, which was wrong.
+
+Note: the investigation identified a bug in the original inspection SQL -- the query used `JOIN plan_exercises pe ON pe.id = sl.plan_exercise_id` but `set_logs` has its own `exercise_id` column directly and no `plan_exercise_id` column. Correct query: `WHERE exercise_id = 7`.
 
 **Fix:**
-Run inspection SQL, identify the row with wrong load, UPDATE to correct value.
-
-```sql
--- Step 1: inspect full deadlift top-set history (spot where 405 lb appeared)
-SELECT sl.id, sl.performed_at::date AS date, sl.load, sl.reps, sl.set_type
-FROM set_logs sl
-JOIN plan_exercises pe ON pe.id = sl.plan_exercise_id
-WHERE pe.exercise_id = 7
-  AND sl.is_warmup = false
-  AND sl.set_index = 1
-ORDER BY sl.performed_at ASC;
-
--- Step 2: correct the offending row (replace <id> and <correct_load>)
-UPDATE set_logs SET load = <correct_load> WHERE id = '<id>';
-```
-
-After the UPDATE, `v_last_top_set_per_exercise` will return the corrected value on the next session generation. No migration needed.
+INC-015 DELETE SQL (`DELETE FROM plan_sessions WHERE performed_at IS NULL AND date > CURRENT_DATE`) CASCADE-deleted all child `plan_exercises` rows, including the stale 405 lb entry. No further action needed.
 
 ---
 

@@ -327,3 +327,36 @@
 
 1. When adding a new set variant (warmup, feeder, reload), every downstream index computation must be split into filtered (working-only) vs. raw (all-sets) as appropriate. "Saves correctly" is not sufficient validation. (L22)
 2. Static tracking catalogs that "mirror" a dynamic selector's candidate set are dual-maintenance points. Every expansion of the dynamic selector requires an explicit audit of every dependent catalog. Replace static mirrors with derived queries where feasible. (L23)
+
+---
+
+## Session: 2026-06-30
+
+### L24 -- When one static catalog has drifted, audit ALL catalogs of the same type in the same session [UNIVERSAL]
+
+**Problem:** INC-017 found that `UPPER_PULL_PRIMARY_ROTATION` and `LOWER_SQUAT_PRIMARY_ROTATION` were missing exercises the dynamic scheduler could assign as primary -- the same drift pattern as INC-014/L23. The INC-014 fix corrected only `UPPER_PUSH_PRIMARY_ROTATION` without auditing the other three catalogs. The same systematic audit done for INC-014 would have caught all four gaps at once; instead a second incident was needed.
+
+**Fix:** Audited all four rotation catalogs (UPPER_PUSH, UPPER_PULL, LOWER_SQUAT, LOWER_HINGE) against `allowed_day_types` + `suitable_slots` for every exercise. Found gaps in UPPER_PULL and LOWER_SQUAT; LOWER_HINGE was already clean.
+
+**Pattern:** When you find one instance of systematic drift (a static list behind a dynamic system), immediately sweep ALL instances of that pattern in the same codebase before closing the incident. A fix that corrects one instance while leaving siblings unchecked pays the investigation cost twice and leaves the user exposed to the same symptom pattern until the next session.
+
+[UNIVERSAL]
+
+---
+
+### L25 -- Scheduler diversity windows must be shorter than the no-same-day-type recurrence interval [UNIVERSAL]
+
+**Problem:** INC-018. `loadLastEquipmentByMuscle()` used a 14-day rolling window to enforce week-over-week equipment rotation. At 4 sessions/week, the hinge_lower day type recurs every ~9 calendar days. Both barbell-hamstrings exercises (RDL + Deadlift) were excluded for 14 days after any hinge session. Because non-hamstrings exercises (Hip Thrust, calf raise) kept the filtered candidate pool non-empty, the soft-exclusion fallback never fired, and both exercises were invisible for longer than the full hinge cycle.
+
+**Fix:** Reduced window from 14 to 7 days. The recurrence interval (~9 days) now exceeds the exclusion window (7 days), so exercises are available again by the time the same day type arrives.
+
+**Pattern:** Any rolling exclusion window (no-repeat, equipment rotation, recent-exercise filter) must satisfy: `window < same_day_type_recurrence_interval`. Calculate the recurrence interval from: sessions_per_week / rotation_length. Soft-exclusion fallbacks only help if the filtered pool is truly empty; a diverse pool that contains exercises from OTHER muscle groups keeps the pool non-empty and prevents the fallback from firing, turning a "soft" exclusion into a hard one.
+
+[UNIVERSAL]
+
+---
+
+### Universal lessons from this session
+
+1. When one catalog of a given type drifts, immediately sweep all catalogs of that type in the same session before closing the fix. (L24)
+2. Rolling exclusion windows (no-repeat, equipment rotation) must be shorter than the same-day-type recurrence interval; otherwise soft-exclusion fallbacks may be defeated by non-target-muscle exercises keeping the pool non-empty. (L25)

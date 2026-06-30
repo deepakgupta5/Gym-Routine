@@ -239,3 +239,39 @@
 **Supersedes:** n/a. Cross-ref: INC-014.
 
 **Status:** LOCKED. Commit `47bb6f8`, 2026-06-25.
+
+---
+
+## D018 -- WEEKLY_MAX_SETS raised from 2x to 3x WEEKLY_MIN_SETS (2026-06-30)
+
+**Decision:** Raise all values in `WEEKLY_MAX_SETS` (in `src/lib/scheduler/v2/constants.ts`) from 2x to 3x `WEEKLY_MIN_SETS`. New values: quads=36, hamstrings=30, glutes=36, chest=36, back=42, shoulders=36, biceps=24, triceps=24, calves=24.
+
+**Rationale:** After INC-014 extended `UPPER_PUSH_PRIMARY_ROTATION` to include shoulder press exercises, each push_upper session accumulates ~12 shoulder sets (primary + secondary + accessories). The 2x cap was 24 sets. Two push_upper sessions in a 7-day rolling window = 24 sets, immediately hitting the deload trigger even though no overtraining had occurred. The 2x multiplier from D016 was calibrated for horizontal push only; vertical push exercises that were later added as valid primaries doubled the shoulder accumulation rate. 3x provides headroom for a user with two push sessions in a rolling 7-day window without triggering deload prematurely.
+
+**Supersedes:** D016 (WEEKLY_MAX_SETS at 2x minimum). Cross-ref: INC-015.
+
+**Status:** LOCKED. Commit `36cbf17`, 2026-06-30.
+
+---
+
+## D019 -- Auto-deload session-count threshold raised from 6 to 8 (2026-06-30)
+
+**Decision:** In `shouldAutoDeload()` (`src/lib/scheduler/v2/index.ts`), raise the `recentSessionCount` threshold from `>= 6` to `>= 8`.
+
+**Rationale:** A 4-session/week user whose sessions cluster at a calendar-week boundary (e.g. 4 sessions end of week N + 3 sessions start of week N+1) accumulates 7 sessions in the rolling 7-day window -- exceeding the 6-session threshold without any overtraining. The 7-day rolling window does not reset on a calendar boundary, so a user who trains 4 days Mon-Sat can legally show 7-8 sessions at the peak of two overlapping weeks. Raising to 8 accommodates this peak overlap without triggering a false deload.
+
+**Supersedes:** n/a (no prior decision documented for this threshold). Cross-ref: INC-015.
+
+**Status:** LOCKED. Commit `36cbf17`, 2026-06-30.
+
+---
+
+## D020 -- Equipment rotation exclusion window reduced from 14 days to 7 days (2026-06-30)
+
+**Decision:** In `loadLastEquipmentByMuscle()` (`src/lib/scheduler/v2/index.ts`), reduce the rolling window from `interval '14 days'` to `interval '7 days'`.
+
+**Rationale:** PRD Section 3.4 specifies "week-over-week equipment rotation" -- the intent is that the same equipment type is not used for the same muscle on consecutive weeks. One week = 7 days. At 4 sessions/week, a given day type (e.g. hinge_lower) recurs every ~9 calendar days. A 14-day window therefore excluded both barbell-hamstrings primary exercises (RDL + Barbell Deadlift) for longer than the time between hinge sessions, meaning barbell hinge exercises were NEVER available in the next hinge cycle. With 7 days, the exclusion expires before the next same-type session arrives, and the full candidate pool (including barbell hinge exercises) is restored on time. Soft-exclusion fallback (don't apply filter if filtered pool is empty) is insufficient protection when non-hamstrings exercises keep the pool non-empty.
+
+**Supersedes:** n/a. Cross-ref: INC-018.
+
+**Status:** LOCKED. Commit `af96cd6`, 2026-06-30.
