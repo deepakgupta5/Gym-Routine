@@ -23,8 +23,8 @@ Single source of truth for gym app state. Update every session.
 
 | Priority | Item | Notes |
 |---|---|---|
-| P2 | Dashboard weekly volume bars (PRD Section 6.3) | `v_weekly_muscle_volume` view exists; need UI bar chart per muscle group |
-| P2 | /history muscle-group filter | Session-type filter exists; muscle-group filter not implemented |
+| P2 | Dashboard weekly volume bars (PRD Section 6.3) | CLOSED -- W8 (2026-06-10) commit `76e9888` |
+| P2 | /history muscle-group filter | CLOSED -- W9 (2026-06-10) commit `5ea9fc9` |
 | P3 | Deload auto-trigger rule (PRD Section 4.5) | CLOSED -- W10 (2026-06-10) |
 | P3 | Equipment rotation week-over-week | CLOSED -- D020 (2026-06-30): 7-day window now enforces week-over-week; per-session diversity via EQUIPMENT_GROUPS already enforced |
 | P4 | Settings frequency override | Target sessions/week (default 4, range 3-6) |
@@ -66,7 +66,9 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-10 | commit `66685ae` | W5: N+1 bulk UPDATE (P2-9); body_stats 365-day cap (P2-12); nutrition error codes + date format (P2-13/14) |
 | 2026-06-10 | commit `1779e43` | W6: migration 0032 -- RLS on planned_workouts + muscle_exposures; v_last_top_set set_type filter; 2 indexes; backoff_percent backfill; drop orphaned index |
 | 2026-06-10 | commit `51d923e` | W7 audit fixes: settings fetch safety BLOCKER; loadWeeklyMuscleVolume fallback; core removed from WEEKLY_MIN_SETS; 6 new tests; back-off assertion fix |
-| 2026-06-10 | pending | W8: MuscleVolumeCard dashboard bars; W9: /history muscle filter; W10: deload auto-trigger; W11: equipment rotation; W12: settings frequency override |
+| 2026-06-10 | commit `76e9888` | W8: MuscleVolumeCard dashboard bars -- horizontal bars, color zones, legend, sorted by deficit (CLOSED) |
+| 2026-06-10 | commit `5ea9fc9` | W9: /history muscle-group filter -- chip pills, ?muscle= URL param, EXISTS subquery filter (CLOSED) |
+| 2026-06-10 | commit `535c1d3` | W10: deload auto-trigger; W12: settings frequency override -- target_sessions_per_week picker (3/4/5/6), /api/plan/frequency PATCH, dashboard session counter (CLOSED) |
 | 2026-06-10 | migration 0034 | W13: warm-up set logging -- is_warmup flag, Log Warmup button, excluded from volume/rollup/progression (CLOSED) |
 | 2026-06-25 | commit `3f9b25e` | Fix INC-013: warmup sets broke v2 top-set classification -- workingSetIndex splits warmup from working sets |
 | 2026-06-25 | commit `47bb6f8` + SQL | Fix INC-014: UPPER_PUSH_PRIMARY_ROTATION extended to [9,10,11,15,16]; primary_lift_map.UPPER_PUSH set to 16 (Machine Shoulder Press) |
@@ -80,7 +82,7 @@ Single source of truth for gym app state. Update every session.
 
 ## Data Model
 
-**Migration HEAD:** 0034 (applied to production 2026-06-10)
+**Migration HEAD:** 0035 (in repo; apply to Supabase -- see pending user action below)
 **Key tables:** `plan_sessions`, `plan_exercises`, `set_logs`, `exercises`, `body_stats_daily`
 **Key fields on exercises:** `suitable_slots`, `allowed_day_types`, `forbidden_day_types`, `user_preference_score`, `uses_bodyweight`, `load_increment_lb`
 **Key fields on set_logs:** `is_warmup` (BOOLEAN DEFAULT FALSE) -- excludes from volume, weekly rollup, top_set_history, progression
@@ -133,15 +135,16 @@ Single source of truth for gym app state. Update every session.
 ## Next Session Start
 
 **Repo:** `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App`
-**HEAD:** `bdad407` (CI green -- 2026-06-30)
-**Migration HEAD:** 0035 (in repo; apply to Supabase before next session work)
+**HEAD:** `0dd0bb9` (CI green -- 2026-06-30)
+**Migration HEAD:** 0035 (in repo; apply to Supabase if not yet done)
 **Live URL:** `https://deepak-gym-tracker.vercel.app`
-**First action:** confirm migration 0035 applied, then start W8 (MuscleVolumeCard bars, `v_weekly_muscle_volume` view exists; need bar chart per muscle in dashboard, PRD Section 6.3).
+**ALL W8-W13 CLOSED** -- PRD feature backlog is fully shipped. Open item: apply migration 0035 to Supabase production (suitable_slots fix for isolation exercises 8,19-24; purges unperformed future sessions).
+**Next work:** no open feature items. Options: (1) apply migration 0035 in Supabase, (2) integration test suite (real PostgreSQL container in CI -- see GYM_APP_AUDIT.md Section 5c), (3) new PRD feature.
 
 ## Open Work Queue
 
-- [ ] W8: MuscleVolumeCard dashboard bars (PRD Section 6.3) -- P2 -- NEXT
-- [ ] W9: /history muscle-group filter -- P2
+- [x] W8: MuscleVolumeCard dashboard bars -- CLOSED (2026-06-10, commit `76e9888`)
+- [x] W9: /history muscle-group filter -- CLOSED (2026-06-10, commit `5ea9fc9`)
 - [x] W11: equipment week-over-week rotation -- CLOSED by D020 (INC-018 fix, 7-day window)
-- [ ] W12: settings frequency override (target sessions/week, default 4, range 3-6) -- P4
+- [x] W12: settings frequency override -- CLOSED (2026-06-10, commit `535c1d3`)
 - [ ] Consider integration test suite (real PostgreSQL container in CI) -- flagged in `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App/GYM_APP_AUDIT.md` Section 5c
