@@ -77,6 +77,7 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-30 | commit `717daa5` | Fix INC-017: UPPER_PULL catalog +17,18,28; LOWER_SQUAT catalog +26 (Back Squat) |
 | 2026-06-30 | commit `af96cd6` | Fix INC-018: equipment rotation window 14->7 days -- barbell-hamstrings blocked for full hinge cycle (D020) |
 | 2026-06-30 | migration 0035 | Fix G11: suitable_slots restricted for isolation exercises 8,19-24; purges future unperformed sessions |
+| 2026-06-30 | commit `668ddd5` | CI integration test suite: postgres:16 job, ci-pg-bootstrap.sql, 14 schema/enum/view/slots tests (GYM_APP_AUDIT.md 5c CLOSED) |
 
 ---
 
@@ -135,11 +136,11 @@ Single source of truth for gym app state. Update every session.
 ## Next Session Start
 
 **Repo:** `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App`
-**HEAD:** `3dba776` (CI green -- migration 0035 applied and verified 2026-06-30)
+**HEAD:** `668ddd5` (CI integration test suite shipped 2026-06-30)
 **Migration HEAD:** 0035 (applied to Supabase production 2026-06-30, verified)
 **Live URL:** `https://deepak-gym-tracker.vercel.app`
-**State:** ALL W8-W13 CLOSED; no pending DB actions; no open feature items.
-**Next work options:** (1) integration test suite -- real PostgreSQL container in CI (see `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App/GYM_APP_AUDIT.md` Section 5c); (2) new PRD feature.
+**State:** ALL W8-W13 CLOSED; integration test suite shipped; no pending DB actions; no open items.
+**Next work options:** new PRD feature.
 
 ## Open Work Queue
 
@@ -147,4 +148,4 @@ Single source of truth for gym app state. Update every session.
 - [x] W9: /history muscle-group filter -- CLOSED (2026-06-10, commit `5ea9fc9`)
 - [x] W11: equipment week-over-week rotation -- CLOSED by D020 (INC-018 fix, 7-day window)
 - [x] W12: settings frequency override -- CLOSED (2026-06-10, commit `535c1d3`)
-- [ ] Consider integration test suite (real PostgreSQL container in CI) -- flagged in `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App/GYM_APP_AUDIT.md` Section 5c
+- [x] Integration test suite -- CLOSED (2026-06-30, commit `668ddd5`): postgres:16 CI job, 14 schema/enum/view tests, scripts/ci-pg-bootstrap.sql
