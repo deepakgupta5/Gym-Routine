@@ -127,9 +127,12 @@ async function loadWeeklyMuscleVolume(
 
 /**
  * Load which equipment types were used for each muscle_primary in the last
- * 14 days (rolling window). Used to enforce the week-over-week equipment
+ * 7 days (rolling window). Used to enforce the week-over-week equipment
  * rotation rule (PRD Section 3.4): for the same muscle group, consecutive
  * weeks must not use the same equipment_type as the most-recent session.
+ * Reduced from 14 to 7 days: at 4 sessions/week the same day-type recurs
+ * every ~9 days; a 14-day window blocked all barbell-hamstrings exercises
+ * (RDL + Deadlift) for the entire next hinge cycle.
  *
  * Source: set_logs (actually performed sets), not plan_exercises, so that
  * unperformed planned sessions don't block equipment choices.
@@ -146,7 +149,7 @@ async function loadLastEquipmentByMuscle(
        from set_logs    sl
        join exercises   e  on e.exercise_id = sl.exercise_id
        where sl.user_id      = $1
-         and sl.performed_at >= $2::date - interval '14 days'
+         and sl.performed_at >= $2::date - interval '7 days'
          and sl.performed_at <  $2::date
          and e.muscle_primary  is not null
          and e.equipment_type  is not null`,
