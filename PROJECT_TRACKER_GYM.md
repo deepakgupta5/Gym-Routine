@@ -137,10 +137,11 @@ Single source of truth for gym app state. Update every session.
 ## Next Session Start
 
 **Repo:** `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App`
-**HEAD:** `034d68d` (integration test fixes 2026-07-01)
+**HEAD:** `71fa41f` (close 2026-07-01: INC-019, L26, launch.json)
 **Migration HEAD:** 0035 (applied to Supabase production 2026-06-30, verified)
 **Live URL:** `https://deepak-gym-tracker.vercel.app`
-**State:** ALL W8-W13 CLOSED; integration test suite green (4 failures fixed 2026-07-01); no pending DB actions; no open items.
+**State:** ALL W8-W13 CLOSED; CI fully green (034d68d confirmed success on GitHub); no pending DB actions; no open items.
+**Preview:** open Claude Code from `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App` and use `preview_start "Next.js dev"` (port 3000; `.claude/launch.json` committed).
 **Next work options:** new PRD feature.
 
 ## Open Work Queue
