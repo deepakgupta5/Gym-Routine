@@ -1,5 +1,28 @@
-<!-- DOC-STATUS: LOG; SYNCED: INC-018 / 2026-06-30 -->
+<!-- DOC-STATUS: LOG; SYNCED: INC-019 / 2026-07-01 -->
 # INCIDENT_LOG_GYM.md
+
+---
+
+## INC-019 -- Integration test suite: 4 tests failed on first CI run (2026-07-01)
+
+**Severity:** P3 (CI red; no production impact -- tests ran against fresh CI Postgres, not prod)
+**Detected:** GitHub Actions notification after commit `668ddd5`
+**Resolved:** Commit `034d68d`, 2026-07-01; CI green on `034d68d` and `0315c6e`
+
+**Root cause (4 failures):**
+
+1. **Exercises 8, 19, 20-24 return 0 rows** (2 test failures): `supabase/seed.sql` seeds exercises 1-25 but the CI workflow only ran migrations, never seed.sql. Migration 0035 UPDATEs suitable_slots for those exercise IDs, but since the rows did not exist, the UPDATE silently affected 0 rows. Tests querying by exercise_id got empty results.
+
+2. **plan_exercises PK assertion wrong**: Test asserted column `'id'` as PK; actual PK column is `plan_exercise_id` (confirmed in 0001_init.sql line 93). The assertion was inverted from reality.
+
+3. **session_type_enum exact-count check wrong**: Test used `toEqual(["Fri","Mon","Sat","Sun","Thu","Tue","Wed"])` (7 values); actual enum has 17 values (7 day names + 5 from migration 0021 + 5 from migration 0031).
+
+**Fix:**
+- `ci.yml`: inject `supabase/seed.sql` immediately after `0001_init.sql` applies (schema exists, 0019 column additions and 0035 suitable_slots patches not yet run). Exercises 1-25 now exist when those later migrations fire.
+- `schema.test.ts`: flip plan_exercises assertion to `toContain("plan_exercise_id")` / `not.toContain("id")`.
+- `schema.test.ts`: replace exact `toEqual` on enum with `arrayContaining` for both day-name and v2-session-type subsets.
+
+**Prevention:** See L26 in LESSONS_LEARNED_GYM.md.
 
 ---
 

@@ -361,3 +361,23 @@
 
 1. When one catalog of a given type drifts, immediately sweep all catalogs of that type in the same session before closing the fix. (L24)
 2. Rolling exclusion windows (no-repeat, equipment rotation) must be shorter than the same-day-type recurrence interval; otherwise soft-exclusion fallbacks may be defeated by non-target-muscle exercises keeping the pool non-empty. (L25)
+
+---
+
+## Session: 2026-07-01
+
+### L26 -- supabase/seed.sql is NOT run by migrations; CI pipelines that only apply migrations will be missing seed data [UNIVERSAL]
+
+**Problem:** INC-019. Integration tests queried exercises 1-25 (to verify migration 0035's suitable_slots patch) but got 0 rows. Exercises 1-25 live in `supabase/seed.sql`, not in any migration. The CI workflow applied all 35 migrations but never seed.sql. Migration 0035 silently updated 0 rows (no error on UPDATE with no matching rows), and the tests failed with "expected 2 but got 0".
+
+**Fix:** In `ci.yml`, inject `psql ... -f supabase/seed.sql` immediately after migration 0001 (which creates the schema) and before migration 0019 (which adds columns and UPDATEs the seeded rows). This mirrors Supabase's managed-cloud apply order: schema migrations run first, then seed data, so later migrations that ALTER or UPDATE seed rows work correctly.
+
+**Pattern:** Whenever writing integration tests against row-level data (specific IDs, expected counts, specific values), verify whether those rows come from migrations or from seed.sql. If seed.sql, the CI pipeline must apply it -- and in the correct order: AFTER the schema is created (0001) but BEFORE any migration that ALTERs columns on or UPDATEs those rows. A silent UPDATE on a non-existent row will always return 0 rows with no error, making the root cause invisible from the test output alone.
+
+[UNIVERSAL]
+
+---
+
+### Universal lessons from this session
+
+1. `supabase/seed.sql` is separate from migrations; CI pipelines must explicitly apply it in order (after schema creation, before column-addition or UPDATE migrations). Silent UPDATEs on missing rows are the tell. (L26)
