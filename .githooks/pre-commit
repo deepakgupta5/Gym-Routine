@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 # Gym-App repo-local pre-commit hook (tracked via core.hooksPath=.githooks).
-# Two BLOCK checks on STAGED content only. Stdlib-only, fast.
+# Three checks on STAGED content only. Stdlib-only, fast.
 #
 # CHECK A (GYM L9): a staged migration *.sql with a CREATE [OR REPLACE] VIEW
 #   statement that lacks `security_invoker = on` in the SAME statement bypasses
 #   RLS (PostgreSQL views default to SECURITY DEFINER). BLOCK.
 # CHECK B (GYM L3): a staged netlify.toml containing `ignore = "exit 0"` forces
 #   "no content change -> skip" on every deploy, silently stopping deploys. BLOCK.
+# CHECK C (GYM L8/L11/L12, mechanization-audit Tier 2 2026-07-01): a staged
+#   src/lib/scheduler/**/*.ts change with NO paired supabase/migrations/*.sql
+#   in the same commit. INC-004/009/011/012 were the SAME root cause recurring
+#   4 times: a scheduler-logic fix landed without also purging pre-generated
+#   future/unperformed session rows, so the old (buggy) rows kept being served
+#   until someone manually cleared them. WARN, not BLOCK (a scheduler change
+#   with no data-shape impact, e.g. a comment or type-only edit, is legitimate
+#   without a migration) -- this is a reminder, not a hard invariant.
 #
 # Escape hatch: SKIP_GYM_PRECOMMIT=1 git commit ...
 set -u
@@ -95,6 +103,34 @@ if printf '%s\n' "$staged" | grep -qx 'netlify.toml'; then
     echo "  stopping all future deployments. Remove the ignore line." >&2
     fail=1
   fi
+fi
+
+# ---- CHECK C: GYM L8/L11/L12 -- scheduler-logic change with no paired migration ----
+# INC-004/009/011/012: 4 separate "fixes" to src/lib/scheduler were the SAME root cause --
+# pre-generated future/unperformed session rows were never invalidated after the logic
+# changed, so the OLD buggy rows kept being served until someone manually cleared them via a
+# migration. WARN (not BLOCK -- a scheduler edit with no data-shape impact is legitimate).
+scheduler_touched=0
+migration_staged=0
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  case "$f" in
+    src/lib/scheduler/*.ts) scheduler_touched=1 ;;
+    supabase/migrations/*.sql) migration_staged=1 ;;
+  esac
+done <<EOF
+$staged
+EOF
+
+if [ "$scheduler_touched" -eq 1 ] && [ "$migration_staged" -eq 0 ]; then
+  echo "pre-commit WARN (GYM L8/L11/L12): src/lib/scheduler/*.ts changed with no paired" >&2
+  echo "  supabase/migrations/*.sql in this commit. INC-004/009/011/012 were the same bug" >&2
+  echo "  recurring 4 times: a scheduler fix without also purging pre-generated" >&2
+  echo "  future/unperformed session rows left the OLD logic's output being served until" >&2
+  echo "  someone noticed and manually cleared it. If this change affects what sessions" >&2
+  echo "  get generated, add a migration to purge stale unperformed rows (the 0029/0030/" >&2
+  echo "  0031 pattern). If this is a no-data-impact edit (types, comments, refactor with" >&2
+  echo "  identical output), this warning is a false positive -- proceed." >&2
 fi
 
 if [ "$fail" -ne 0 ]; then
