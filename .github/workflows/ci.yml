@@ -58,11 +58,15 @@ jobs:
         run: sudo apt-get install -y postgresql-client
       - name: Bootstrap Supabase stubs (auth schema, anon/authenticated roles)
         run: psql "$SUPABASE_DB_URL" -f scripts/ci-pg-bootstrap.sql
-      - name: Apply all migrations
+      - name: Apply all migrations (seed exercises 1-25 after schema creation)
         run: |
           for f in $(ls supabase/migrations/*.sql | sort); do
             echo "Applying $f"
             psql "$SUPABASE_DB_URL" -f "$f"
+            if [[ "$f" == *"0001_init.sql" ]]; then
+              echo "Seeding initial exercise catalog (exercises 1-25)"
+              psql "$SUPABASE_DB_URL" -f supabase/seed.sql
+            fi
           done
       - name: Run integration tests
         run: npm run test:integration

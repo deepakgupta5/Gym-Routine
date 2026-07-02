@@ -62,7 +62,7 @@ describe("plan_sessions table", () => {
 });
 
 describe("plan_exercises table", () => {
-  it("uses 'id' as PK, not 'plan_exercise_id'", async () => {
+  it("uses plan_exercise_id as PK (no bare 'id' column)", async () => {
     const { rows } = await pool.query<{ column_name: string }>(`
       SELECT column_name
       FROM information_schema.columns
@@ -70,21 +70,24 @@ describe("plan_exercises table", () => {
         AND column_name IN ('id', 'plan_exercise_id')
     `);
     const cols = rows.map((r) => r.column_name);
-    expect(cols).toContain("id");
-    expect(cols).not.toContain("plan_exercise_id");
+    expect(cols).toContain("plan_exercise_id");
+    expect(cols).not.toContain("id");
   });
 });
 
 // -- Enum type safety --
 
 describe("session_type_enum", () => {
-  it("has all 7 day values and supports ::text cast (S1 regression)", async () => {
+  it("contains all 7 day values plus v2 session types, supports ::text cast (S1 regression)", async () => {
     // S1: scheduler used `session_type = any($1::text[])` which fails without ::text cast.
     const { rows } = await pool.query<{ val: string }>(`
       SELECT unnest(enum_range(NULL::session_type_enum))::text AS val
     `);
     const vals = rows.map((r) => r.val);
-    expect(vals.sort()).toEqual(["Fri", "Mon", "Sat", "Sun", "Thu", "Tue", "Wed"]);
+    // 7 day names (original) -- use arrayContaining since v2 migrations added more values
+    expect(vals).toEqual(expect.arrayContaining(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]));
+    // v2 session types added by migration 0021
+    expect(vals).toEqual(expect.arrayContaining(["full_body", "push", "pull", "hinge", "squat"]));
   });
 
   it("::text cast works in array comparison (pattern used in scheduler queries)", async () => {
