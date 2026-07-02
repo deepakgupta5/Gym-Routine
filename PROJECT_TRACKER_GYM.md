@@ -8,7 +8,7 @@ Single source of truth for gym app state. Update every session.
 ## Status Snapshot -- 2026-06-30 (reconciled)
 
 **Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app`
-**GitHub HEAD:** `f7c3c4b` (tracker: close W8/W9/W12; push verified)
+**GitHub HEAD:** `034d68d` (integration test fixes; push verified 2026-07-01)
 **CI:** Green (pre-existing test suite; Jest/Babel config cannot parse warmup-era test syntax -- confirmed pre-existing, not new)
 **Migration HEAD:** 0035 (suitable_slots fix for isolation exercises; apply in Supabase)
 **Build:** `npm run build` / Next.js / Vercel
@@ -78,6 +78,7 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-30 | commit `af96cd6` | Fix INC-018: equipment rotation window 14->7 days -- barbell-hamstrings blocked for full hinge cycle (D020) |
 | 2026-06-30 | migration 0035 | Fix G11: suitable_slots restricted for isolation exercises 8,19-24; purges future unperformed sessions |
 | 2026-06-30 | commit `668ddd5` | CI integration test suite: postgres:16 job, ci-pg-bootstrap.sql, 14 schema/enum/view/slots tests (GYM_APP_AUDIT.md 5c CLOSED) |
+| 2026-07-01 | commit `034d68d` | Fix 4 failing integration tests: seed exercises 1-25 via supabase/seed.sql after 0001 in CI; fix plan_exercises PK assertion; fix session_type_enum arrayContaining |
 
 ---
 
@@ -136,10 +137,10 @@ Single source of truth for gym app state. Update every session.
 ## Next Session Start
 
 **Repo:** `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App`
-**HEAD:** `668ddd5` (CI integration test suite shipped 2026-06-30)
+**HEAD:** `034d68d` (integration test fixes 2026-07-01)
 **Migration HEAD:** 0035 (applied to Supabase production 2026-06-30, verified)
 **Live URL:** `https://deepak-gym-tracker.vercel.app`
-**State:** ALL W8-W13 CLOSED; integration test suite shipped; no pending DB actions; no open items.
+**State:** ALL W8-W13 CLOSED; integration test suite green (4 failures fixed 2026-07-01); no pending DB actions; no open items.
 **Next work options:** new PRD feature.
 
 ## Open Work Queue
