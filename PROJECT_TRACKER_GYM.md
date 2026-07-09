@@ -8,7 +8,7 @@ Single source of truth for gym app state. Update every session.
 ## Status Snapshot -- 2026-06-30 (reconciled)
 
 **Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app`
-**GitHub HEAD:** `034d68d` (integration test fixes; push verified 2026-07-01)
+**GitHub HEAD:** `a8ed51b` (INC-020 pg string coercion fix; push verified 2026-07-08)
 **CI:** Green (pre-existing test suite; Jest/Babel config cannot parse warmup-era test syntax -- confirmed pre-existing, not new)
 **Migration HEAD:** 0035 (suitable_slots fix for isolation exercises; apply in Supabase)
 **Build:** `npm run build` / Next.js / Vercel
@@ -137,10 +137,19 @@ Single source of truth for gym app state. Update every session.
 ## Next Session Start
 
 **Repo:** `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App`
-**HEAD:** `71fa41f` (close 2026-07-01: INC-019, L26, launch.json)
+**HEAD:** `a8ed51b` (INC-020: pg NUMERIC string coercion fix in v2 scheduler; push verified 2026-07-08)
 **Migration HEAD:** 0035 (applied to Supabase production 2026-06-30, verified)
 **Live URL:** `https://deepak-gym-tracker.vercel.app`
-**State:** ALL W8-W13 CLOSED; CI fully green (034d68d confirmed success on GitHub); no pending DB actions; no open items.
+**State:** INC-020 code fix deployed; DB hotfix SQL still required for today's (2026-07-08) session row.
+**Pending DB action:** run in Supabase SQL editor to fix today's Dumbbell Shoulder Press row:
+```sql
+UPDATE plan_exercises pe
+SET top_set_target_load_lb=25, prescribed_load=25, back_off_target_load_lb=25,
+    rationale_text='25 lb, up 5 lb (20 lb x 15 last time)'
+FROM plan_sessions ps
+WHERE pe.plan_session_id=ps.plan_session_id AND pe.exercise_id=15 AND ps.session_date=CURRENT_DATE
+RETURNING pe.plan_exercise_id, pe.top_set_target_load_lb, pe.prescribed_load, pe.back_off_target_load_lb;
+```
 **Preview:** open Claude Code from `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App` and use `preview_start "Next.js dev"` (port 3000; `.claude/launch.json` committed).
 **Next work options:** new PRD feature.
 

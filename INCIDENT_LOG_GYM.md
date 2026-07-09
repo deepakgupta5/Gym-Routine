@@ -1,5 +1,54 @@
-<!-- DOC-STATUS: LOG; SYNCED: INC-019 / 2026-07-01 -->
+<!-- DOC-STATUS: LOG; SYNCED: INC-020 / 2026-07-08 -->
 # INCIDENT_LOG_GYM.md
+
+---
+
+## INC-020 -- Dumbbell Shoulder Press prescribed at 205 lb (correct: 25 lb) -- JS string coercion (2026-07-08)
+
+**Severity:** P1 (wrong load shown mid-workout; exercise 15 top_set_target_load_lb = 205 lb instead of 25 lb)
+**Detected:** User reported wrong weight during live workout session 2026-07-08
+**Resolved:** Commit `a8ed51b`, 2026-07-08; DB hotfix SQL provided (run in Supabase)
+
+**Root cause:**
+`pg` returns PostgreSQL `NUMERIC` columns as JavaScript strings at runtime, despite TypeScript annotations typing them as `number`. In `src/lib/scheduler/v2/load.ts`, `loadV2Exercises()` fetches `coalesce(e.load_increment_lb, 5) as load_increment_lb` but applies no `Number()` coercion. TypeScript trusts the annotation; at runtime `exercise.load_increment_lb = "5"` (string).
+
+In `computeLoad()`:
+```typescript
+const increment = exercise.load_increment_lb || 5;  // "5" (string, truthy)
+// prevLoad = 20 (number, correctly coerced via Number(prior.last_load))
+topSetLoad = roundToIncrement(prevLoad + increment, increment);
+// 20 + "5" = "205" (JS string concat, not arithmetic)
+// roundToIncrement("205", "5") = Math.round(41) * 5 = 205
+// rationale_text = "205 lb, up 5 lb (20 lb x 15 last time)" -- matches screenshot exactly
+```
+
+Exercise 15 (Dumbbell Shoulder Press): prevLoad=20, prevReps=15 (>= repsMax=13), so progression applies. Correct: 20+5=25. Bug output: 205. Back-off also wrong: 185 lb (= 205*0.9) instead of 25 lb (= roundToIncrement(25*0.9,5)).
+
+The same string-coercion bug existed in `index.ts:286` (deload rounding): `const inc = ex.exercise.load_increment_lb ?? 5` -- `?? 5` does not guard against a truthy string.
+
+Other places that fetch `load_increment_lb` (`integration.ts:523`, `logs/set/route.ts:445`, `set/[id]/route.ts:277`) already call `Number()` explicitly -- only the v2 scheduler paths were missing it.
+
+**Fix (code):**
+- `src/lib/scheduler/v2/load.ts:51`: `const increment = Number(exercise.load_increment_lb) || 5;`
+- `src/lib/scheduler/v2/index.ts:286`: `const inc = Number(ex.exercise.load_increment_lb) || 5;`
+
+**DB hotfix (run in Supabase for 2026-07-08 session):**
+```sql
+UPDATE plan_exercises pe
+SET
+  top_set_target_load_lb  = 25,
+  prescribed_load         = 25,
+  back_off_target_load_lb = 25,
+  rationale_text          = '25 lb, up 5 lb (20 lb x 15 last time)'
+FROM plan_sessions ps
+WHERE pe.plan_session_id = ps.plan_session_id
+  AND pe.exercise_id     = 15
+  AND ps.session_date    = CURRENT_DATE
+RETURNING pe.plan_exercise_id, pe.top_set_target_load_lb, pe.prescribed_load,
+          pe.back_off_target_load_lb, pe.rationale_text;
+```
+
+**Prevention:** See L27 in LESSONS_LEARNED_GYM.md.
 
 ---
 

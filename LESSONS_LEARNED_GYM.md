@@ -1,4 +1,4 @@
-<!-- DOC-STATUS: LOG; SYNCED: L25 / 2026-06-30 -->
+<!-- DOC-STATUS: LOG; SYNCED: L27 / 2026-07-08 -->
 # LESSONS_LEARNED_GYM.md
 
 ---
@@ -381,3 +381,31 @@
 ### Universal lessons from this session
 
 1. `supabase/seed.sql` is separate from migrations; CI pipelines must explicitly apply it in order (after schema creation, before column-addition or UPDATE migrations). Silent UPDATEs on missing rows are the tell. (L26)
+
+---
+
+## Session: 2026-07-08
+
+### L27 -- pg returns NUMERIC columns as strings; TypeScript annotations do not coerce runtime values [UNIVERSAL]
+
+**Problem:** INC-020. `pg` (node-postgres) returns PostgreSQL `NUMERIC` columns as JavaScript strings, not numbers. TypeScript type annotations (`load_increment_lb: number` in `V2ExerciseRow`) satisfy the compiler but have no runtime effect -- the actual value at runtime is `"5"` (string). In `computeLoad()`, `exercise.load_increment_lb || 5` evaluates to `"5"` (truthy string), not `5` (number). Then `prevLoad + increment = 20 + "5" = "205"` via JS string concatenation -- not arithmetic. `roundToIncrement("205", "5")` auto-coerces for division (`Math.round(41) * 5 = 205`), making the bug invisible at the rounding step.
+
+Diagnostic clue: the rationale text `"205 lb, up 5 lb (20 lb x 15 last time)"` embeds `prevLoad=20` and `increment=5` inline. If those values are correct but `topSetLoad` is wrong, the arithmetic itself is the suspect, not the DB data.
+
+Other `load_increment_lb` consumers in the codebase (`integration.ts:523`, `logs/set/route.ts:445`, `set/[id]/route.ts:277`) already called `Number()` explicitly -- only the v2 scheduler paths were missing it.
+
+**Fix:**
+- `v2/load.ts:51`: `const increment = Number(exercise.load_increment_lb) || 5;`
+- `v2/index.ts:286`: `const inc = Number(ex.exercise.load_increment_lb) || 5;`
+
+`||` (not `??`) is correct after `Number()`: `Number(null)` = 0 (falsy -> fallback 5), `Number(undefined)` = NaN (falsy -> fallback 5), `Number("5")` = 5 (truthy).
+
+**Pattern:** For every pg query result, wrap NUMERIC/DECIMAL column reads in `Number()` before any arithmetic, regardless of TypeScript annotations. SMALLINT/INTEGER columns come back as JS numbers; NUMERIC/DECIMAL do not -- this is a pg library design decision, not a bug. A safe convention: annotate pg row types as `number | string` for numeric-typed columns, forcing explicit coercion at every use site. Alternatively, use a pg type parser override to coerce NUMERIC globally (but this is a global setting with wide blast radius).
+
+[UNIVERSAL]
+
+---
+
+### Universal lessons from this session
+
+1. `pg` returns PostgreSQL `NUMERIC`/`DECIMAL` columns as JS strings at runtime despite TypeScript `number` annotations. Wrap in `Number()` before arithmetic at every use site; or annotate as `number | string` to force the coercion. `prevLoad + "5"` = `"205"` is a silent corruption. (L27)
