@@ -48,7 +48,7 @@ export function computeLoad(
   prior: V2LastTopSet | undefined
 ): LoadResult {
   const p = PRESCRIPTION[role];
-  const increment = exercise.load_increment_lb || 5;
+  const increment = Number(exercise.load_increment_lb) || 5;
   const isBodyweight = exercise.uses_bodyweight === true;
 
   let topSetLoad: number;

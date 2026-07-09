@@ -283,7 +283,7 @@ async function insertV2Session(
 
   for (const ex of params.exercises) {
     const p   = PRESCRIPTION[ex.role];
-    const inc = ex.exercise.load_increment_lb ?? 5;
+    const inc = Number(ex.exercise.load_increment_lb) || 5;
 
     const topLoad = ex.topSetLoad === 0
       ? 0  // bodyweight -- 0 stays 0
