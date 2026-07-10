@@ -26,7 +26,7 @@ export const REPS = {
 };
 
 export const CARDIO_BASELINE_MINUTES = 20;
-export const UPPER_PUSH_PRIMARY_ROTATION = [9, 10, 11, 15, 16];
+export const UPPER_PUSH_PRIMARY_ROTATION = [9, 10, 11, 15, 16, 49];
 export const UPPER_PULL_PRIMARY_ROTATION = [12, 13, 14, 17, 18, 28];
 export const LOWER_SQUAT_PRIMARY_ROTATION = [1, 2, 4, 3, 26];
 export const LOWER_HINGE_PRIMARY_ROTATION = [5, 7, 6];
