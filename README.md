@@ -1,4 +1,4 @@
-<!-- DOC-STATUS: LIVE; SYNCED: D020 / 2026-06-30 -->
+<!-- DOC-STATUS: LIVE; SYNCED: INC-021 / 2026-07-08 -->
 # Gym Routine
 
 Single-user Next.js training planner with auth gate, deterministic block generation, workout logging, weekly rollups, and adaptive body-stat inputs.

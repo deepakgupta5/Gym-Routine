@@ -1,5 +1,23 @@
-<!-- DOC-STATUS: LOG; SYNCED: INC-020 / 2026-07-08 -->
+<!-- DOC-STATUS: LOG; SYNCED: INC-021 / 2026-07-08 -->
 # INCIDENT_LOG_GYM.md
+
+---
+
+## INC-021 -- Exercise 49 (Barbell OHP) absent from UPPER_PUSH_PRIMARY_ROTATION dashboard catalog (2026-07-08)
+
+**Severity:** P3 (dashboard sparkline silently misses Barbell OHP top sets; no wrong data, just invisible history)
+**Detected:** Catalog-eligibility hook flagged exercise 49 as suitable_slots-primary but absent from every *_PRIMARY_ROTATION array
+**Resolved:** Commit `3cf727c`, 2026-07-08
+
+**Root cause:**
+Same INC-017 drift pattern (L23/L24). Exercise 49 (Barbell Overhead Press) was added in migration 0026 with `allowed_day_types=['push_upper','full_body']` and `suitable_slots=['primary','secondary']`. The static dashboard catalog `UPPER_PUSH_PRIMARY_ROTATION` in `src/lib/engine/constants.ts` was not updated when INC-017 was fixed (INC-017 extended UPPER_PULL and LOWER_SQUAT only; did not re-audit UPPER_PUSH beyond the IDs that existed at the time).
+
+**Fix:**
+`UPPER_PUSH_PRIMARY_ROTATION = [9, 10, 11, 15, 16]` -> `[9, 10, 11, 15, 16, 49]` in `src/lib/engine/constants.ts`.
+
+No DB action needed. No session purge needed (catalog is query-time only; affects future dashboard reads immediately).
+
+**See also:** INC-014 (original drift), INC-017 (same class), L23/L24 (pattern rules).
 
 ---
 

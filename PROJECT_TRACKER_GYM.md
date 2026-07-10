@@ -1,16 +1,16 @@
-<!-- DOC-STATUS: LIVE; SYNCED: INC-018 / D020 / L25 / 2026-06-30; reconciled 2026-06-30 (W8/W9/W12 closed) -->
+<!-- DOC-STATUS: LIVE; SYNCED: INC-021 / D020 / L27 / 2026-07-08; reconciled 2026-07-08 -->
 # PROJECT_TRACKER_GYM.md
 
 Single source of truth for gym app state. Update every session.
 
 ---
 
-## Status Snapshot -- 2026-06-30 (reconciled)
+## Status Snapshot -- 2026-07-08 (reconciled)
 
 **Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app`
-**GitHub HEAD:** `a8ed51b` (INC-020 pg string coercion fix; push verified 2026-07-08)
+**GitHub HEAD:** `3cf727c` (INC-021: exercise 49 added to UPPER_PUSH_PRIMARY_ROTATION; push verified 2026-07-08)
 **CI:** Green (pre-existing test suite; Jest/Babel config cannot parse warmup-era test syntax -- confirmed pre-existing, not new)
-**Migration HEAD:** 0035 (suitable_slots fix for isolation exercises; apply in Supabase)
+**Migration HEAD:** 0035 (applied to Supabase production 2026-06-30, verified)
 **Build:** `npm run build` / Next.js / Vercel
 **Vercel project:** `gym-routine` (deepak-guptas-projects-4f1b1c8b), all 6 env vars set
 **Netlify site ID:** `f16ac1c7-3a1b-4e22-a39f-bc4855f18360` (exerciseplanning, deepakgupta5) -- idle
@@ -79,6 +79,8 @@ Single source of truth for gym app state. Update every session.
 | 2026-06-30 | migration 0035 | Fix G11: suitable_slots restricted for isolation exercises 8,19-24; purges future unperformed sessions |
 | 2026-06-30 | commit `668ddd5` | CI integration test suite: postgres:16 job, ci-pg-bootstrap.sql, 14 schema/enum/view/slots tests (GYM_APP_AUDIT.md 5c CLOSED) |
 | 2026-07-01 | commit `034d68d` | Fix 4 failing integration tests: seed exercises 1-25 via supabase/seed.sql after 0001 in CI; fix plan_exercises PK assertion; fix session_type_enum arrayContaining |
+| 2026-07-08 | commit `a8ed51b` | Fix INC-020: pg NUMERIC string coercion in v2 scheduler -- Number() added to load_increment_lb reads in load.ts:51 and index.ts:286; DB hotfix applied for session row |
+| 2026-07-08 | commit `3cf727c` | Fix INC-021: exercise 49 (Barbell OHP) added to UPPER_PUSH_PRIMARY_ROTATION catalog |
 
 ---
 
@@ -137,19 +139,10 @@ Single source of truth for gym app state. Update every session.
 ## Next Session Start
 
 **Repo:** `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App`
-**HEAD:** `a8ed51b` (INC-020: pg NUMERIC string coercion fix in v2 scheduler; push verified 2026-07-08)
+**HEAD:** `3cf727c` (INC-021: exercise 49 added to UPPER_PUSH_PRIMARY_ROTATION; push verified 2026-07-08)
 **Migration HEAD:** 0035 (applied to Supabase production 2026-06-30, verified)
 **Live URL:** `https://deepak-gym-tracker.vercel.app`
-**State:** INC-020 code fix deployed; DB hotfix SQL still required for today's (2026-07-08) session row.
-**Pending DB action:** run in Supabase SQL editor to fix today's Dumbbell Shoulder Press row:
-```sql
-UPDATE plan_exercises pe
-SET top_set_target_load_lb=25, prescribed_load=25, back_off_target_load_lb=25,
-    rationale_text='25 lb, up 5 lb (20 lb x 15 last time)'
-FROM plan_sessions ps
-WHERE pe.plan_session_id=ps.plan_session_id AND pe.exercise_id=15 AND ps.session_date=CURRENT_DATE
-RETURNING pe.plan_exercise_id, pe.top_set_target_load_lb, pe.prescribed_load, pe.back_off_target_load_lb;
-```
+**State:** Clean. INC-020 code fix deployed + DB hotfix applied (confirmed 2026-07-08). INC-021 catalog fix deployed. No pending DB actions.
 **Preview:** open Claude Code from `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App` and use `preview_start "Next.js dev"` (port 3000; `.claude/launch.json` committed).
 **Next work options:** new PRD feature.
 
