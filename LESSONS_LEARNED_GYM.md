@@ -409,3 +409,41 @@ Other `load_increment_lb` consumers in the codebase (`integration.ts:523`, `logs
 ### Universal lessons from this session
 
 1. `pg` returns PostgreSQL `NUMERIC`/`DECIMAL` columns as JS strings at runtime despite TypeScript `number` annotations. Wrap in `Number()` before arithmetic at every use site; or annotate as `number | string` to force the coercion. `prevLoad + "5"` = `"205"` is a silent corruption. (L27)
+
+---
+
+## Session: 2026-07-15
+
+### L28 -- Deliberate spec deviations must be written back into the PRD at the point of decision, not left only in code comments [UNIVERSAL]
+
+**Problem:** PRD v2.0 review found three deliberate engineering decisions that diverged from the spec -- no-repeat window (2 days vs. PRD's 7), deload session threshold (8 vs. PRD's 6), equipment rotation window (7 days vs. PRD's 14) -- each with detailed code-level comments and DECISION_LOG entries explaining the rationale. None of the three were reflected in the PRD. Additionally, the PRD's "Not yet shipped" section listed 7 items, all of which had actually shipped (some on the same date the PRD was last revised). Result: a reader of the PRD would have a materially wrong picture of how the scheduler works and what features exist.
+
+**Root cause:** The workflow treated DECISION_LOG + code comments as sufficient governance for spec deviations. The PRD was treated as a static design artifact rather than a living spec. Each fix session updated the code, the decision log, the incident log, and the tracker -- but not the PRD.
+
+**Fix pattern:**
+- When an engineering decision deliberately diverges from the PRD (changed constant, relaxed constraint, adjusted threshold), add a "Rev N (YYYY-MM-DD): changed X to Y because Z" note to the relevant PRD section in the same commit.
+- When an item from the PRD's "Not yet shipped" table is completed, move it to the "Shipped" table in the PRD commit that ships it.
+- A PRD that accurately describes the live system is infinitely more useful than one that describes what was planned.
+
+[UNIVERSAL]
+
+---
+
+### L29 -- UI override / bypass paths silently skip the same constraints the normal code path enforces [UNIVERSAL]
+
+**Problem:** The `forcedDayType` parameter in `ensureWorkoutPlanForDateV2` (used when the user presses "Change day type" in the UI) correctly bypasses the deload auto-trigger -- that is intentional. But it also silently bypasses the no-repeat rule, which PRD Section 4.2 explicitly says should still apply to forced overrides ("honor it unless it violates 3.2"). The bypass is implemented as a single `if (forcedDayType) { dayType = forcedDayType; return; }` branch that exits before any constraint checks run.
+
+**Pattern:** Override / bypass / admin / force-regen code paths routinely skip validation that the normal path enforces. This is common because the override path is written after the normal path, the developer adds the minimum to make the override work, and the spec's constraints on overrides are often buried in fine print.
+
+**Fix pattern:** For every bypass path, write a comment enumerating which normal-path constraints it bypasses (intentional) vs. which it should still enforce (unintentional gap). The distinction between "skipped intentionally" and "skipped by omission" is rarely visible without this annotation.
+
+In the specific case: after setting `dayType = forcedDayType`, the code should still load `recentExerciseIds` and log a warning if the forced type matches the most-recent session type. A soft check that doesn't block the user but flags the violation is sufficient.
+
+[UNIVERSAL]
+
+---
+
+### Universal lessons from this session
+
+1. Deliberate spec deviations must be written back into the PRD at the point of decision. Code comments + DECISION_LOG alone leave the PRD as a misleading artifact that describes a system that no longer exists. (L28)
+2. UI override / bypass paths silently drop the normal path's constraints. Annotate each bypass with which constraints are intentionally skipped vs. which are gaps, in the same commit. (L29)
