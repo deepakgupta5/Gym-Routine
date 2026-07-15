@@ -1,3 +1,4 @@
+<!-- DOC-STATUS: FROZEN; v1.2 architecture addendum 2026-02-24; superseded by PRD v2.0 for gym-side -->
 # Nutrition + Training PWA PRD v1.2 - Architecture Addendum
 
 Version: 1.2 (Addendum)

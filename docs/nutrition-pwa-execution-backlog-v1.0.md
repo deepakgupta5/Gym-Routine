@@ -1,3 +1,4 @@
+<!-- DOC-STATUS: FROZEN; v1.0 execution backlog 2026-02-21; superseded by PRD v2.0 -->
 # Nutrition + Training PWA — Final Execution-Ready Backlog
 
 **Version:** 1.0 | **Date:** February 21, 2026 | **Type:** Single Integrated PWA

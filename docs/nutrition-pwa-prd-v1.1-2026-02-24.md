@@ -1,3 +1,4 @@
+<!-- DOC-STATUS: FROZEN; shipped v1.1 spec 2026-02-24; superseded by PRD v2.0 for gym-side -->
 # Nutrition + Gym Integrated PWA PRD (Shipped, Implementation-Locked)
 
 Version: 1.1  

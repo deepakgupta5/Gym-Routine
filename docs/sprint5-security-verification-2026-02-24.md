@@ -1,3 +1,4 @@
+<!-- DOC-STATUS: FROZEN; security verification 2026-02-24; point-in-time -->
 # Sprint 5 Security Verification Report
 
 Date: 2026-02-24

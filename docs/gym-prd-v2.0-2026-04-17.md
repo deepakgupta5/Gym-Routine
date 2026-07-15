@@ -1,3 +1,4 @@
+<!-- DOC-STATUS: FROZEN; last revised 2026-07-15 (rev 6); spec for live system -- update on deliberate spec changes only -->
 # Gym App PRD v2.0 (Complete Redesign)
 
 Version: 2.0 (rev 6)

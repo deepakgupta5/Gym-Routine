@@ -1,3 +1,4 @@
+<!-- DOC-STATUS: FROZEN; generated 2026-07-15; point-in-time audit at HEAD d95aaac -->
 # Code Review + PRD v2.0 Conformance -- 2026-07-15
 
 Scope: full codebase review cross-referenced against `docs/gym-prd-v2.0-2026-04-17.md` (rev 5).

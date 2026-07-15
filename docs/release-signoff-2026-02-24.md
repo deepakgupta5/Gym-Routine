@@ -1,3 +1,4 @@
+<!-- DOC-STATUS: FROZEN; release sign-off 2026-02-24; point-in-time -->
 # Release Sign-off (2026-02-24)
 
 ## Scope Closed

@@ -1,20 +1,20 @@
-<!-- DOC-STATUS: LIVE; SYNCED: INC-021 / D020 / L27 / 2026-07-08; reconciled 2026-07-08 -->
+<!-- DOC-STATUS: LIVE; SYNCED: INC-021 / D020 / L29 / 2026-07-15; reconciled 2026-07-15 -->
 # PROJECT_TRACKER_GYM.md
 
 Single source of truth for gym app state. Update every session.
 
 ---
 
-## Status Snapshot -- 2026-07-08 (reconciled)
+## Status Snapshot -- 2026-07-15 (reconciled)
 
 **Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app`
-**GitHub HEAD:** `3cf727c` (INC-021: exercise 49 added to UPPER_PUSH_PRIMARY_ROTATION; push verified 2026-07-08)
+**GitHub HEAD:** `d95aaac` (B1 fix + PRD v2.0 rev 6 sync; push verified 2026-07-15)
 **CI:** Green (pre-existing test suite; Jest/Babel config cannot parse warmup-era test syntax -- confirmed pre-existing, not new)
-**Migration HEAD:** 0035 (applied to Supabase production 2026-06-30, verified)
+**Migration HEAD:** 0035 (applied to Supabase production 2026-06-30, verified; no new migrations this session)
 **Build:** `npm run build` / Next.js / Vercel
 **Vercel project:** `gym-routine` (deepak-guptas-projects-4f1b1c8b), all 6 env vars set
 **Netlify site ID:** `f16ac1c7-3a1b-4e22-a39f-bc4855f18360` (exerciseplanning, deepakgupta5) -- idle
-**PRD:** v2.0 rev 5 (2026-06-10)
+**PRD:** v2.0 rev 6 (2026-07-15) -- fully synced to live implementation; all "not yet shipped" items closed
 **DB state:** `user_profile.primary_lift_map.UPPER_PUSH = 16` (Machine Shoulder Press; updated 2026-06-25 via SQL)
 
 ---
@@ -81,6 +81,8 @@ Single source of truth for gym app state. Update every session.
 | 2026-07-01 | commit `034d68d` | Fix 4 failing integration tests: seed exercises 1-25 via supabase/seed.sql after 0001 in CI; fix plan_exercises PK assertion; fix session_type_enum arrayContaining |
 | 2026-07-08 | commit `a8ed51b` | Fix INC-020: pg NUMERIC string coercion in v2 scheduler -- Number() added to load_increment_lb reads in load.ts:51 and index.ts:286; DB hotfix applied for session row |
 | 2026-07-08 | commit `3cf727c` | Fix INC-021: exercise 49 (Barbell OHP) added to UPPER_PUSH_PRIMARY_ROTATION catalog |
+| 2026-07-15 | commit `51cd214` | Governance: L28-L29 lessons (PRD spec-deviation write-back, bypass-path gaps); PRD conformance review report at docs/code-review-prd-conformance-2026-07-15.md |
+| 2026-07-15 | commit `d95aaac` | B1 fix: forcedDayType now soft-checks no-repeat rule (console.warn on repeat day type); PRD v2.0 bumped to rev 6 (fully synced: 3 spec deviations documented, all shipped items moved, deployment + rationale_code corrected) |
 
 ---
 
@@ -128,23 +130,17 @@ Single source of truth for gym app state. Update every session.
 
 ## Next Session Checklist
 
-- [x] INC-015: RESOLVED -- session threshold 6->8, WEEKLY_MAX_SETS 3x, DELETE SQL clears deload sessions
-- [x] INC-016: RESOLVED -- 405 lb was stale plan_exercises data, cleared by INC-015 CASCADE DELETE
-- [x] INC-017: RESOLVED -- UPPER_PULL +17,18,28; LOWER_SQUAT +26 in constants.ts
-- [x] INC-018: RESOLVED -- equipment rotation window 14->7 days; run DELETE SQL below before next session
-- [x] G11: RESOLVED -- migration 0035 restricts suitable_slots for exercises 8,19-24
-
-**Migration 0035 applied 2026-06-30:** suitable_slots verified in Supabase -- ex 8,19 -> {secondary,accessory}; ex 20-24 -> {accessory}. Future unperformed sessions purged. No pending DB actions.
+No pending DB actions. No open incidents. All PRD items shipped.
 
 ## Next Session Start
 
 **Repo:** `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App`
-**HEAD:** `3cf727c` (INC-021: exercise 49 added to UPPER_PUSH_PRIMARY_ROTATION; push verified 2026-07-08)
-**Migration HEAD:** 0035 (applied to Supabase production 2026-06-30, verified)
+**HEAD:** `d95aaac` (B1 fix + PRD rev 6 sync; push verified 2026-07-15)
+**Migration HEAD:** 0035 (applied to Supabase production 2026-06-30, verified; no migrations pending)
 **Live URL:** `https://deepak-gym-tracker.vercel.app`
-**State:** Clean. INC-020 code fix deployed + DB hotfix applied (confirmed 2026-07-08). INC-021 catalog fix deployed. No pending DB actions.
+**State:** Clean. All PRD v2.0 features shipped. No pending DB actions. PRD rev 6 is current.
 **Preview:** open Claude Code from `/Users/deepakgupta/Vault/Claude-Code/Projects/Gym-App` and use `preview_start "Next.js dev"` (port 3000; `.claude/launch.json` committed).
-**Next work options:** new PRD feature.
+**Next work options:** new feature (rest timer deferred to v2.1; estimated 1RM tracking; or any new request).
 
 ## Open Work Queue
 
