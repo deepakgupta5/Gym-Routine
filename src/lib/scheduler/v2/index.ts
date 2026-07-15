@@ -361,6 +361,18 @@ export async function ensureWorkoutPlanForDateV2(
 
   if (forcedDayType) {
     // Caller explicitly chose a day type (UI regen) -- respect it, skip deload check.
+    // PRD Section 4.2 rule 3: honor the override unless it violates the no-repeat rule
+    // (Section 3.2). Exercise-level filtering via recentExerciseIds (loaded below) still
+    // applies, so exercise repetition is minimised. Soft-check: warn if the forced type
+    // repeats the immediately prior session's day type so the pool may be thin.
+    const recentDayTypesForCheck = await loadRecentV2DayTypes(client, userId, isoDate);
+    const lastDayType = recentDayTypesForCheck.at(-1) ?? null;
+    if (lastDayType && forcedDayType === lastDayType) {
+      console.warn(
+        `[v2 scheduler] forcedDayType=${forcedDayType} repeats the previous session type; ` +
+        `exercise-level no-repeat filter still applies but candidate pool may be thin`
+      );
+    }
     dayType = forcedDayType;
   } else {
     const [recentDayTypes, weeklyVolume, recentSessionCount] = await Promise.all([

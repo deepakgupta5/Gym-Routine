@@ -1,17 +1,19 @@
 # Gym App PRD v2.0 (Complete Redesign)
 
-Version: 2.0 (rev 5)
-Date: 2026-04-17 | rev 2: 2026-04-18 | rev 3: 2026-05-30 | rev 4: 2026-06-06 | rev 5: 2026-06-10
+Version: 2.0 (rev 6)
+Date: 2026-04-17 | rev 2: 2026-04-18 | rev 3: 2026-05-30 | rev 4: 2026-06-06 | rev 5: 2026-06-10 | rev 6: 2026-07-15
 Scope: UI, data model, scheduler, equipment
 Base: `docs/nutrition-pwa-prd-v1.1-2026-02-24.md` (shipped state)
 Replaces: gym-side contracts in v1.1 sections 3, 7. Nutrition scope in v1.1/v1.2 is unchanged.
-Status: Partially shipped. See Section 0a for current build state.
+Status: Fully shipped. See Section 0a for current build state.
 
 Rev 5 changes: P1-1 (wake lock) and P1-6 (water tracking) removed from scope. Weekly minimum sets override (Section 3.3) implemented. Migration head advanced to 0032.
 
+Rev 6 changes (2026-07-15): PRD synced to live implementation. All "Not yet shipped" items moved to Shipped. Three spec deviations documented: no-repeat window 7->2 days (Section 3.2), deload session threshold 6->8 (Section 4.5), equipment rotation window 14->7 days (Section 3.4 + 4.3). rationale_code field purpose clarified (Section 5.2). Deployment updated to Vercel primary (Section 14). Migration head advanced to 0035.
+
 ---
 
-## 0a) Current Build State (2026-06-10)
+## 0a) Current Build State (2026-07-15)
 
 ### Shipped (in production)
 
@@ -43,21 +45,26 @@ Rev 5 changes: P1-1 (wake lock) and P1-6 (water tracking) removed from scope. We
 | Nutrition error codes + date format (P2-13/14) | commit `66685ae` | `mapErrorCode()` + `isoToDmy()` in NutritionHistoryClient and NutritionTrendsClient |
 | RLS + indexes + view fix | migration 0032 | RLS on `planned_workouts` + `muscle_exposures`; `v_last_top_set_per_exercise` set_type filter; `idx_set_logs_top_set` + `idx_plan_sessions_user_date_type` |
 | Settings network safety | commit `51d923e` | `patchExercise`/`saveOverride`/`toggleDeload` bare fetches wrapped; loading state no longer sticks on network error |
-| Deployment | Netlify (`deepakgupta5`) | Not Render. CI on GitHub Actions. Vercel kept as secondary. |
+| Deployment | Vercel (`gym-routine`, deepak-guptas-projects-4f1b1c8b) | PRIMARY as of D015 (2026-06-10). Netlify (`deepakgupta5`) idle. CI on GitHub Actions. |
+| suitable_slots fix (isolation exercises) | migration 0035 | Exercises 8,19-24 restricted; future unperformed sessions purged |
+| Integration test suite | commit `668ddd5` (2026-06-30) | postgres:16 CI job; 14 schema/enum/view/slots tests; `scripts/ci-pg-bootstrap.sql` |
+| Dashboard weekly volume bars | commit `76e9888` (2026-06-10) | Section 6.3 -- MuscleVolumeCard with color zones and deficit sort |
+| /api/muscle-volume endpoint | commit `76e9888` (2026-06-10) | Section 8.1 -- GET /api/muscle-volume feeds MuscleVolumeCard |
+| /history muscle-group filter | commit `5ea9fc9` (2026-06-10) | Section 6.4 -- chip pills, `?muscle=` URL param, EXISTS subquery filter |
+| Deload auto-trigger rule | commit `535c1d3` (2026-06-10) | Section 4.5 -- `shouldAutoDeload`; threshold >= 8 sessions (see Section 4.5 note) |
+| Settings frequency override | commit `535c1d3` (2026-06-10) | Section 6.5 -- `target_sessions_per_week` picker (3/4/5/6), PATCH /api/plan/frequency |
+| Warm-up set logging | migration 0034 (2026-06-10) | Section 11.6 -- `is_warmup` flag; excluded from volume, rollup, progression |
+| Equipment rotation (week-over-week) | commit `af96cd6` (2026-06-30) | Section 3.4 -- 7-day window (see Section 3.4 note); INC-018 / D020 |
 
-### Migration HEAD: 0032
+### Migration HEAD: 0035
 
 ### Not yet shipped (from original PRD spec)
 
-| Component | Section | Notes |
-|---|---|---|
-| Dashboard weekly volume bars | Section 6.3 | Not implemented; sparklines exist but no per-muscle-group volume bars |
-| /api/muscle-volume endpoint | Section 8.1 | Not implemented; `v_weekly_muscle_volume` view exists but no public GET endpoint |
-| Settings frequency override | Section 6.5 | Not implemented (target sessions per week, default 4) |
-| Deload auto-trigger rule | Section 4.5 | Manual deload toggle exists; auto-trigger (>max weekly sets or >=6 sessions/7 days) not implemented |
-| Equipment rotation rule (week-over-week) | Section 3.4 | Per-session diversity enforced; week-over-week same-equipment exclusion not enforced |
-| /history muscle-group filter | Section 6.4 | Session-type filter exists; muscle-group filter not implemented |
-| Warm-up set logging | Section 11.6 | `is_warmup` flag not implemented |
+All items from this table are now shipped. See Shipped table above for commit references.
+
+_(Previously listed: Dashboard weekly volume bars, /api/muscle-volume endpoint, Settings frequency
+override, Deload auto-trigger rule, Equipment rotation week-over-week, /history muscle-group filter,
+Warm-up set logging -- all closed 2026-06-10 to 2026-06-30. Rev 6 moves them to the Shipped table.)_
 
 ### Removed from scope (rev 5)
 
@@ -149,9 +156,12 @@ Heaviest absolute load lands in slot 1 or 2, not later. This is universal, not u
 
 **Rev 3 (2026-05-30):** No-repeat filter extended to ALL roles, not just primary/secondary.
 
-- Within any rolling 7-day window, **no exercise of any role** (primary, secondary, accessory) may appear in two sessions.
-- Implementation: `loadRecentPrimaryExerciseIds` query in `src/lib/scheduler/v2/index.ts` no longer filters by `pe.role`; the no-repeat filter in `src/lib/scheduler/v2/select.ts` applies to all candidate pools.
-- Fallback: if the no-repeat rule would leave a slot with zero candidates, the filter is relaxed for that slot only (candidates used most recently are picked last).
+**Rev 6 (2026-07-15):** No-repeat window reduced from 7 days to **2 days** in live implementation (D009).
+
+- Within a rolling **2-day** lookback window, no exercise of any role (primary, secondary, accessory) may appear in two sessions.
+- Rationale for 2 days (not 7): the 5-day rotation means the previous push_upper session is 5 days ago. A 7-day window excluded ALL push_upper exercises on every push_upper day, causing every slot to hit the soft-exclusion fallback. The fallback kept exercises available but the -200 recency penalty was overwhelmed by high user_preference_score, so the same core exercises repeated every push_upper session. 2 days prevents same-day and back-to-back repeats while leaving the 5-days-ago pool fresh for variety. Accepted tradeoff: the same exercise may appear in two push_upper sessions separated by ~5 days.
+- Implementation: `loadRecentPrimaryExerciseIds` in `src/lib/scheduler/v2/index.ts` uses `interval '2 days'`; the no-repeat filter in `src/lib/scheduler/v2/select.ts` applies to all candidate pools.
+- Fallback: if the no-repeat rule would leave a slot with zero candidates, the filter is relaxed for that slot only (candidates used most recently are deprioritised via -200 score penalty).
 
 Original wording (superseded): "Accessories may repeat across days only if the muscle group's `muscle_exposures.hard_ready_at` has passed."
 
@@ -200,7 +210,9 @@ Exception: if day type is `full_body` (3 slots), minimum drops to 2 distinct equ
 
 **Diversity rule (per week)**: across the 5 scheduled sessions, every `equipment_type` in `{barbell, dumbbell, machine_selectorized, cable}` must appear at least twice. This prevents the scheduler collapsing into "all barbell" or "all machine" weeks.
 
-**Equipment rotation rule**: for the same muscle group, consecutive weeks rotate equipment. Example: if week 1 chest primary was `barbell bench press`, week 2 chest primary must be `dumbbell bench press` or `machine_plate_loaded chest press` or `smith_machine incline press`, not `barbell bench press` again. Enforced via `last_equipment_per_muscle_per_user` check in the scheduler.
+**Equipment rotation rule**: for the same muscle group, consecutive weeks rotate equipment. Example: if week 1 chest primary was `barbell bench press`, week 2 chest primary must be `dumbbell bench press` or `machine_plate_loaded chest press` or `smith_machine incline press`, not `barbell bench press` again. Enforced via `loadLastEquipmentByMuscle` in the scheduler.
+
+**Rev 6 note (2026-07-15):** The rotation lookback window is **7 days** in the live implementation, not 14 days. A 14-day window blocked all barbell-hamstrings exercises (RDL + Deadlift) for a full hinge cycle (~9 days) because the same day type recurs every 5 sessions (~9 days at 4 sessions/week). Reduced to 7 days (INC-018, D020, commit `af96cd6`, 2026-06-30) so barbell re-enters after one cycle. Source: `set_logs` (actually performed sets), not `plan_exercises`, so unperformed planned sessions do not block equipment choices.
 
 ---
 
@@ -233,9 +245,9 @@ Fixed slot count per day type (always 5, except `full_body` which is 3). For eac
 
 1. Filter exercise catalog to role + day type's allowed patterns.
 2. Exclude exercises with `muscle_exposures.hard_ready_at > now()` for the targeted muscle.
-3. Exclude exercises used as primary or secondary in the prior 7 days.
-4. Apply §3.4 equipment diversity constraint: if slots already filled leave only one slot to satisfy a required equipment category, restrict this slot's candidates to that category.
-5. Apply equipment rotation rule: exclude exercises whose `equipment_type` matches what was used for this `muscle_primary` in the prior 14 days.
+3. Exclude exercises used in any role in the prior **2 days** (see Section 3.2 rev 6 note for rationale).
+4. Apply Section 3.4 equipment diversity constraint: if slots already filled leave only one slot to satisfy a required equipment category, restrict this slot's candidates to that category.
+5. Apply equipment rotation rule: exclude exercises whose `equipment_type` matches what was used for this `muscle_primary` in the prior **7 days** (see Section 3.4 rev 6 note for rationale).
 6. Rank remaining by: (a) equipment category gap-fill priority per §3.4, (b) longest-ago use, (c) user preference (manual boost/demote via Settings), (d) seed-data completeness (exercises with load history ranked higher than unseeded).
 7. Pick top 1.
 
@@ -269,6 +281,8 @@ This replaces the current `getPrescriptionForRole` static map.
 
 ### 4.5 Deload rule
 If any muscle group exceeds `max weekly sets` in the prior 7 days, or the user has logged >= 6 sessions in 7 days, the next generated session is `full_body` with 3 exercises and all loads at 80% of `next_target_load`. Manual deload toggle in Settings also forces this.
+
+**Rev 6 note (2026-07-15):** The session count threshold is **>= 8** in the live implementation, not >= 6. A 4-session/week user with a rolling 7-day window spanning two calendar weeks can legitimately show 7-8 sessions at peak overlap without being overtrained. Threshold 6 was triggering deloads too aggressively. Raised to 8 (commit `36cbf17`, 2026-06-30, D018/D019). The muscle-group max-sets condition is unchanged.
 
 ---
 
@@ -304,8 +318,8 @@ On `planned_workouts`:
 - `back_off_target_load_lb numeric(6,2) not null`
 - `per_side_reps boolean not null default false`: true when `exercises.is_unilateral`; UI shows "per side" and reps field logs per-side count
 - `equipment_variant text`: which attachment was prescribed (e.g., `rope` for triceps pushdown)
-- `rationale_code text`: why this exercise was picked: `{rotation, under_exposed_muscle, user_requested, seed_only, equipment_rotation}`
-- `rationale_text text`: human-readable version for UI tooltip
+- `rationale_code text`: load-progression reason shown to the user (actual values: `progression`, `hold`, `regression`, `seed_only`, `bodyweight_seed`, `bodyweight_reps`). Note: original spec listed selection-reason codes (`rotation`, `under_exposed_muscle`, etc.); the implementation uses load-progression codes instead, which is what Section 7 describes and what users see. Selection reason is not separately stored.
+- `rationale_text text`: human-readable version displayed inline on exercise cards (e.g. "135 lb, up 5 lb (130 lb x 13 last time)")
 
 On `plan_sessions`:
 - `session_blueprint_version int not null default 2`: allows rolling forward if blueprint changes
@@ -528,13 +542,13 @@ No destructive migration. `set_logs` history preserved in full. Block-based sess
 
 ---
 
-## 14) Deployment (Rev 4, 2026-06-06)
+## 14) Deployment (Rev 6, 2026-07-15)
 
-- **Platform:** Netlify, account `deepakgupta5`
+- **Platform (PRIMARY):** Vercel, project `gym-routine` (deepak-guptas-projects-4f1b1c8b). Live: `https://deepak-gym-tracker.vercel.app`
+- **Platform (IDLE):** Netlify, site `f16ac1c7-3a1b-4e22-a39f-bc4855f18360`, account `deepakgupta5` -- idle as of D015 (2026-06-10)
 - **Repo:** `deepakgupta5/Gym-Routine` (GitHub)
 - **CI:** GitHub Actions (`.github/workflows/ci.yml`)
-- **Build:** `npm run build`, publish `.next`, plugin `@netlify/plugin-nextjs`
-- **netlify.toml:** present at repo root; overrides any UI build settings
-- **Old account (`deepak-gupta5`):** deprecated, pending deletion
+- **Build:** `npm run build` / Next.js / Vercel
+- **Old account (`deepak-gupta5`):** decommissioned 2026-06-10
 
-End of v2.0 (rev 4).
+End of v2.0 (rev 6).
