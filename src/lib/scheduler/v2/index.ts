@@ -214,15 +214,21 @@ async function loadRecentV2DayTypes(
   userId: string,
   isoDate: string
 ): Promise<V2DayType[]> {
-  // We only need the single most-recent v2 session: selectDayType uses
-  // recentV2DayTypes[length-1] exclusively to advance the rotation.
+  // Load the 2 most-recent v2 sessions so selectDayType can exclude both from
+  // the override candidate pool. With only 1 session the override could pick
+  // the type from 2 days ago (e.g. push_upper on 07-20, pull_upper on 07-21,
+  // then push_upper again on 07-22 because only pull_upper was blocked).
   //
-  // Bug fixed (2026-06-09): the previous query used ORDER BY date ASC LIMIT 10,
-  // which returns the 10 OLDEST sessions. Once the user had more than 10 v2
-  // sessions in the DB, selectDayType's "last" element was permanently the
-  // 10th-oldest session type (pull_upper from April), causing it to return
-  // hinge_lower on every call forever. Changing to DESC LIMIT 1 always reads
-  // the true most-recent session regardless of total session count.
+  // Query returns DESC (newest first); we reverse so the array is chronological
+  // and [length-1] = most recent, consistent with all callers:
+  //   - pureRotation: recentV2DayTypes[length-1] = most recent -> next in rotation
+  //   - selectDayType lastDayType: recentV2DayTypes[length-1]
+  //   - B1 check: recentDayTypesForCheck.at(-1) = most recent
+  //
+  // History (INC-012, 2026-06-09): the original query used ASC LIMIT 10,
+  // which returned the 10 OLDEST sessions; once > 10 v2 sessions existed,
+  // [length-1] was permanently the 10th-oldest type, locking rotation on
+  // hinge_lower forever. DESC LIMIT N avoids that regardless of session count.
   const res = await client.query<{ session_type: string }>(
     `select session_type::text as session_type
      from plan_sessions
@@ -230,12 +236,13 @@ async function loadRecentV2DayTypes(
        and date < $2::date
        and session_type::text = any($3::text[])
      order by date desc
-     limit 1`,
+     limit 2`,
     [userId, isoDate, V2_ROTATION]
   );
   return res.rows
     .map((r) => r.session_type as V2DayType)
-    .filter((t) => (V2_ROTATION as readonly string[]).includes(t));
+    .filter((t) => (V2_ROTATION as readonly string[]).includes(t))
+    .reverse(); // chronological: [older, newer]; [length-1] = most recent
 }
 
 // ─── Session insertion ──────────────────────────────────────────────────────────

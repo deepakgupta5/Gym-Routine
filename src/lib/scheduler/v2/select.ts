@@ -104,18 +104,20 @@ export function selectDayType(
   if (!pastWednesday && !largeDeficit) return pureRotation(recentV2DayTypes);
 
   // 4. Override: highest total-deficit day type wins; alphabetical tiebreak.
-  //    Never repeat the immediately previous day type: one session cannot close
-  //    a rolling-7-day volume deficit, so the override would loop indefinitely
-  //    (e.g. push_upper on consecutive days because chest is still under minimum).
-  //    Filter it out first; if no other deficit candidate exists, fall back to
-  //    pure rotation to keep variety.
+  //    Exclude the last 2 performed day types from override candidates: a single
+  //    session cannot close a rolling-7-day volume deficit, so without exclusion
+  //    the same day type can win multiple times in a row (e.g. push_upper on
+  //    07-20, pull_upper on 07-21, then push_upper again on 07-22 because only
+  //    pull_upper was blocked and chest still had a deficit).
+  //    If no non-recent deficit candidate exists, fall back to pure rotation.
   const lastDayType =
     recentV2DayTypes.length > 0
       ? recentV2DayTypes[recentV2DayTypes.length - 1]
       : null;
 
+  const recentDayTypeSet = new Set(recentV2DayTypes);
   const overrideCandidates = [...deficitByDayType.entries()]
-    .filter(([dt]) => dt !== lastDayType)
+    .filter(([dt]) => !recentDayTypeSet.has(dt))
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
   if (overrideCandidates.length === 0) return pureRotation(recentV2DayTypes);
