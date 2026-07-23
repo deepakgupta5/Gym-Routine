@@ -1,4 +1,4 @@
-<!-- DOC-STATUS: LIVE; SYNCED: INC-021 / D020 / L29 / 2026-07-15; reconciled 2026-07-15 -->
+<!-- DOC-STATUS: LIVE; SYNCED: INC-022 / L30 / 2026-07-23; reconciled 2026-07-15 -->
 # PROJECT_TRACKER_GYM.md
 
 Single source of truth for gym app state. Update every session.

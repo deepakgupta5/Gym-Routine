@@ -1,5 +1,30 @@
-<!-- DOC-STATUS: LOG; SYNCED: INC-021 / 2026-07-08 -->
+<!-- DOC-STATUS: LOG; SYNCED: INC-022 / 2026-07-23 -->
 # INCIDENT_LOG_GYM.md
+
+---
+
+## INC-022 -- Upper body scheduled 3 days in a row (push_upper on 07-20, pull_upper 07-21, push_upper 07-22) (2026-07-23)
+
+**Severity:** P2 (UX: wrong muscle distribution; no data loss)
+**Detected:** User reported "given upper body two days in a row"; DB confirmed push_upper -> pull_upper -> push_upper on consecutive days
+**Resolved:** Commit `413bd71`, 2026-07-23
+
+**Root cause:**
+`selectDayType()` in `select.ts` filtered override candidates against only the immediately-previous day type (1-element lookback from `loadRecentV2DayTypes LIMIT 1`). The override fires when a muscle group is >50% below its rolling-7-day minimum (large-deficit exception, day-of-week gate bypassed).
+
+Sequence on 07-22: last day type = pull_upper (07-21). `pull_upper` was excluded from override candidates. `push_upper` (07-20) was NOT excluded because LIMIT 1 only loaded pull_upper. Chest/shoulders still had a 7-day volume deficit (1 push session in 7 days), so the large-deficit override fired and push_upper won again. Result: push_upper appeared on 07-20 AND 07-22 with only pull_upper in between -- three consecutive upper body days.
+
+The pure-rotation path was never reached because the large-deficit gate fires regardless of day of week when any muscle is >50% below minimum, and chest/shoulders always are after just 1 push session in 7 days.
+
+**Fix:**
+- `index.ts` `loadRecentV2DayTypes`: LIMIT 1 -> LIMIT 2; added `.reverse()` to keep array chronological ([older, newer]) so `[length-1]` = most recent (preserves B1 check `.at(-1)` and `pureRotation` `[length-1]` conventions).
+- `select.ts` `selectDayType` step 4: filter override candidates against `new Set(recentV2DayTypes)` (last 2 day types) instead of just `lastDayType` (last 1).
+
+On the bug date (07-22), with this fix: `recentDayTypeSet = {push_upper, pull_upper}`, both excluded from override candidates, no deficit candidate remains, falls back to `pureRotation(pull_upper)` -> `squat_lower` (index 2+1=3... next in V2_ROTATION after pull_upper).
+
+No session purge needed: today's unperformed session (2026-07-23 squat_lower) is already the correct day type. The already-performed push_upper on 07-22 cannot be changed.
+
+**See also:** INC-012 (original rotation fix, DESC LIMIT 1); L12 (DESC pattern).
 
 ---
 

@@ -1,4 +1,4 @@
-<!-- DOC-STATUS: LOG; SYNCED: L29 / 2026-07-15 -->
+<!-- DOC-STATUS: LOG; SYNCED: L30 / 2026-07-23 -->
 # LESSONS_LEARNED_GYM.md
 
 ---
@@ -447,3 +447,27 @@ In the specific case: after setting `dayType = forcedDayType`, the code should s
 
 1. Deliberate spec deviations must be written back into the PRD at the point of decision. Code comments + DECISION_LOG alone leave the PRD as a misleading artifact that describes a system that no longer exists. (L28)
 2. UI override / bypass paths silently drop the normal path's constraints. Annotate each bypass with which constraints are intentionally skipped vs. which are gaps, in the same commit. (L29)
+
+---
+
+## Session: 2026-07-23
+
+### L30 -- Deficit-override day type selector needs N-session lookback, not 1-session [UNIVERSAL]
+
+**Problem:** INC-022. `selectDayType()` excluded only the immediately-previous day type from override candidates (`LIMIT 1` lookback). The large-deficit exception fires regardless of day of week when any muscle is >50% below its 7-day minimum. After push_upper -> pull_upper, chest/shoulders are still below minimum (1 push session in 7 days is not enough). On the next scheduling call, only pull_upper was blocked; push_upper (07-20) was not excluded. push_upper won the override again -> three consecutive upper body days.
+
+**Root cause formula:** `lookback_depth = 1` means only the immediately-previous type is excluded. With a large-deficit gate, every type that is NOT the immediate predecessor is a valid override candidate even if it appeared 2 sessions ago. The result is a 2-session cycling pattern: A -> B -> A -> B ... until volume is satisfied.
+
+**Fix:** Changed `LIMIT 1` to `LIMIT 2` in `loadRecentV2DayTypes` (with `.reverse()` to keep chronological order and `[length-1]` = most recent for all callers). `selectDayType` now filters override candidates against `new Set(recentV2DayTypes)` (the last 2 performed types). With push_upper and pull_upper both excluded, no deficit candidate remains and the selector falls back to `pureRotation(pull_upper)` -> `squat_lower`.
+
+**Why 2 and not more:** With a 5-day rotation (5 distinct day types), excluding the last 2 leaves 3 types as possible override candidates. Excluding more would make it harder for deficit-driven overrides to fire when genuinely needed (e.g., after a week of skipping legs). 2 is the minimum that breaks the A -> B -> A cycling pattern.
+
+**Pattern:** Any selection function that excludes "recently seen" items to prevent repeats must exclude enough history to break the shortest possible cycle. For a binary exclusion set (N=1): only direct repeats are blocked; alternating cycles pass through. For N=2: direct and 2-step cycles are blocked. The minimum lookback depth = the length of the shortest undesirable repetition cycle you want to prevent.
+
+[UNIVERSAL]
+
+---
+
+### Universal lessons from this session
+
+1. Deficit-override selectors that exclude only the immediately-previous item still permit 2-step cycling (A -> B -> A). Increase lookback depth to at least 2 to block alternating repeats. The minimum lookback = length of the shortest cycle you want to prevent. (L30)
