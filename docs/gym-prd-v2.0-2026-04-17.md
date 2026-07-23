@@ -1,8 +1,8 @@
-<!-- DOC-STATUS: FROZEN; last revised 2026-07-15 (rev 6); spec for live system -- update on deliberate spec changes only -->
+<!-- DOC-STATUS: FROZEN; last revised 2026-07-23 (rev 7); spec for live system -- update on deliberate spec changes only -->
 # Gym App PRD v2.0 (Complete Redesign)
 
-Version: 2.0 (rev 6)
-Date: 2026-04-17 | rev 2: 2026-04-18 | rev 3: 2026-05-30 | rev 4: 2026-06-06 | rev 5: 2026-06-10 | rev 6: 2026-07-15
+Version: 2.0 (rev 7)
+Date: 2026-04-17 | rev 2: 2026-04-18 | rev 3: 2026-05-30 | rev 4: 2026-06-06 | rev 5: 2026-06-10 | rev 6: 2026-07-15 | rev 7: 2026-07-23
 Scope: UI, data model, scheduler, equipment
 Base: `docs/nutrition-pwa-prd-v1.1-2026-02-24.md` (shipped state)
 Replaces: gym-side contracts in v1.1 sections 3, 7. Nutrition scope in v1.1/v1.2 is unchanged.
@@ -12,9 +12,11 @@ Rev 5 changes: P1-1 (wake lock) and P1-6 (water tracking) removed from scope. We
 
 Rev 6 changes (2026-07-15): PRD synced to live implementation. All "Not yet shipped" items moved to Shipped. Three spec deviations documented: no-repeat window 7->2 days (Section 3.2), deload session threshold 6->8 (Section 4.5), equipment rotation window 14->7 days (Section 3.4 + 4.3). rationale_code field purpose clarified (Section 5.2). Deployment updated to Vercel primary (Section 14). Migration head advanced to 0035.
 
+Rev 7 changes (2026-07-23): INC-022 fix documented. Section 4.2 updated: deficit override now excludes the last 2 performed day types (not just 1) to prevent 2-step cycling (e.g. push_upper -> pull_upper -> push_upper). Large-deficit exception also documented for the first time (was implemented but missing from spec). Commit `413bd71`.
+
 ---
 
-## 0a) Current Build State (2026-07-15)
+## 0a) Current Build State (2026-07-23)
 
 ### Shipped (in production)
 
@@ -56,6 +58,7 @@ Rev 6 changes (2026-07-15): PRD synced to live implementation. All "Not yet ship
 | Settings frequency override | commit `535c1d3` (2026-06-10) | Section 6.5 -- `target_sessions_per_week` picker (3/4/5/6), PATCH /api/plan/frequency |
 | Warm-up set logging | migration 0034 (2026-06-10) | Section 11.6 -- `is_warmup` flag; excluded from volume, rollup, progression |
 | Equipment rotation (week-over-week) | commit `af96cd6` (2026-06-30) | Section 3.4 -- 7-day window (see Section 3.4 note); INC-018 / D020 |
+| Day type deficit override: 2-session lookback | commit `413bd71` (2026-07-23) | INC-022 -- selectDayType now excludes last 2 performed day types from override candidates; prevents push_upper -> pull_upper -> push_upper cycling |
 
 ### Migration HEAD: 0035
 
@@ -237,7 +240,7 @@ Input state at generation time:
 
 Selection rule (priority order):
 
-1. If any muscle group is below min weekly sets and we are past Wednesday of the current ISO week, pick the day type that targets the deepest under-exposed group.
+1. If any muscle group is below min weekly sets, AND either (a) the date is Wednesday or later in the ISO week, OR (b) any single muscle is more than 50% below its minimum (large-deficit exception -- fires regardless of day of week, e.g. after multiple skipped days): pick the day type with the highest total accumulated deficit. Exclude the 2 most-recently performed v2 day types from candidates -- one session cannot close a rolling-7-day deficit, so without this exclusion the same type wins repeatedly and creates a cycling pattern (INC-022, commit `413bd71`, 2026-07-23). If all deficit candidates are excluded by the lookback, fall back to pure rotation (rule 2).
 2. Else, rotate through day types in a deterministic order, ensuring Section 3.2 no-repeat: `push_upper -> squat_lower -> pull_upper -> hinge_lower -> full_body -> (repeat)`.
 3. If the user requested a specific day type via UI override, honor it unless it violates 3.2.
 
