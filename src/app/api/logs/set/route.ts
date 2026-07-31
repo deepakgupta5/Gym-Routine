@@ -187,8 +187,8 @@ function validateSetValues(sets: SetLogInput[]) {
       return `${label}.set_index must be a positive integer`;
     }
 
-    if (!Number.isFinite(s.load) || s.load <= 0 || s.load > 2000) {
-      return `${label}.load must be > 0 and <= 2000`;
+    if (!Number.isFinite(s.load) || s.load < 0 || s.load > 2000) {
+      return `${label}.load must be >= 0 and <= 2000`;
     }
 
     if (!Number.isInteger(s.reps) || s.reps <= 0 || s.reps > 200) {

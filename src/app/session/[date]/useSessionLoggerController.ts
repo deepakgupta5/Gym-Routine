@@ -98,7 +98,7 @@ export function useSessionLoggerController({
         const hasLogs = loggedExerciseIds.has(ex.exercise_id);
         let prefillLoad = "";
         if (!hasLogs) {
-          if (ex.next_target_load != null && ex.next_target_load > 0) {
+          if (ex.next_target_load != null && ex.next_target_load >= 0) {
             prefillLoad = String(ex.next_target_load);
           } else if (ex.prev_load != null && ex.prev_load > 0) {
             prefillLoad = String(ex.prev_load);
@@ -166,7 +166,7 @@ export function useSessionLoggerController({
     const load = Number(form?.load);
     const reps = Number(form?.reps);
 
-    if (!Number.isFinite(load) || load <= 0 || !Number.isFinite(reps) || reps <= 0) {
+    if (!Number.isFinite(load) || load < 0 || !Number.isFinite(reps) || reps <= 0) {
       setError(`Enter valid load and reps for ${ex.name}.`);
       return;
     }
@@ -245,7 +245,7 @@ export function useSessionLoggerController({
     const load = Number(form?.load);
     const reps = Number(form?.reps);
 
-    if (!Number.isFinite(load) || load <= 0 || !Number.isFinite(reps) || reps <= 0) {
+    if (!Number.isFinite(load) || load < 0 || !Number.isFinite(reps) || reps <= 0) {
       setError(`Enter valid load and reps for ${ex.name}.`);
       return;
     }
@@ -321,7 +321,7 @@ export function useSessionLoggerController({
     const load = Number(form?.load);
     const reps = Number(form?.reps);
 
-    if (!form || !Number.isFinite(load) || load <= 0 || !Number.isFinite(reps) || reps <= 0) {
+    if (!form || !Number.isFinite(load) || load < 0 || !Number.isFinite(reps) || reps <= 0) {
       setError("Enter valid load and reps before saving.");
       return;
     }

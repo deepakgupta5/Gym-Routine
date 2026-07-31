@@ -34,9 +34,9 @@ function validateOptionalSetLogUpdate(body: SetLogUpdate) {
 
   if (
     body.load !== undefined &&
-    (typeof body.load !== "number" || !Number.isFinite(body.load) || body.load <= 0 || body.load > 2000)
+    (typeof body.load !== "number" || !Number.isFinite(body.load) || body.load < 0 || body.load > 2000)
   ) {
-    return "load must be > 0 and <= 2000";
+    return "load must be >= 0 and <= 2000";
   }
 
   if (
