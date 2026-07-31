@@ -1,4 +1,4 @@
-<!-- DOC-STATUS: LOG; SYNCED: L30 / 2026-07-23 -->
+<!-- DOC-STATUS: LOG; SYNCED: L32 / 2026-07-30 -->
 # LESSONS_LEARNED_GYM.md
 
 ---
@@ -471,3 +471,42 @@ In the specific case: after setting `dayType = forcedDayType`, the code should s
 ### Universal lessons from this session
 
 1. Deficit-override selectors that exclude only the immediately-previous item still permit 2-step cycling (A -> B -> A). Increase lookback depth to at least 2 to block alternating repeats. The minimum lookback = length of the shortest cycle you want to prevent. (L30)
+
+---
+
+## Session: 2026-07-30
+
+### L31 -- Load validation floor must be >= 0 (not > 0) for fields where zero is a valid domain value [UNIVERSAL]
+
+**Problem:** INC-023-A. `load <= 0` guard in route.ts, [id]/route.ts, and useSessionLoggerController.ts blocked bodyweight exercises (Pull-Up, etc.) with 0 added lb from being logged. Sets not saved -> `v_last_top_set_per_exercise` returned NULL -> scheduler treated exercises as new every session.
+
+**Root cause:** The `> 0` floor was intended to reject nonsensical zero-weight submissions. But bodyweight exercises legitimately have load = 0 (0 added lb). No exception for `uses_bodyweight` was made. Client and server both applied the same too-strict floor. The prefill guard `next_target_load > 0` also prevented showing "0" as the default, leaving an empty field that prompted the user to enter something -- anything they entered would be wrong for bodyweight.
+
+**Fix:** Changed `load <= 0` to `load < 0` everywhere (allow 0, block negative). Changed prefill guard to `>= 0`. Applied at all 4 client checks and both API route checks.
+
+**Pattern:** Before adding a validation floor (`> X`) to a numeric field, verify that no legitimate domain value equals X. For lift loads: 0 is invalid for weighted exercises but valid for bodyweight ("0 added lb" is meaningful). The correct invariant is `load >= 0`, not `load > 0`. This generalizes to any field where "none / empty / zero amount" is a real data point -- bodyweight exercises, rest days, 0-calorie meals, free-tier with 0 items.
+
+[UNIVERSAL]
+
+---
+
+### L32 -- View predicates must express logical intent, not structural layout [UNIVERSAL]
+
+**Problem:** INC-023-B. `v_last_top_set_per_exercise` used `set_index = 1` as a proxy for "first working set," but `set_index` is the raw position in set_logs for that exercise+session (counting warmups). After a warmup is logged (set_index=1, is_warmup=true, set_type='straight'), the first working set lands at set_index=2 and is invisible to the view. The warmup row was returned instead and its (lighter) load drove progression targets for the next session.
+
+**Root cause:** `set_index = 1` was a structural shortcut. It worked before warmup logging existed. When W13 (migration 0034) added `is_warmup` and the Log Warmup button, the shortcut broke silently -- no view update was paired with the feature. The logical field (`is_warmup`) was already on the table; the view just never used it.
+
+**Fix:** Migration 0036 -- replaced `WHERE set_index = 1` with `WHERE is_warmup = false` in the view and in the supporting partial index. Unperformed sessions purged to force regeneration with correct data.
+
+**Pattern:** When a query uses a structural proxy (positional index, array[0], column offset) to approximate a logical condition, replace it with the actual semantic field. If the field doesn't exist yet, add it. Proxies fail silently when layout changes (e.g., a new feature inserts a row before the expected position). Review all view predicates whenever a feature adds a new row type to a table.
+
+**Related:** L13 (set_index was also involved in INC-013: workingSetIndex splits warmup from working sets in the controller). INC-023-B is the view-level echo of that same missing separation.
+
+[UNIVERSAL]
+
+---
+
+### Universal lessons from this session
+
+1. Validation floors that reject zero (`> 0`) must explicitly exempt domain cases where zero is valid (bodyweight exercises). Check every `> 0` guard against the field's legal value set. (L31)
+2. View predicates should encode logical intent (`is_warmup = false`) not structural proxies (`set_index = 1`). Proxies break silently when row ordering changes. Use the semantic field. (L32)

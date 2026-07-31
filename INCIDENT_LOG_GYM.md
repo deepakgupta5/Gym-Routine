@@ -1,5 +1,29 @@
-<!-- DOC-STATUS: LOG; SYNCED: INC-022 / 2026-07-23 -->
+<!-- DOC-STATUS: LOG; SYNCED: INC-023 / 2026-07-30 -->
 # INCIDENT_LOG_GYM.md
+
+---
+
+## INC-023 -- Exercises show as "new exercise"; bodyweight sets blocked from logging (2026-07-30)
+
+**Severity:** P2 (wrong progression targets for bodyweight exercises; sets blocked; no data loss)
+**Detected:** User reported "several exercises that were done before still show up as new" and "some exercise logs are not fully captured"
+**Resolved:** Commit `cba01d0`, 2026-07-30; migration 0036
+
+**Root cause (two separate bugs):**
+
+**Bug A -- load <= 0 blocks bodyweight logging (higher severity):**
+`validateSetValues` in `route.ts` (POST) and `validateOptionalSetLogUpdate` in `[id]/route.ts` (PUT) rejected `load <= 0`, inadvertently blocking `load = 0`. The same `load <= 0` guard existed in `useSessionLoggerController.ts` for `addSet()`, `addWarmupSet()`, and `saveEdit()`. The client prefill also skipped "0" (`next_target_load > 0`). For bodyweight exercises (Pull-Up #28, etc.) with 0 added lb, every logging attempt was blocked by the UI guard or rejected by the API -- no set was saved. `v_last_top_set_per_exercise` returned NULL for those exercises -> scheduler treated them as new every session (`rationale_code = bodyweight_seed`).
+
+**Bug B -- view uses set_index = 1 but warmup takes set_index = 1 (lower severity):**
+`v_last_top_set_per_exercise` (migration 0032) filtered `WHERE set_index = 1 AND set_type IN ('top', 'straight')`. `addSet()` computes `setIndex = allLogsForEx.length + 1` (raw, includes warmups). After 1 warmup (set_index=1, set_type='straight', is_warmup=true), the first working top set lands at set_index=2. The view matched the warmup row (is_warmup not filtered) and returned the warmup load as "last top set" -> scheduler computed progression from warmup load, not working load -> too-low targets.
+
+**Fix:**
+- Bug A: Changed `load <= 0` to `load < 0` (allow 0) in: `route.ts`, `[id]/route.ts`, and `useSessionLoggerController.ts` (addSet, addWarmupSet, saveEdit). Changed prefill guard from `next_target_load > 0` to `>= 0` so bodyweight shows "0" as default.
+- Bug B: Migration 0036 -- recreated `v_last_top_set_per_exercise` with `WHERE is_warmup = false AND set_type IN ('top', 'straight')` (replacing `set_index = 1`). Replaced `idx_set_logs_top_set` partial index to match new predicate. Purged unperformed sessions >= CURRENT_DATE to force regeneration with correct view data.
+
+**Note:** Accessory exercises (set_type='accessory') are still not tracked by the view; they always show as new. Separate known gap, not in scope for INC-023.
+
+**See also:** L31 (load validation floor), L32 (view predicate vs structural proxy).
 
 ---
 

@@ -1,16 +1,16 @@
-<!-- DOC-STATUS: LIVE; SYNCED: INC-022 / L30 / 2026-07-23; reconciled 2026-07-15 -->
+<!-- DOC-STATUS: LIVE; SYNCED: INC-023 / L32 / 2026-07-30; reconciled 2026-07-15 -->
 # PROJECT_TRACKER_GYM.md
 
 Single source of truth for gym app state. Update every session.
 
 ---
 
-## Status Snapshot -- 2026-07-15 (reconciled)
+## Status Snapshot -- 2026-07-30
 
 **Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app`
-**GitHub HEAD:** `d95aaac` (B1 fix + PRD v2.0 rev 6 sync; push verified 2026-07-15)
+**GitHub HEAD:** `cba01d0` (INC-023 fix: load validation floor + top-set view warmup predicate; PRD rev 8)
 **CI:** Green (pre-existing test suite; Jest/Babel config cannot parse warmup-era test syntax -- confirmed pre-existing, not new)
-**Migration HEAD:** 0035 (applied to Supabase production 2026-06-30, verified; no new migrations this session)
+**Migration HEAD:** 0036 (fixes v_last_top_set_per_exercise + idx_set_logs_top_set; purges unperformed future sessions; PENDING apply to Supabase production -- run this migration before next session)
 **Build:** `npm run build` / Next.js / Vercel
 **Vercel project:** `gym-routine` (deepak-guptas-projects-4f1b1c8b), all 6 env vars set
 **Netlify site ID:** `f16ac1c7-3a1b-4e22-a39f-bc4855f18360` (exerciseplanning, deepakgupta5) -- idle

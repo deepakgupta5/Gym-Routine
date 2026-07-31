@@ -1,8 +1,8 @@
-<!-- DOC-STATUS: FROZEN; last revised 2026-07-23 (rev 7); spec for live system -- update on deliberate spec changes only -->
+<!-- DOC-STATUS: FROZEN; last revised 2026-07-30 (rev 8); spec for live system -- update on deliberate spec changes only -->
 # Gym App PRD v2.0 (Complete Redesign)
 
-Version: 2.0 (rev 7)
-Date: 2026-04-17 | rev 2: 2026-04-18 | rev 3: 2026-05-30 | rev 4: 2026-06-06 | rev 5: 2026-06-10 | rev 6: 2026-07-15 | rev 7: 2026-07-23
+Version: 2.0 (rev 8)
+Date: 2026-04-17 | rev 2: 2026-04-18 | rev 3: 2026-05-30 | rev 4: 2026-06-06 | rev 5: 2026-06-10 | rev 6: 2026-07-15 | rev 7: 2026-07-23 | rev 8: 2026-07-30
 Scope: UI, data model, scheduler, equipment
 Base: `docs/nutrition-pwa-prd-v1.1-2026-02-24.md` (shipped state)
 Replaces: gym-side contracts in v1.1 sections 3, 7. Nutrition scope in v1.1/v1.2 is unchanged.
@@ -13,6 +13,8 @@ Rev 5 changes: P1-1 (wake lock) and P1-6 (water tracking) removed from scope. We
 Rev 6 changes (2026-07-15): PRD synced to live implementation. All "Not yet shipped" items moved to Shipped. Three spec deviations documented: no-repeat window 7->2 days (Section 3.2), deload session threshold 6->8 (Section 4.5), equipment rotation window 14->7 days (Section 3.4 + 4.3). rationale_code field purpose clarified (Section 5.2). Deployment updated to Vercel primary (Section 14). Migration head advanced to 0035.
 
 Rev 7 changes (2026-07-23): INC-022 fix documented. Section 4.2 updated: deficit override now excludes the last 2 performed day types (not just 1) to prevent 2-step cycling (e.g. push_upper -> pull_upper -> push_upper). Large-deficit exception also documented for the first time (was implemented but missing from spec). Commit `413bd71`.
+
+Rev 8 changes (2026-07-30): INC-023 fix documented. Section 5.3 updated: `v_last_top_set_per_exercise` predicate changed from `set_index = 1` to `is_warmup = false` (was silently broken by any warmup-first logging since W13 migration 0034). Section 2.2 / 5.2 load field notes updated: `load >= 0` is valid (0 = unloaded bodyweight), not `load > 0`. Migration head advanced to 0036. Commit `cba01d0`.
 
 ---
 
@@ -59,8 +61,9 @@ Rev 7 changes (2026-07-23): INC-022 fix documented. Section 4.2 updated: deficit
 | Warm-up set logging | migration 0034 (2026-06-10) | Section 11.6 -- `is_warmup` flag; excluded from volume, rollup, progression |
 | Equipment rotation (week-over-week) | commit `af96cd6` (2026-06-30) | Section 3.4 -- 7-day window (see Section 3.4 note); INC-018 / D020 |
 | Day type deficit override: 2-session lookback | commit `413bd71` (2026-07-23) | INC-022 -- selectDayType now excludes last 2 performed day types from override candidates; prevents push_upper -> pull_upper -> push_upper cycling |
+| Load validation floor + top-set view fix | commit `cba01d0` / migration 0036 (2026-07-30) | INC-023 -- load validation changed from `> 0` to `>= 0` (bodyweight exercises); `v_last_top_set_per_exercise` predicate changed from `set_index = 1` to `is_warmup = false` so it finds the top set after a logged warmup |
 
-### Migration HEAD: 0035
+### Migration HEAD: 0036
 
 ### Not yet shipped (from original PRD spec)
 
@@ -332,7 +335,7 @@ On `plan_sessions`:
 
 `v_weekly_muscle_volume`: running 7-day set count per `muscle_primary`, per user. Used by scheduler 4.2 rule 1.
 
-`v_last_top_set_per_exercise`: most recent top set (set_logs where set_index = 1 and status = completed) per exercise, per user. Used by 4.4.
+`v_last_top_set_per_exercise`: most recent top set per exercise, per user. Used by 4.4. Predicate as of migration 0036: `set_logs where is_warmup = false and set_type IN ('top','straight')`, most recent by `performed_at`. (Rev 8 note: originally `set_index = 1`; broke when a warmup was logged first, since the warmup occupies set_index=1 and the view then returned the warmup's load instead of the working top set -- INC-023.)
 
 ### 5.4 Legacy data migration
 - Existing `set_logs` and `plan_sessions` stay untouched. History pages read from them.
