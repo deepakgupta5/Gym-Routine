@@ -10,11 +10,11 @@ Single source of truth for gym app state. Update every session.
 **Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app`
 **GitHub HEAD:** `cba01d0` (INC-023 fix: load validation floor + top-set view warmup predicate; PRD rev 8)
 **CI:** Green (pre-existing test suite; Jest/Babel config cannot parse warmup-era test syntax -- confirmed pre-existing, not new)
-**Migration HEAD:** 0036 (fixes v_last_top_set_per_exercise + idx_set_logs_top_set; purges unperformed future sessions; PENDING apply to Supabase production -- run this migration before next session)
+**Migration HEAD:** 0036 (applied to Supabase production 2026-07-30, verified via SQL Editor: pg_get_viewdef confirms `is_warmup = false` predicate; pg_indexes confirms idx_set_logs_top_set matches; unperformed-sessions purge confirmed 0 rows remaining)
 **Build:** `npm run build` / Next.js / Vercel
 **Vercel project:** `gym-routine` (deepak-guptas-projects-4f1b1c8b), all 6 env vars set
 **Netlify site ID:** `f16ac1c7-3a1b-4e22-a39f-bc4855f18360` (exerciseplanning, deepakgupta5) -- idle
-**PRD:** v2.0 rev 6 (2026-07-15) -- fully synced to live implementation; all "not yet shipped" items closed
+**PRD:** v2.0 rev 8 (2026-07-30) -- fully synced to live implementation; all "not yet shipped" items closed
 **DB state:** `user_profile.primary_lift_map.UPPER_PUSH = 16` (Machine Shoulder Press; updated 2026-06-25 via SQL)
 
 ---
