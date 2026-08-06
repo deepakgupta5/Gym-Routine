@@ -1,16 +1,16 @@
-<!-- DOC-STATUS: LIVE; SYNCED: INC-023 / L32 / 2026-07-30; reconciled 2026-07-15 -->
+<!-- DOC-STATUS: LIVE; SYNCED: INC-024 / L33 / 2026-07-31; reconciled 2026-07-15 -->
 # PROJECT_TRACKER_GYM.md
 
 Single source of truth for gym app state. Update every session.
 
 ---
 
-## Status Snapshot -- 2026-07-30
+## Status Snapshot -- 2026-07-31
 
 **Deployment:** Vercel (PRIMARY) -- `https://deepak-gym-tracker.vercel.app`
-**GitHub HEAD:** `cba01d0` (INC-023 fix: load validation floor + top-set view warmup predicate; PRD rev 8)
+**GitHub HEAD:** `4389fc5` (INC-024 fix: accessory exercises never tracked by progression view/history; PRD rev 8)
 **CI:** Green (pre-existing test suite; Jest/Babel config cannot parse warmup-era test syntax -- confirmed pre-existing, not new)
-**Migration HEAD:** 0036 (applied to Supabase production 2026-07-30, verified via SQL Editor: pg_get_viewdef confirms `is_warmup = false` predicate; pg_indexes confirms idx_set_logs_top_set matches; unperformed-sessions purge confirmed 0 rows remaining)
+**Migration HEAD:** 0037 (applied to Supabase production 2026-07-31, verified via SQL Editor: pg_get_viewdef confirms `set_type IN ('top','straight','accessory')`; pg_get_indexdef confirms idx_set_logs_top_set matches; backfill confirmed 115 accessory rows now in top_set_history; unperformed-sessions purge confirmed 0 rows remaining)
 **Build:** `npm run build` / Next.js / Vercel
 **Vercel project:** `gym-routine` (deepak-guptas-projects-4f1b1c8b), all 6 env vars set
 **Netlify site ID:** `f16ac1c7-3a1b-4e22-a39f-bc4855f18360` (exerciseplanning, deepakgupta5) -- idle
