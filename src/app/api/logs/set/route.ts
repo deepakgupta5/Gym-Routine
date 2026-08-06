@@ -55,6 +55,7 @@ type InsertedSetRow = {
   performed_at: string;
   session_id: string | null;
   set_type: AllowedSetType;
+  set_index: number;
   exercise_id: number;
   is_primary: boolean;
   is_warmup: boolean;
@@ -341,7 +342,7 @@ export async function POST(req: Request) {
          is_primary, is_secondary, is_warmup, set_type, set_index, load, reps, rpe, notes)
       values
         ${values.join(",")}
-      returning id, performed_at, session_id, set_type, exercise_id, is_primary, is_warmup, load, reps
+      returning id, performed_at, session_id, set_type, set_index, exercise_id, is_primary, is_warmup, load, reps
     `;
 
     const insertedRes = await client.query(insertSql, params);
@@ -366,13 +367,21 @@ export async function POST(req: Request) {
       await recomputeWeeklyRollup(client, userId, weekStart);
     }
 
-    // Write to top_set_history only for actual top sets, not back-off sets or warm-up sets.
-    // v2 exercises send set_type="top" for set 1 and "backoff" for sets 2-3.
-    // v1 exercises send set_type="straight" and rely on is_primary to identify
-    // top-set rows (since they don't distinguish set types).
+    // Write to top_set_history only for the set that represents this session's
+    // progression-relevant load, not every set:
+    // - v2 primary/secondary: set_type="top" for set 1 ("backoff" sets 2-3 excluded).
+    // - v1: set_type="straight" + is_primary identifies the top-set row.
+    // - v2 accessory (INC-024): all sets share set_type="accessory" (straight sets,
+    //   same load per PRD 2.2) -- use set_index=1 (first working set) as the
+    //   representative row so accessory exercises accumulate progression history
+    //   instead of showing "new exercise" every session.
     // Warm-up sets (is_warmup=true) are excluded from history and progression.
     const topRows = inserted.filter(
-      (r) => !r.is_warmup && (r.set_type === "top" || (r.set_type === "straight" && r.is_primary))
+      (r) =>
+        !r.is_warmup &&
+        (r.set_type === "top" ||
+          (r.set_type === "straight" && r.is_primary) ||
+          (r.set_type === "accessory" && r.set_index === 1))
     );
     if (topRows.length > 0) {
       const sessionMap = new Map<string, SessionLookupRow>();

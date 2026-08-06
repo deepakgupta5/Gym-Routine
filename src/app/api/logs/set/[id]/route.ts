@@ -220,8 +220,20 @@ export async function PUT(
     const biasBalance = profileRes.rows[0]?.bias_balance ?? 0;
     const blockId = profileRes.rows[0]?.block_id ?? null;
 
-    const shouldTrackHistory = !row.is_warmup && (Boolean(row.is_primary) || row.set_type === "top");
-    const wasTrackedHistory = !existing.is_warmup && (Boolean(existing.is_primary) || existing.set_type === "top");
+    // INC-024: accessory sets (set_type="accessory") never set is_primary/is_secondary
+    // and never equal set_type="top" -- without the explicit accessory branch below,
+    // editing an accessory set's first working set (set_index=1) would never track
+    // progression history, same root cause as the POST route's topRows filter.
+    const shouldTrackHistory =
+      !row.is_warmup &&
+      (Boolean(row.is_primary) ||
+        row.set_type === "top" ||
+        (row.set_type === "accessory" && row.set_index === 1));
+    const wasTrackedHistory =
+      !existing.is_warmup &&
+      (Boolean(existing.is_primary) ||
+        existing.set_type === "top" ||
+        (existing.set_type === "accessory" && existing.set_index === 1));
 
     if (shouldTrackHistory) {
       let session = null;
@@ -356,7 +368,12 @@ export async function DELETE(
       await recomputeWeeklyRollup(client, userId, weekStart);
     }
 
-    if (!existing.is_warmup && (existing.is_primary || existing.set_type === "top")) {
+    if (
+      !existing.is_warmup &&
+      (existing.is_primary ||
+        existing.set_type === "top" ||
+        (existing.set_type === "accessory" && existing.set_index === 1))
+    ) {
       await client.query("delete from top_set_history where source_set_log_id = $1", [
         id,
       ]);
