@@ -1,5 +1,30 @@
-<!-- DOC-STATUS: LOG; SYNCED: INC-023 / 2026-07-30 -->
+<!-- DOC-STATUS: LOG; SYNCED: INC-024 / 2026-07-31 -->
 # INCIDENT_LOG_GYM.md
+
+---
+
+## INC-024 -- Accessory exercises always show as "new exercise"; progression history incomplete (2026-07-31)
+
+**Severity:** P1 (affects majority of exercises in every session -- 2-3 of 5 slots per PRD 2.3 are accessory role; INC-023 fix did not resolve it)
+**Detected:** User reported the INC-023 fix did not resolve the issue: "exercise that were logged by me before keep coming back as new exercises" and "some exercise show incomplete logs despite me doing all 3 sets, they show only 1 or 2 sets as history"
+**Resolved:** Commit TBD, 2026-07-31; migration 0037
+
+**Root cause:**
+`v2SetType()` (`useSessionLoggerController.ts`) returns `set_type = "accessory"` for every set of an accessory-role exercise -- there is no top/back-off distinction for accessories (PRD 2.2: straight sets, same load across all 3). Two read/write paths never recognized `set_type = "accessory"` as a trackable set:
+
+1. `v_last_top_set_per_exercise` (migrations 0032, 0036) filtered `set_type IN ('top', 'straight')`. Accessory sets never matched, so `computeLoad()` always received `prior = undefined` for accessory exercises -- every session, forever, regardless of history -- producing `rationale_code = 'seed_only'` / "new exercise" text.
+2. The `top_set_history` insert filter in `route.ts` and `[id]/route.ts` (`set_type === 'top' || (set_type === 'straight' && is_primary)`) also never matched accessory rows, so the "Recent:" progress widget (`ExerciseCard.tsx`) always showed 0 entries for accessory exercises.
+
+This was flagged as a known-but-unfixed gap in INC-023 ("Accessory exercises are still not tracked by the view... Separate known gap, not in scope") -- it should have been scoped in given it affects the majority of exercise slots per session, not an edge case.
+
+Note: even after this fix, the "Recent:" / "Last:" display shows one representative set per past **session** (up to 3 sessions), not all 3 sets logged within the single most-recent session -- this differs from PRD Section 6.2's literal spec ("Last session: 130 lb x 11, 115 lb x 14, 115 lb x 13"). If the user's "only 1 or 2 sets as history" complaint persists after this fix for a specific exercise, it likely reflects this cross-session-vs-same-session display gap rather than a data bug -- follow up separately if so.
+
+**Fix:**
+- Migration 0037: added `'accessory'` to `v_last_top_set_per_exercise`'s `set_type` filter and to the supporting partial index; backfilled `top_set_history` for previously-untracked accessory sets (one representative row per session: earliest working, non-warmup accessory set); purged unperformed future sessions to regenerate with corrected data.
+- `route.ts` (POST): `topRows` filter now also matches `set_type === 'accessory' && set_index === 1`; added `set_index` to the insert's `RETURNING` clause and `InsertedSetRow` type.
+- `[id]/route.ts` (PUT, DELETE): `shouldTrackHistory` / `wasTrackedHistory` / delete-cleanup checks now also match `set_type === 'accessory' && set_index === 1`.
+
+**See also:** INC-023 (bodyweight load=0 + warmup view predicate -- same class of bug: a set_type/predicate not recognized by the progression view). L33.
 
 ---
 

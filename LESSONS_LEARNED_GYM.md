@@ -1,4 +1,4 @@
-<!-- DOC-STATUS: LOG; SYNCED: L32 / 2026-07-30 -->
+<!-- DOC-STATUS: LOG; SYNCED: L33 / 2026-07-31 -->
 # LESSONS_LEARNED_GYM.md
 
 ---
@@ -510,3 +510,27 @@ In the specific case: after setting `dayType = forcedDayType`, the code should s
 
 1. Validation floors that reject zero (`> 0`) must explicitly exempt domain cases where zero is valid (bodyweight exercises). Check every `> 0` guard against the field's legal value set. (L31)
 2. View predicates should encode logical intent (`is_warmup = false`) not structural proxies (`set_index = 1`). Proxies break silently when row ordering changes. Use the semantic field. (L32)
+
+---
+
+## Session: 2026-07-31
+
+### L33 -- A "known gap, out of scope" note in an incident log is a liability if the gap affects the majority case [UNIVERSAL]
+
+**Problem:** INC-024. INC-023's incident entry explicitly flagged "Accessory exercises are still not tracked by the view; they always show as new. Separate known gap, not in scope for INC-023" -- then closed the incident. But accessory-role exercises fill 2-3 of every 5 session slots (PRD Section 2.3: primary, secondary, accessory x2-3). The "known gap" was not an edge case; it was the dominant cause of the user's original complaint ("several exercises... still show up as new"). The user reported the issue as unresolved one turn after INC-023 closed.
+
+**Root cause of the scoping error:** The gap was scoped out because it looked like a separate code path (a third `set_type` value, 'accessory', not covered by the fix's `set_index`/`is_warmup` predicate change) rather than because it was actually low-impact. Severity was never explicitly estimated against "how many exercise slots does this affect" -- if it had been, 2-3 of 5 slots (40-60% of exercises) would have flagged it as P1, not a footnote.
+
+**Fix:** Migration 0037 -- added `'accessory'` to `v_last_top_set_per_exercise`'s set_type filter and to `top_set_history` capture logic in both API routes (using `set_index = 1` as the representative set per session, since accessory sets are straight sets at a uniform load per PRD 2.2). Backfilled existing accessory set_logs into top_set_history retroactively so history is correct immediately, not just going forward.
+
+**Pattern:** Before closing an incident with a "known gap, out of scope" note, explicitly estimate what fraction of the affected surface (exercises, sessions, users, rows) the gap covers. A gap scoped out because it's a "different code path" can still be the majority of real-world occurrences. When in doubt, ask: if I don't fix this now, will the user perceive the original complaint as resolved? If not, it is in scope.
+
+**Related:** INC-023 (same class of bug -- a `set_type`/predicate value unrecognized by the progression view). L32 (structural proxy vs. logical intent) is the mechanism; L33 is the scoping-discipline lesson that would have caught it a session earlier.
+
+[UNIVERSAL]
+
+---
+
+### Universal lessons from this session
+
+1. When an incident fix is scoped down and a known residual gap is deliberately left "out of scope," explicitly estimate the fraction of the affected surface that gap still covers before closing. A gap on a "different code path" can still be the majority case (INC-024: accessory role is 40-60% of exercise slots). If leaving it open would make the user perceive the original complaint as unresolved, it belongs in scope now, not in a follow-up. (L33)
