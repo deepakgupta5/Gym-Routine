@@ -165,7 +165,7 @@
 - Override only on Wednesday+. Rejected: doesn't handle multi-day skip scenarios.
 - Large-deficit threshold at 33% (1/3 below minimum). Rejected: too aggressive, overrides on minor mid-week deficits.
 
-**Status:** LOCKED. Implemented in commit `a4b5f9f`.
+**Status:** LOCKED. Implemented in commit `5278823`.
 
 ---
 
@@ -175,7 +175,7 @@
 
 **Impact:** Back-off sets were being prescribed at 10% of top-set load (e.g., 13.5 lb for a 135 lb top set) instead of 90% (121.5 lb). This would produce incorrect prescriptions for any session generated before the fix.
 
-**Status:** LOCKED. Code fixed in commit `a4b5f9f`. DB backfilled in migration 0032.
+**Status:** LOCKED. Code fixed in commit `7945056`. DB backfilled in migration 0032.
 
 ---
 
