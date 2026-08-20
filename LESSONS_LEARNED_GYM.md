@@ -1,5 +1,14 @@
-<!-- DOC-STATUS: LOG; SYNCED: L33 / 2026-07-31 -->
+<!-- DOC-STATUS: LOG; SYNCED: L33 / 2026-08-20 (real master-file sync, see correction note below) -->
 # LESSONS_LEARNED_GYM.md
+
+**CORRECTION 2026-08-20 (OTS Phase 3b item 35's own adversarial review, cross-project sweep):
+the "SYNCED: L33" header above was never accurate as an R-LESSON-SYNC claim -- this file uses
+neither of the two sync-declaration phrasings the detection tooling recognizes ("-> X master" /
+"Push to master: X"), so none of its real [UNIVERSAL] lessons (L1-L33, minus the 3
+[CAMPAIGN-SPECIFIC] entries L7/L15/L22) had actually been pushed to any `~/.claude/LEARNINGS/masters/`
+file despite 2+ months of session history. Fixed this session: all real [UNIVERSAL] lessons synced
+to `software_reliability.md` (23), `website_build.md` (5, deployment/DNS-specific), and
+`bounded_engineering_discipline.md` (2). See `INCIDENT_LOG_OTS.md` for the full finding.**
 
 ---
 
@@ -534,3 +543,21 @@ In the specific case: after setting `dayType = forcedDayType`, the code should s
 ### Universal lessons from this session
 
 1. When an incident fix is scoped down and a known residual gap is deliberately left "out of scope," explicitly estimate the fraction of the affected surface that gap still covers before closing. A gap on a "different code path" can still be the majority case (INC-024: accessory role is 40-60% of exercise slots). If leaving it open would make the user perceive the original complaint as unresolved, it belongs in scope now, not in a follow-up. (L33)
+
+---
+
+## Cross-project sync 2026-08-20 (backfill, IL-OTS-844/D-OTS-1760)
+
+**Note on IDs:** this file's own lesson headers use bare `L1`/`L2`/etc, not the `L-<VERT>-NNN`
+format `lesson_master_sync_landed_check.sh`'s ID regex expects -- so even after this backfill,
+an automated re-run of that hook against this file will NOT detect these as landed (its `ID_RE`
+requires the vertical-prefixed form). This is a disclosed, known limitation, not silently assumed
+fixed: the real sync happened (verified directly in each master file below), but the bare-ID format
+itself is a further generalization item 35 did not attempt (out of scope, no second project observed
+using this exact bare-number convention to justify building for it yet).
+
+L1, L2, L5, L6, L8, L9, L10, L11, L12, L17, L18, L19, L20, L21, L23, L25, L26, L27, L29, L30, L31, L32, L33 are all [UNIVERSAL]. Push to master: `software_reliability.md`.
+
+L3, L4, L13, L14, L16 are all [UNIVERSAL]. Push to master: `website_build.md`.
+
+L24, L28 are all [UNIVERSAL]. Push to master: `bounded_engineering_discipline.md`.
