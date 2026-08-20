@@ -1,4 +1,8 @@
 <!-- DOC-STATUS: LOG; SYNCED: INC-024 / 2026-07-31 -->
+<!-- SCHEMA: GRANDFATHERED 2026-08-20 (D-OTS-1763, Phase 3b item 28 Fix C) -- entries before this
+     date use the prose-section schema ("## ID -- title"); every entry dated 2026-08-20 or later
+     MUST use the canonical pipe-table row schema ("| Date | ID | Incident | Root cause |
+     Resolution |"). -->
 # INCIDENT_LOG_GYM.md
 
 ---

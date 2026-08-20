@@ -1,4 +1,7 @@
 <!-- DOC-STATUS: LOG; SYNCED: D020 / 2026-06-30 -->
+<!-- SCHEMA: GRANDFATHERED 2026-08-20 (D-OTS-1763, Phase 3b item 28 Fix C) -- entries before this
+     date use the prose-section schema ("## ID -- title"); every entry dated 2026-08-20 or later
+     MUST use the canonical pipe-table row schema ("| Date | ID | Decision | Rationale |"). -->
 # DECISION_LOG_GYM.md
 
 ---
